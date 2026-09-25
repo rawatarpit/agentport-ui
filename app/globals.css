@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-display: 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+html,
+body {
+  background: #0f0e0c;
+  color: #efece6;
+  -webkit-font-smoothing: antialiased;
+}
+
+@layer components {
+  .panel {
+    @apply rounded-lg border border-ink-line bg-ink-soft;
+  }
+  .label {
+    @apply font-mono text-[11px] uppercase tracking-[0.14em] text-bone-faint;
+  }
+  .prose-bone {
+    @apply text-[15px] leading-[1.7] text-bone-dim;
+  }
+  .btn {
+    @apply inline-flex items-center gap-2 rounded-md border border-ink-line px-3 py-1.5
+      font-mono text-[12px] text-bone-dim transition-colors hover:border-verdant
+      hover:text-bone;
+  }
+  .btn-primary {
+    @apply border-verdant/50 bg-verdant/10 text-bone hover:bg-verdant/20;
+  }
+  .btn-danger {
+    @apply border-rust/50 text-rust hover:bg-rust/10;
+  }
+}
+
+/* Ledger and approval tables are dense by design; keep rows aligned. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
