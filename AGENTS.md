@@ -12,7 +12,7 @@ questions, and nothing else:
 4. Does the customer still convert? (`/chat`)
 
 It is the enforcement surface of the Agent Operating Environment thesis
-(`relayforge/business-agent-environment.md`). It is not a marketing site and not
+see [`PRODUCT.md`](PRODUCT.md). It is not a marketing site and not
 a general admin panel.
 
 ## Stack

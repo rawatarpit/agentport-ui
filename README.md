@@ -102,10 +102,12 @@ enforcement path is worse than no console, because it looks trustworthy.
 
 ## Relationship to the Agent Operating Environment thesis
 
-This is the business-facing surface of the thesis in
-`relayforge/business-agent-environment.md`. The thesis argues that a business
-needs a machine-native interface so agents can discover, understand and execute
-approved actions without operating the human interface — and that the business
-keeps control of permissions and a complete audit layer. The SDK
-(`agentport-sdk`) enforces that. This console is where the merchant sees it
-working, or does not.
+This is the business-facing surface of the Agent Operating Environment thesis. The
+thesis argues that a business needs a machine-native interface so agents can
+discover, understand and execute approved actions without operating the human
+interface — and that the business keeps control of permissions and a complete audit
+layer. The SDK (`agentport-sdk`) enforces that. This console is where the merchant
+sees it working, or does not.
+
+Why this console exists, what it is allowed to claim, and what it deliberately
+leaves out are in [`PRODUCT.md`](PRODUCT.md).
