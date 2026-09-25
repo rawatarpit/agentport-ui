@@ -43,6 +43,11 @@ invariant contract — see its `AGENTS.md` — not as code to edit from here.
 
 ## Working rules
 
+- **No visual QA. Ever.** Do not run headless browsers, screenshot tools,
+  responsive-layout checks, contrast audits, or any other visual verification in
+  this repo. The maintainer does all visual review. Verify with types, build, and
+  real HTTP status codes. If a task appears to require a visual check, say so and
+  stop — do not run one.
 - **Server components by default.** Add `'use client'` only for genuine
   interaction. Four of the five pages need no client JavaScript at all.
 - **Match the existing tone.** Dense, dark, mono for identifiers and labels,
