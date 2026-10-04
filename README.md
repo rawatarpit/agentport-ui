@@ -38,6 +38,79 @@ before it becomes a rule. **It is not the enforcement point** — the AgentPort
 runtime inside the merchant's own application is, and it is the only thing
 that can say yes or no.
 
+### This dashboard is a UI. Supabase is the backend.
+
+That distinction is load-bearing, and the code drifted away from it before this
+line existed. Every count, push, sync receipt and merchant in `lib/store.ts` is
+a `new Map()` — process memory. **No route in `app/api/` touches the database.**
+So the numbers on `/analytics` and the enforcing digest on `/` are fabricated
+after a process restart, and `POST /api/analytics` accepts a push only to count
+it into RAM.
+
+`ARCHITECTURE.md` §0 in the SDK repo is canonical. Two rules follow:
+
+- **The dashboard is not the backend, and not on the data path.** A push must
+  reach the ingest edge function, never a Next.js route — otherwise every
+  merchant's ingest traffic queues behind this app's deploys and function
+  concurrency, and "is the backend up" becomes a question about a UI.
+- **The database is read server-side only**, with `SUPABASE_SERVICE_ROLE_KEY`,
+  which bypasses row-level security and must never reach a browser.
+  `next.config.mjs` fails the build if a `NEXT_PUBLIC_`-prefixed name would
+  inline it.
+
+### How logs reach us: a webhook the merchant configures
+
+We ask the merchant for **one table** (a projection — counts, digests, liveness —
+never their ledger) and for a **webhook to our ingest endpoint**, in the shape
+Razorpay, Stripe and Shopify already teach. Their side pushes; we never hold a
+credential into their database. SDK `ARCHITECTURE.md` §4a is canonical.
+
+Prefer the SDK firing it over a database trigger: a Postgres HTTP trigger puts
+our endpoint inside the merchant's commit path, which makes our latency their
+write latency.
+
+### What this dashboard can and cannot show
+
+**It can never show a merchant their own revenue.** That is the direct
+consequence of the custody boundary, not a missing feature, and the answer it
+gives is *"amounts live in your ledger, not ours"* — `agent-port ledger` reads
+those, with `evaluated`, `configHash` and `rule` on every row.
+
+The rule is one line: **personal data goes to the merchant's own backend and
+never reaches us.** Parameters, amounts, instruments, customer PII, free text.
+Not aggregated on the way here, not hashed, not "just the first four."
+Everything else — capability, kind, assurance, count, window, rule, reason, set
+sizes, `rowDigest` — comes to Supabase.
+
+The one payment-adjacent question we accept is conversion, as a boolean per
+capability per window:
+
+```text
+orders.create     succeeded 47   failed 3   window 2026-W41
+```
+
+Not `₹4,999 at 10:42:07` — that is joinable against the merchant's own payment
+processor, and it makes us a party to the transaction. Normative form:
+`agentport-sdk/dashboard_runtime_integration.md` §7.
+
+### Three addresses, three owners
+
+| Address | Owner | Read by |
+| --- | --- | --- |
+| manifest `baseUrl` — the merchant's public runtime endpoint | **the merchant** | external agents |
+| ingest endpoint — config, heartbeat, analytics | **us** | the runtime, outbound only |
+| dashboard origin — login, authoring, panel | **us** | the browser |
+
+The runtime is configured with exactly one of these — ours. It is never told the
+first, because it *is* that address.
+
+> **Known bug.** `lib/agentport.ts` passes `NEXT_PUBLIC_AGENTPORT_BASE_URL` into
+> `new AgentPort({ baseUrl })`, which `manifest()` publishes as the agent-facing
+> execution endpoint. So the manifest currently advertises **this dashboard** to
+> every external assistant — correct only because the demo runs the SDK
+> in-process here. Fix: make the manifest's `baseUrl` a merchant setting, and
+> give the snippet its own dashboard-origin variable. See SDK `ARCHITECTURE.md` §0.
+
 ## The screens
 
 | Route | Question | Verb | State |
