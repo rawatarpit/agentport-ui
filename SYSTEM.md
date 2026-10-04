@@ -187,6 +187,22 @@ Agent-facing, not human-facing: `GET /.well-known/agent.json` (advisory,
 unauthenticated by design), `POST /.well-known/agent/invoke` (verifies the
 token — never trusts the manifest).
 
+Dashboard APIs (browser ↔ dashboard; the runtime never calls these in
+production — it talks to Supabase directly):
+
+| Endpoint | Purpose | State |
+|---|---|---|
+| `POST /api/signup` · `GET/PUT /api/me` | our account, current merchant, runtime URL setting | working, demo tenant until magic-link sessions land |
+| `GET/PUT /api/drafts/:section` | per-tenant drafts (`setup`, `capabilities`, `rules`), validated at save | working |
+| `GET/POST /api/golive` | summary + typed-confirm publish → signed version + digest | working |
+| `GET /api/config` | signed live config for the tenant snippet, or 404 `not deployed` | working |
+| `POST /api/sync` | signed policy receiver: HMAC, fresh timestamp, push-id dedupe, kill-switch refused | dev-only — 503 in production |
+| `POST /api/analytics` | digest-verified counts + runtime heartbeat | dev-only — 503 in production |
+| `GET /api/connect` | front-door steps as computed state | working |
+
+Every refusal carries a machine-readable `reason`. Drafts never deploy;
+publishing signs a version; only the runtime heartbeat turns it live on screen.
+
 ### The honesty defect
 
 **`lib/store.ts` is six `new Map()`s in process memory. No route touches the

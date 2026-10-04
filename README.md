@@ -158,60 +158,8 @@ The enforcing panel reports only what the runtime pushed — digest plus age —
 and says **unknown** when the assertion is missing or stale. It never computes
 a digest from a draft.
 
-## What the enforcement path actually does
-
-Verified over real HTTP against the policy configured in `lib/agentport.ts`:
-
-```bash
-npm run build && npm run start
-```
-
-**No credential is refused silently, and none is trusted blindly.** The route
-delegates to `verifyIdentity` (server-only): a missing or unverifiable
-credential produces a *recorded* 403 with a named reason, never a 500 and
-never an allow.
-
-```bash
-curl -X POST localhost:3000/.well-known/agent/invoke \
-  -H 'content-type: application/json' \
-  -d '{"capability":"checkInventory","input":{"sku":"EX-140"}}'
-# 403 {"status":"denied","reason":"identity_expired",...} — and the denial is on the ledger
-```
-
-A credential the business issued gets the engine's real answer: `200` for an
-allowed call, `202` with `pending_approval` for a held write (never an order
-id or charge confirmation), `403` with a machine-readable reason for a
-refusal. An agent that cannot tell why it was refused will either retry
-forever or route around the control, so a generic refusal is treated as a
-bug rather than a style choice.
-
-### Identity is verified, never self-asserted
-
-`app/.well-known/agent/invoke/route.ts` calls `verifyIdentity()` and hands the
-result straight to `invoke`. A bad credential yields an `unverified` identity
-with no scopes, which the engine refuses with a named reason. The verification
-detail is logged server-side and never returned — a response saying which half
-of a forgery was wrong teaches an attacker how to fix it.
-
-`AGENTPORT_SIGNING_SECRET` and any database keys are server-only and never
-carry a `NEXT_PUBLIC_` prefix — the client build fails if one is set that way
-(see `next.config.mjs`). No token is minted and no approval is granted from
-the browser; both stay in the CLI.
-
-## APIs
-
-| Endpoint | Purpose | State |
-|---|---|---|
-| `POST /api/signup` · `GET /api/me` | our account + current merchant | working, demo tenant until magic-link sessions land |
-| `GET/PUT /api/drafts/:section` | per-tenant drafts (`setup`, `capabilities`, `rules`), validated at save | working |
-| `GET/POST /api/golive` | summary + typed-confirm publish → signed version + digest | working |
-| `GET /api/config` | signed live config for the tenant snippet, or 404 `not deployed` | working |
-| `POST /api/sync` | signed policy receiver: HMAC, fresh timestamp, push-id dedupe, kill-switch refused | dev-only — production sync is backend-to-runtime; 503 in production |
-| `POST /api/analytics` | digest-verified counts + runtime heartbeat (the panel's only writer) | dev-only — production ingest is the Supabase edge function; 503 in production |
-| `GET /api/connect` | front-door steps as computed state | working |
-
-Every refusal carries a machine-readable `reason`. Drafts never deploy;
-publishing signs a version; only the runtime heartbeat turns it live on screen.
+Enforcement internals, API contracts, and the Supabase backend live in
+[`SYSTEM.md`](SYSTEM.md) — this file is the dashboard only.
 
 ## Why the chat page refuses to finish an order
 
