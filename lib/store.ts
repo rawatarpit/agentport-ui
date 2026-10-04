@@ -21,6 +21,8 @@ export type Merchant = {
   id: string
   email: string
   businessName: string
+  /** Merchant's public runtime endpoint — the manifest's baseUrl. Null until set. */
+  websiteUrl: string | null
   createdAt: string
 }
 
@@ -94,9 +96,34 @@ export function createMerchant(email: string, businessName: string): Merchant {
     id: `mer_${Math.random().toString(36).slice(2, 10)}`,
     email: email.trim(),
     businessName: businessName.trim(),
+    websiteUrl: null,
     createdAt: new Date().toISOString(),
   }
   merchants.set(resolveTenant(), m)
+  return m
+}
+
+/** Normalise a merchant runtime URL or refuse it with a reason. */
+export function normaliseWebsiteUrl(v: unknown): { ok: true; url: string } | { ok: false; reason: string } {
+  if (typeof v !== 'string' || v.trim().length === 0) {
+    return { ok: false, reason: 'Give the public https:// address your runtime serves.' }
+  }
+  let u: URL
+  try {
+    u = new URL(v.trim())
+  } catch {
+    return { ok: false, reason: 'That is not a URL — it needs a scheme and a host, e.g. https://shop.example.' }
+  }
+  if (u.protocol !== 'https:' && u.hostname !== 'localhost') {
+    return { ok: false, reason: 'The runtime endpoint must be https:// (localhost allowed for development only).' }
+  }
+  return { ok: true, url: u.toString().replace(/\/$/, '') }
+}
+
+export function setWebsiteUrl(tenantId: string, url: string): Merchant | null {
+  const m = merchants.get(tenantId)
+  if (!m) return null
+  m.websiteUrl = url
   return m
 }
 

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { EnforcingPanel } from '@/components/enforcing-panel'
 import { SignupForm } from '@/components/signup-form'
+import { WebsiteForm } from '@/components/website-form'
 
 type Step = { n: string; title: string; body: string; state: 'missing' | 'done'; href?: string }
 
@@ -19,6 +20,7 @@ export default function ConnectPage() {
   const [steps, setSteps] = useState<Step[] | null>(null)
   const [failed, setFailed] = useState(false)
   const [showSignup, setShowSignup] = useState(false)
+  const [websiteUrl, setWebsiteUrl] = useState<string | null | undefined>(undefined)
 
   const load = useCallback(async () => {
     try {
@@ -29,6 +31,13 @@ export default function ConnectPage() {
       setFailed(false)
     } catch {
       setFailed(true)
+    }
+    try {
+      const me = await fetch('/api/me')
+      const mbody = (await me.json()) as { status: string; merchant?: { websiteUrl?: string | null } }
+      setWebsiteUrl(mbody.status === 'ok' ? (mbody.merchant?.websiteUrl ?? null) : null)
+    } catch {
+      setWebsiteUrl(null)
     }
   }, [])
 
@@ -65,6 +74,13 @@ export default function ConnectPage() {
             void load()
           }}
         />
+      ) : null}
+
+      {step1?.state === 'done' && websiteUrl === null ? (
+        <WebsiteForm current={null} onDone={() => void load()} />
+      ) : null}
+      {step1?.state === 'done' && typeof websiteUrl === 'string' ? (
+        <WebsiteForm current={websiteUrl} onDone={() => void load()} />
       ) : null}
 
       {failed ? (

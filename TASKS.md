@@ -28,7 +28,7 @@ architecture exists to prevent.
 | # | Task | State |
 | --- | --- | --- |
 | 1.1 | Signup + tenant record | **demo** — `POST /api/signup` writes one merchant to `lib/store.ts` (process RAM). No credential is issued and no session starts; Supabase Auth magic links are **not built** |
-| 1.2 | Website URL onboarding | **not built** — `/setup` asks order values, never the merchant's site address; the manifest `baseUrl` is still the dashboard origin (see README known bug) |
+| 1.2 | Website URL onboarding | **done** — `PUT /api/me` stores `websiteUrl` (https only, localhost for dev); the manifest advertises it, with an honest fallback note until set |
 | 1.3 | GitHub App OAuth — selected repositories, minimum scopes | **blocked** — needs merchant-owned App ID, secret, webhook secret |
 | 1.4 | Sync payload type that **cannot** express the kill switch | **done** — `SyncPayload` in `lib/enforcing.ts` is `Omit<Policy, 'emergencyKillSwitch'>` |
 | 1.5 | Repository selection → branch `agentport/install` → PR | **not built** |
