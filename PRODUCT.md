@@ -1,4 +1,4 @@
-# AgentPort Cloud — product definition
+# AgentPort Dashboard — product definition
 
 Why this product exists, what it is allowed to claim, and what it deliberately
 does not do.
@@ -19,15 +19,17 @@ and later comes back to see whether it worked.
 
 ## Where this sits
 
-**This repo is the hosted product.** An earlier version of this document described
-three things: a runtime, a cloud, and a console. The third was discovered on disk
-rather than derived from the merchant flow, and the split created a question no
-merchant can answer — *which one do I look at?*
+**This repo is the dashboard UI.** There are only two things: the runtime
+(the SDK, which decides, inside the merchant's own app) and this dashboard
+(which authors, syncs, and reports, and never decides). An earlier version of
+this document described a third thing — a "cloud" beside the "console" — that
+was discovered on disk rather than derived from the merchant flow, and the
+split created a question no merchant can answer — *which one do I look at?*
 
 | | Authors | Decides | Runs in |
 | --- | --- | --- | --- |
 | **Runtime** (`../agentport-sdk`) | no | **yes, synchronously** | the merchant's app |
-| **This repo** | yes | **never** | our infrastructure |
+| **This dashboard** (this repo) | yes | **never** | our infrastructure |
 
 The distinction that matters is not *which product* but **whose infrastructure it
 runs on**, and that applies only to the runtime.
@@ -302,10 +304,10 @@ whose generated code has not been deployed. Same class of error, same cause.
   `Omit<…, 'emergencyKillSwitch'>` so a swap cannot re-enable what a human turned
   off.
 - **A hosted enforcement path.** Nothing in this repo may become a dependency of
-  the authorization decision, and nothing it produces may hold session state.
-  This is the third row of the three-role table in `../agentport-sdk/AGENTS.md`
-  invariant 9, and it is the reason the Cloud product is specified as *never
-  decides* rather than as *decides, slowly*.
+   the authorization decision, and nothing it produces may hold session state.
+   This is the dashboard half of the two-thing contract in `../agentport-sdk/AGENTS.md`
+   invariant 9, and it is the reason the dashboard is specified as *never
+   decides* rather than as *decides, slowly*.
 - **Payment credentials.** The console never sees, stores, or forwards a gateway
   key. The merchant's backend mints payment links with their own key and the
   merchant's webhook confirms them. Not a later task — a design constraint.
@@ -387,7 +389,7 @@ guarantee is going unclaimed.
 - [`../agentport-sdk/docs/PRODUCT-RUNTIME.md`](../agentport-sdk/docs/PRODUCT-RUNTIME.md)
   — the enforcement primitive: what the CLI and SDK do, and the gaps
 - [`../agentport-sdk/docs/PRODUCT-CLOUD.md`](../agentport-sdk/docs/PRODUCT-CLOUD.md)
-  — the hosted control plane, unbuilt, and why it may never decide
+  — the hosted dashboard (this repo): the front door, and why it may never decide
 - [`../agentport-sdk/PRODUCT.md`](../agentport-sdk/PRODUCT.md) — the product this
   console is evidence for, and the decision this reversal came from
 - [`TASKS.md`](./TASKS.md) — every task, ordered by the merchant's path

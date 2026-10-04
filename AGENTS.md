@@ -1,14 +1,13 @@
-# AgentPort Cloud — the hosted product
+# AgentPort Dashboard — the hosted UI
 
 Not the enforcement point. Never the enforcement point.
 
 ## What this repository is
 
-**This repo is the hosted product.** An earlier version of this file described
-three things — a runtime, a "cloud," and a "console." The third was discovered on
-disk rather than derived from the merchant flow, and the split created a question
-the merchant cannot answer: *which one do I look at?* There is one dashboard, one
-tenant login, and one set of capabilities.
+**This repo is the dashboard UI.** There are only two things: the runtime
+(the SDK and CLI, running inside the merchant's own app, which decides) and
+this dashboard (authoring, sync, analytics — which never decides). There is
+one dashboard, one tenant login, and one set of capabilities.
 
 A merchant arrives here with a GitHub account and no repository. They authorise the
 App, review a pull request, pick which capabilities to keep, and sync it to their
@@ -27,7 +26,7 @@ and `agentport-ui`. Do not rename them as a side effect of another change.
 The distinction that matters is not *which product* but **whose infrastructure it
 runs on**, and that applies only to the runtime.
 
-The three-role table that governs all of it lives in `../agentport-sdk/AGENTS.md`
+The two-thing contract that governs all of it lives in `../agentport-sdk/AGENTS.md`
 invariant 9 and in [`../agentport-sdk/docs/PRODUCT-CLOUD.md`](../agentport-sdk/docs/PRODUCT-CLOUD.md).
 It spans the two; it is meaningless in one of them.
 
@@ -272,8 +271,9 @@ npm run build          # the generated capability file must typecheck against th
   that reads like a control is the same failure as `UserDelegation.scope` in the
   SDK: documented, and enforcing nothing.
 - Importing a ledger adapter from the package root. See invariant 14.
-- Restating the split as "the console and the cloud." **This repo is the cloud.**
-  There are two things: this, and the runtime.
+- Restating the split as "the console and the cloud." There are two things:
+  the runtime and this dashboard. **This repo is the dashboard UI.**
+  There is no third thing.
 - Treating a draft as an answer this repo can act on. The runtime decides;
   see `TASKS.md` Phase 3.
 - Describing the "enforcing" state from a draft, a local file, or a cached value

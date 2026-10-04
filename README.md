@@ -30,18 +30,18 @@ and `agentport-ui`. See the naming section in
 
 ## Where this sits
 
-Three things are called AgentPort, and this is the third:
+Two things are called AgentPort: the runtime and this dashboard.
 
 | | Authors | Decides | Runs in |
 | --- | --- | --- | --- |
 | **Runtime** (`../agentport-sdk`) | no | **yes, synchronously** | the merchant's app |
-| **Cloud** — not built | yes | **never** | our infrastructure |
-| **This console** | yes | **never** | **the merchant's app** |
+| **This dashboard** (this repo) | yes | **never** | our infrastructure |
 
-This console does the Cloud's authoring half without any of its hosting, so
-nothing a merchant types passes through a machine we operate before it becomes a
-rule. **It is not the enforcement point** — the AgentPort runtime inside the
-merchant's own application is, and it is the only thing that can say yes or no.
+This dashboard does the authoring, sync, and analytics half; the runtime does
+the deciding. Nothing a merchant types passes through a machine we operate
+before it becomes a rule. **It is not the enforcement point** — the AgentPort
+runtime inside the merchant's own application is, and it is the only thing
+that can say yes or no.
 See [`../agentport-sdk/docs/PRODUCT-CLOUD.md`](../agentport-sdk/docs/PRODUCT-CLOUD.md).
 
 ## The screens
@@ -221,7 +221,7 @@ merchant sets it and where they see it working, or does not.
 - [`../agentport-sdk/docs/PRODUCT-CLOUD.md`](../agentport-sdk/docs/PRODUCT-CLOUD.md)
   — the hosted control plane, unbuilt, and why it may never decide
 - [`../agentport-sdk/AGENTS.md`](../agentport-sdk/AGENTS.md) — the invariants this
-  console inherits, and the three-role table both products sit inside
+  dashboard inherits, and the two-thing contract both sides sit inside
 - [`../agentport-sdk/PRODUCT.md`](../agentport-sdk/PRODUCT.md) — the product this
   console is evidence for
 - [`TASKS.md`](./TASKS.md) — every task, ordered by the merchant's path
