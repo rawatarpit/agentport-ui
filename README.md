@@ -206,8 +206,8 @@ the browser; both stay in the CLI.
 | `GET/PUT /api/drafts/:section` | per-tenant drafts (`setup`, `capabilities`, `rules`), validated at save | working |
 | `GET/POST /api/golive` | summary + typed-confirm publish → signed version + digest | working |
 | `GET /api/config` | signed live config for the tenant snippet, or 404 `not deployed` | working |
-| `POST /api/sync` | signed policy receiver: HMAC, fresh timestamp, push-id dedupe, kill-switch refused | working, receipts only — applying is a runtime restart |
-| `POST /api/analytics` | digest-verified counts + runtime heartbeat (the panel's only writer) | working |
+| `POST /api/sync` | signed policy receiver: HMAC, fresh timestamp, push-id dedupe, kill-switch refused | dev-only — production sync is backend-to-runtime; 503 in production |
+| `POST /api/analytics` | digest-verified counts + runtime heartbeat (the panel's only writer) | dev-only — production ingest is the Supabase edge function; 503 in production |
 | `GET /api/connect` | front-door steps as computed state | working |
 
 Every refusal carries a machine-readable `reason`. Drafts never deploy;

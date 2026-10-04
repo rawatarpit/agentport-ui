@@ -21,8 +21,17 @@ const REPLAY_WINDOW_MS = 5 * 60_000
  * Accepted pushes are recorded as receipts. Applying them is a runtime
  * restart from the signed artifact, not something this endpoint does by
  * side effect.
+ *
+ * DEVELOPMENT ONLY. Production sync is backend → runtime over the artifact
+ * channel (TASKS.md §9 R1); nothing pushes policy through a Next.js route.
  */
 export async function POST(req: Request) {
+  if (process.env.NODE_ENV === 'production') {
+    return Response.json(
+      { status: 'error', reason: 'Policy sync runs backend-to-runtime over the artifact channel, not through this app.' },
+      { status: 503 },
+    )
+  }
   const secret = process.env.AGENTPORT_SIGNING_SECRET
   if (!secret) {
     return Response.json(

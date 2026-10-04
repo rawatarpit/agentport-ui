@@ -12,15 +12,19 @@ async function sha256Hex(text: string): Promise<string> {
 /**
  * POST /api/analytics — counts in, rows never.
  *
- * Accepts the SDK's `AnalyticsPush` envelope and verifies `payloadSha256`
- * against the projection bytes before counting anything — a push that fails
- * its own digest is refused, not stored. Events collapse to counts keyed by
- * (capability, rule, kind); caller metrics are acknowledged, not kept. An
- * optional heartbeat (`configHash` + `pushedAt`) moves the enforcing panel:
- * it is the only writer of the runtime assertion the panel renders, which is
- * what keeps a dashboard-derived digest impossible.
+ * DEVELOPMENT ONLY. In production the runtime pushes to the Supabase ingest
+ * edge function directly (SYSTEM.md §8) — never through a Next.js route, so
+ * merchant push traffic never queues behind this app's deploys. This endpoint
+ * exists so the UI is exercisable without the backend; it refuses in
+ * production with the address of the real one.
  */
 export async function POST(req: Request) {
+  if (process.env.NODE_ENV === 'production') {
+    return Response.json(
+      { status: 'error', reason: 'Analytics ingest lives in Supabase, not here. The runtime pushes to the ingest edge function directly.' },
+      { status: 503 },
+    )
+  }
   const tenantId = resolveTenant()
   let body: { push?: unknown; configHash?: unknown; pushedAt?: unknown }
   try {
