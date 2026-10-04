@@ -4,18 +4,16 @@ import { compileLive, digestFor, goliveStatus } from '@/lib/golive'
 export const dynamic = 'force-dynamic'
 
 /**
- * Go-live — the signature ceremony.
+ * Go-live — publishing, without a dashboard approval gate.
  *
- * GET shows the plain-language summary of what publishing would enact, next
- * to the currently live version (or an explicit null: not deployed is a
- * value, and the panel already renders it as one).
- *
- * POST publishes, and only when three things hold: the typed confirmation is
- * exactly the merchant's business name, `fromDigest` matches what is live
- * (or "none" on first publish — no silent overwrite of a publish that landed
- * since the summary was read), and a signing secret exists to sign with.
- * The kill switch rides in the live row at its default (off) and can never
- * enter a sync payload — see lib/enforcing.ts.
+ * TASKS.md 4.3 is decided: the merchant is the sole authority over their own
+ * money, and editing is free — **sync is the act of publishing.** There is no
+ * typed confirmation here because the signature lives where the merchant
+ * already exercises control: the PR merge (or the typed kill-switch flip for
+ * the one control that must stay local). What this endpoint keeps is the
+ * concurrency guard: `fromDigest` must match what is live (or "none" on
+ * first publish), so nobody publishes over a version they never read.
+ * Publishing signs the config; only the runtime heartbeat turns it live.
  */
 export async function GET() {
   const tenantId = resolveTenant()
@@ -33,17 +31,11 @@ export async function POST(req: Request) {
   if (!merchant) {
     return Response.json({ status: 'error', reason: 'No account yet — POST /api/signup first.' }, { status: 409 })
   }
-  let body: { confirm?: unknown; fromDigest?: unknown }
+  let body: { fromDigest?: unknown }
   try {
     body = await req.json()
   } catch {
     return Response.json({ status: 'error', reason: 'Body must be JSON.' }, { status: 400 })
-  }
-  if (typeof body.confirm !== 'string' || body.confirm.trim() !== merchant.businessName) {
-    return Response.json(
-      { status: 'error', reason: `Type your business name ("${merchant.businessName}") to confirm — nothing publishes on a guess.` },
-      { status: 403 },
-    )
   }
   const compiled = compileLive(tenantId)
   if (!compiled.ok) {

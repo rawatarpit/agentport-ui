@@ -1,4 +1,5 @@
 import { Badge } from '@/components/stat'
+import { KillSwitchPanel } from '@/components/kill-switch-panel'
 import { agent, policy } from '@/lib/agentport'
 
 export const dynamic = 'force-dynamic'
@@ -131,6 +132,8 @@ export default function PoliciesPage() {
           </div>
         </dl>
       </div>
+
+      <KillSwitchPanel />
     </div>
   )
 }

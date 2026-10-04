@@ -73,7 +73,7 @@ must never imply otherwise.
 | 4.1 | Rules editor — refusals, holds, caps, with save-time validation | **done** |
 | 4.2 | Read-only policy view explaining why each rule sits where it does | **done** |
 | 4.3 | **No approval gate on policy changes** | **decided** — the merchant is the sole authority over their own money, and setup already asks them to confirm each piece. Edit freely; **Sync is the act of publishing.** |
-| 4.4 | Kill switch UI, monotonic locally | **not built** |
+| 4.4 | Kill switch UI, monotonic locally | **done (dashboard half)** — `POST /api/kill-switch` flips the live row on a typed business name, both directions; panel on `/policies`. Runtime-local monotonicity (surviving restarts/rollbacks) is the runtime's job |
 | 4.5 | Sync payload replaces policy wholesale | **done** (type only) |
 
 **Do not confuse 4.3 with runtime approval.** A capability's `requiresApproval`
@@ -109,8 +109,8 @@ would inline it.
 | 6.1 | Four questions, then one line — the end state is a command they paste | **done** |
 | 6.2 | `/policies` merchant-language rules editor | **partial** |
 | 6.3 | Chat page demonstrates governed conversion | **done** |
-| 6.4 | Log stream panel: projection DDL, webhook URL + secret, SDK-vs-trigger, delivery receipts | **not built** |
-| 6.5 | Test-event button — one round trip, shown | **not built** |
+| 6.4 | Log stream panel: projection DDL, webhook URL + secret, SDK-vs-trigger, delivery receipts | **partial** — panel shows the ingest endpoint, key state, and delivery state honestly; DDL (B4) and the receiver (B1/B5) are not built |
+| 6.5 | Test-event button — one round trip, shown | **done** — `POST /api/test-event`, dev-only, on `/connect` |
 
 **6.4:** we ask the merchant for **one projection table** (counts, digests,
 liveness — never their ledger) and for **a webhook to our ingest endpoint**,

@@ -4,13 +4,16 @@ import { useCallback, useEffect, useState } from 'react'
 import { Badge } from '@/components/stat'
 
 /**
- * The signature ceremony, on the rules screen where the draft lives.
+ * Publishing, on the rules screen where the draft lives.
  *
- * Reads the summary (what publishing would enact) next to the live version,
- * and publishes only on an exact typed business name plus a fresh fromDigest.
- * A 409 means someone published since the summary was read — the confirm
- * signs what was seen, so it must be read again. Nothing here is verdant
- * until the runtime reports the digest back.
+ * Shows the plain-language summary of what publishing would enact next to
+ * the live version — review, then publish freely. There is deliberately no
+ * approval gate here (TASKS.md 4.3): the merchant is the sole authority over
+ * their own money, and sync is the act of publishing. The signature lives in
+ * the PR merge, not in this button. What the button keeps is the concurrency
+ * guard: it publishes only over the digest it just read, so a version that
+ * landed since is never silently overwritten — a 409 sends you back to read.
+ * Nothing here is verdant until the runtime reports the digest back.
  */
 
 type Status = {
@@ -22,7 +25,6 @@ type Status = {
 
 export function GolivePanel() {
   const [s, setS] = useState<Status | null>(null)
-  const [confirm, setConfirm] = useState('')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
@@ -53,12 +55,11 @@ export function GolivePanel() {
       const res = await fetch('/api/golive', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ confirm, fromDigest: s.live?.digest ?? 'none' }),
+        body: JSON.stringify({ fromDigest: s.live?.digest ?? 'none' }),
       })
       const body = (await res.json()) as { status: string; reason?: string; version?: number; digest?: string }
       if (body.status !== 'ok') throw new Error(body.reason ?? 'Publish refused.')
       setMsg(`Live at version ${body.version}, digest ${body.digest?.slice(0, 12)}. Your runtime picks it up from here.`)
-      setConfirm('')
       await load()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Publish refused.')
@@ -84,7 +85,7 @@ export function GolivePanel() {
         <p className="text-[13px] text-bone-faint">Reading publish state…</p>
       ) : !s.businessName ? (
         <p className="text-[13px] leading-relaxed text-bone-dim">
-          No account yet — create one on the <a className="text-bone underline" href="/connect">connect screen</a>, then come back. Publishing signs as your business.
+          No account yet — create one on the <a className="text-bone underline" href="/connect">connect screen</a>, then come back.
         </p>
       ) : s.draft ? (
         <>
@@ -93,22 +94,11 @@ export function GolivePanel() {
               <li key={line}>· {line}</li>
             ))}
           </ul>
-          <div>
-            <label className="block text-[13px] text-bone" htmlFor="golive-confirm">
-              Type <span className="font-mono">{s.businessName}</span> to publish exactly this.
-            </label>
-            <div className="mt-2 flex flex-wrap items-center gap-3">
-              <input
-                id="golive-confirm"
-                className="w-64 border border-ink-line bg-transparent px-3 py-2 font-mono text-[13px] text-bone outline-none focus:border-verdant"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                placeholder={s.businessName}
-              />
-              <button type="button" className="btn btn-primary" disabled={busy || confirm.trim() !== s.businessName} onClick={publish}>
-                {busy ? 'Publishing…' : s.live ? 'Publish new version' : 'Publish'}
-              </button>
-            </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <button type="button" className="btn btn-primary" disabled={busy} onClick={publish}>
+              {busy ? 'Publishing…' : s.live ? 'Publish new version' : 'Publish'}
+            </button>
+            <span className="font-mono text-[11px] text-bone-faint">review above — publishing signs exactly this</span>
           </div>
         </>
       ) : (
