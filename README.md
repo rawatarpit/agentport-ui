@@ -1,32 +1,27 @@
-# Threshold Console
+# AgentPort Dashboard
 
-The business side of Threshold: what external AI agents may do to a small
+The business side of AgentPort: what external AI agents may do to a small
 business, what they have done, what is waiting on a human, and how to change
 those without writing code.
 
 This is not a marketing site. It is the surface a shop owner uses to decide
-whether to let a stranger's bot spend their money — and, increasingly, the
-place where they say what that bot is allowed to try.
+whether to let a stranger's bot spend their money — and the place where they
+say what that bot is allowed to try.
 
 **Name is provisional.** The package and directory are still `agentport-console`
-and `agentport-ui`. See the naming section in
-[`../agentport-sdk/PRODUCT.md`](../agentport-sdk/PRODUCT.md).
+and `agentport-ui`; do not rename them as a side effect of another change.
 
-> ## ⚠️ This repo does not currently compile
+> ## ✅ Build gates are green
 >
-> `npx tsc --noEmit` reports **17 errors**, because the SDK moved under this
-> console. `npm run build`, `npm run start`, and every curl example below are
-> **last known good, not a description of today.** Three contracts changed:
->
-> | Was | Now |
-> | --- | --- |
-> | `import { InMemoryLedger } from '@agentport/sdk'` | not a root export. Use `SqlLedger` |
-> | `maxOrderValue: { amount, currency }` | `{ minor, currency }` — **minor units** |
-> | `input: { q: 'string' }` | `InputSchema`: `{ q: { type: 'string' } }` |
+> `npm run typecheck`, `npm run lint`, and `npm run build` all pass. Money
+> is written in **minor units** end to end (`{ minor, currency }` — rupees in,
+> paise out, converted once at the edge), ledger rows carry `configHash` +
+> `tenantId`, and the SDK is consumed as a `file:` sibling at
+> `../agentport-sdk`.
 >
 > The `amount` → `minor` rename is a hundredfold trap — rupees and paise. Two
-> invariants govern these: authoring versus evaluating, and caller-chosen
-> identities.
+> rules govern this repo: it authors configuration but never evaluates it, and
+> an identity is never a value the caller chose.
 
 ## Where this sits
 
@@ -47,13 +42,16 @@ that can say yes or no.
 
 | Route | Question | Verb | State |
 | --- | --- | --- | --- |
-| `/` | Where do I stand? | set | standing summary; a live feed is planned |
+| `/` | Where do I stand? | see/set | enforcing digest + age, onboarding links |
+| `/setup` | Four questions, then copy one line | set | working — rupees in, minor units out |
+| `/capabilities` | What may agents do, and which fields do they see? | set | working — drafts read **not deployed** |
+| `/rules` | What is refused, what is held, what is capped? | set | working — save-time validation, drafts never live-coloured |
 | `/policies` | What may agents do, and why does each rule sit where it does? | see | working, read-only |
-| `/ledger` | What have agents actually done, including the refusals? | see | **not durable** — reads a fixture seed, and no `configHash` column |
-| `/approvals` | What is waiting on me, and has it run yet? | see | fixtures — buttons are inert, and stay inert |
+| `/ledger` | What have agents actually done, including the refusals? | see | working, read-only, rows carry `configHash` |
+| `/approvals` | What is waiting on me, and has it run yet? | see | read-only — buttons stay inert, approvals happen in the CLI |
+| `/analytics` | Is it working? | see | working — counts by capability and rule, never rows or amounts |
+| `/connect` | How does this reach my runtime? | set | working — honest `missing`/`done` per step until credentials exist |
 | `/chat` | Does the customer still convert when the assistant is governed? | see | working |
-| `/capabilities` `/rules` | What may agents do, and under what conditions? | set | **not built** |
-| `/setup` | Four questions, then copy one line | set | **not built** |
 
 Two routes are for agents, not for humans:
 
@@ -71,83 +69,58 @@ is the signed artifact, verified in the runtime.
    SET  what agents may do · which fields show · what needs a human
 ```
 
-**This console authors configuration. It never evaluates it.** A rule typed here
+**This dashboard authors configuration. It never evaluates it.** A rule typed here
 becomes configuration, is compiled to code, and is decided by the SDK in the
 merchant's own runtime. There is deliberately no helper anywhere in this repo
 that answers "is this allowed?" — a second answer would mean the merchant reads
 whichever of the two happened to render.
 
 Nothing typed here is in force until that generated code is committed and
-running. The console shows a **draft**, and a capability it cannot prove is
+running. The dashboard shows a **draft**, and a capability it cannot prove is
 deployed is shown as **not deployed**. That is a legitimate answer on day one.
+The enforcing panel reports only what the runtime pushed — digest plus age —
+and says **unknown** when the assertion is missing or stale. It never computes
+a digest from a draft.
 
 ## What the enforcement path actually does
 
-**Last known good**, at commit time, over real HTTP, with the policy configured in
-`lib/agentport.ts`. The commands below do not run today — see the compile warning
-at the top.
+Verified over real HTTP against the policy configured in `lib/agentport.ts`:
 
 ```bash
 npm run build && npm run start
 ```
 
-**A read is allowed.**
+**No credential is refused silently, and none is trusted blindly.** The route
+delegates to `verifyIdentity` (server-only): a missing or unverifiable
+credential produces a *recorded* 403 with a named reason, never a 500 and
+never an allow.
 
 ```bash
 curl -X POST localhost:3000/.well-known/agent/invoke \
-  -H 'content-type: application/json' -H 'authorization: Bearer gpt-shopping' \
+  -H 'content-type: application/json' \
   -d '{"capability":"checkInventory","input":{"sku":"EX-140"}}'
-# 200 {"status":"ok","data":{"sku":"EX-140","available":true,"stock":6},...}
+# 403 {"status":"denied","reason":"identity_expired",...} — and the denial is on the ledger
 ```
 
-**A write is held for a human, and says so.**
+A credential the business issued gets the engine's real answer: `200` for an
+allowed call, `202` with `pending_approval` for a held write (never an order
+id or charge confirmation), `403` with a machine-readable reason for a
+refusal. An agent that cannot tell why it was refused will either retry
+forever or route around the control, so a generic refusal is treated as a
+bug rather than a style choice.
 
-```bash
-curl -X POST localhost:3000/.well-known/agent/invoke \
-  -H 'content-type: application/json' -H 'authorization: Bearer gpt-shopping' \
-  -d '{"capability":"createOrder","input":{"items":[{"sku":"EX-140","quantity":1}],"amountMinor":31400}}'
-# 202 {"status":"pending_approval","approval":{"requestId":"req_...","reason":"Order of 31400 INR is above the 25000 INR approval threshold.",...}}
-```
+### Identity is verified, never self-asserted
 
-**A forbidden capability is refused with a reason.**
+`app/.well-known/agent/invoke/route.ts` calls `verifyIdentity()` and hands the
+result straight to `invoke`. A bad credential yields an `unverified` identity
+with no scopes, which the engine refuses with a named reason. The verification
+detail is logged server-side and never returned — a response saying which half
+of a forgery was wrong teaches an attacker how to fix it.
 
-```bash
-curl -X POST localhost:3000/.well-known/agent/invoke \
-  -H 'content-type: application/json' -H 'authorization: Bearer perplexity' \
-  -d '{"capability":"requestRefund","input":{"orderId":"ord_1042"}}'
-# 403 {"status":"denied","reason":"policy_denied","detail":"The business has forbidden external agents from calling requestRefund.",...}
-```
-
-Note the last one. It is a 403 with a machine-readable reason, not a 500 and not
-a bare "forbidden". An agent that cannot tell why it was refused will either
-retry forever or route around the control, so a generic refusal is treated as a
-bug in the SDK rather than a style choice.
-
-### The identity in these examples is a demo, and it is an open door
-
-Every curl above sends `Authorization: Bearer gpt-shopping`. That token **is** the
-agent's identity:
-
-```ts
-// app/.well-known/agent/invoke/route.ts
-const token = header.replace(/^Bearer\s+/i, '').trim()
-const agentId = token || 'anonymous'
-return { agentId, scopes: ['*'], credentialId: `cred_${agentId}`, … }
-```
-
-Send `Authorization: Bearer superadmin` and you are `superadmin`, with every
-scope, with a freshly minted five-minute expiry on every request. There is no
-credential to verify. The comment above the function says *"It must never trust an
-agentId supplied in the request body"* — and then trusts the one in the header.
-
-This is labelled a demo in `PRODUCT.md` and in `AGENTS.md` invariant 11, and that
-label is load bearing: **removing it is a blocker, not a cosmetic change.** A
-real verifier resolves a short-lived, scoped, expiring credential the business
-issued, and records `assurance: 'unverified'` for anything weaker.
-
-`.env.example` advertises `AGENTPORT_SIGNING_KEY` and **no code in this repo
-reads it.** A control that reads like a control is the same failure the SDK
-records as `UserDelegation.scope`: documented, and enforcing nothing.
+`AGENTPORT_SIGNING_SECRET` and any database keys are server-only and never
+carry a `NEXT_PUBLIC_` prefix — the client build fails if one is set that way
+(see `next.config.mjs`). No token is minted and no approval is granted from
+the browser; both stay in the CLI.
 
 ## Why the chat page refuses to finish an order
 
@@ -169,10 +142,11 @@ is worse than one that refuses. The refusal is the product.
 Next.js 14 App Router, React 18, TypeScript strict, Tailwind. The SDK is
 consumed as a `file:` sibling at `../agentport-sdk`.
 
-**Ledger:** use `SqlLedger` from the package root. `InMemoryLedger` is deliberately
-not exported there — it moved to `../agentport-sdk/src/testing.ts` so that reaching
-for it in production is a greppable act rather than an autocomplete accident. A
-pilot reporting from a `Map` with a cap has no proof of anything.
+**Ledger:** the runtime writes rows into the merchant's own database; this
+dashboard receives counts, never rows. `InMemoryLedger` is deliberately not
+imported from the SDK root — it lives in the SDK's testing entry so that
+reaching for it in production is a greppable act rather than an autocomplete
+accident.
 
 The capabilities in `lib/agentport.ts` are fixtures — they return a hardcoded
 catalogue. In production they call the merchant's real catalogue, inventory and
@@ -196,8 +170,21 @@ npm run typecheck
 ```
 
 Node 20 or newer. After changing anything under `app/.well-known/`, exercise the
-three curl calls above. A console that renders correctly over a broken
-enforcement path is worse than no console, because it looks trustworthy.
+curl calls above. A dashboard that renders correctly over a broken
+enforcement path is worse than no dashboard, because it looks trustworthy.
+
+## Deploy (Netlify)
+
+`netlify.toml` builds with `npm run build` and publishes `.next` (Essential
+Next.js plugin). Set secrets in the site settings, never in the repo:
+
+- `AGENTPORT_SIGNING_SECRET` — required, server-only
+- `SUPABASE_URL` / `SUPABASE_ANON_KEY` — as needed, anon key only
+
+Never a service-role key, access token, or `NEXT_PUBLIC_*` secret. One known
+build caveat: `@agentport/sdk` is a `file:../agentport-sdk` sibling, which a
+clean Netlify clone does not have — publish or vendor the SDK at the pinned
+tag before connecting the site.
 
 ## Relationship to the Agent Operating Environment thesis
 
@@ -205,16 +192,5 @@ This is the business-facing surface of the Agent Operating Environment thesis. T
 thesis argues that a business needs a machine-native interface so agents can
 discover, understand and execute approved actions without operating the human
 interface — and that the business keeps control of permissions and a complete
-audit layer. The SDK (`agentport-sdk`) enforces that. This console is where the
+audit layer. The runtime SDK enforces that. This dashboard is where the
 merchant sets it and where they see it working, or does not.
-
-## Further reading
-
-- [`../agentport-sdk/docs/PRODUCT-RUNTIME.md`](../agentport-sdk/docs/PRODUCT-RUNTIME.md)
-  — the enforcement primitive: CLI, SDK, and its gaps
-- [`../agentport-sdk/docs/PRODUCT-CLOUD.md`](../agentport-sdk/docs/PRODUCT-CLOUD.md)
-  — the hosted dashboard: the front door, and why it may never decide
-- [`../agentport-sdk/AGENTS.md`](../agentport-sdk/AGENTS.md) — the invariants this
-  dashboard inherits, and the two-thing contract both sides sit inside
-- [`../agentport-sdk/PRODUCT.md`](../agentport-sdk/PRODUCT.md) — the product this
-  dashboard is evidence for
