@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { Badge, Stat } from '@/components/stat'
+import { EnforcingPanel } from '@/components/enforcing-panel'
 import { agent, ensureSeeded, ledger, policy } from '@/lib/agentport'
 
 export const dynamic = 'force-dynamic'
@@ -12,11 +13,12 @@ export default async function Overview() {
   const held = entries.filter((e) => e.decision === 'require_approval').length
   const agents = new Set(entries.map((e) => e.agentId))
   const manifest = agent.manifest()
+  const fmtMinor = (minor: number) => `₹${(minor / 100).toLocaleString('en-IN')}`
 
   return (
     <div className="space-y-8">
       <section>
-        <p className="label">The position</p>
+        <p className="label">The position · enterprise onboarding</p>
         <h2 className="mt-2 max-w-[62ch] font-display text-3xl leading-tight text-bone">
           Agents can already find this store. What they cannot do is decided here,
           in one place, before anything runs.
@@ -25,9 +27,13 @@ export default async function Overview() {
           {manifest.capabilities.length} capabilities are exposed to external agents.
           Everything else this business has is unreachable by an agent, because
           exposure is an allowlist rather than a filter. Of the calls made so far,{' '}
-          {denied} were refused and {held} were held for a human.
+          {denied} were refused and {held} were held for a human. New here? Start
+          with <Link href="/setup" className="text-bone underline">four questions</Link> —
+          you will land back here with something already true.
         </p>
       </section>
+
+      <EnforcingPanel draftLabel="overview — no draft open" />
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Calls recorded" value={entries.length} />
@@ -52,14 +58,14 @@ export default async function Overview() {
         </div>
 
         <div className="panel p-5">
-          <p className="label">What is enforced</p>
+          <p className="label">What is enforced — in your words</p>
           <ul className="mt-3 space-y-2 text-[14px] text-bone-dim">
             <li className="flex justify-between gap-3">
-              <span>Order above {policy.maxOrderValue.amount} {policy.maxOrderValue.currency}</span>
+              <span>Order above {fmtMinor(policy.maxOrderValue.minor)} — ask you first</span>
               <Badge tone="held">held</Badge>
             </li>
             <li className="flex justify-between gap-3">
-              <span>Order above {policy.absoluteMaxOrderValue.amount} {policy.absoluteMaxOrderValue.currency}</span>
+              <span>Order above {fmtMinor(policy.absoluteMaxOrderValue.minor)} — always say no</span>
               <Badge tone="deny">denied</Badge>
             </li>
             <li className="flex justify-between gap-3">
@@ -71,7 +77,10 @@ export default async function Overview() {
               <Badge tone="deny">denied</Badge>
             </li>
           </ul>
-          <Link href="/policies" className="btn mt-5">Edit policy</Link>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Link href="/rules" className="btn btn-primary">Change the limits</Link>
+            <Link href="/setup" className="btn">Get started</Link>
+          </div>
         </div>
       </section>
 

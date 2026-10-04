@@ -1,33 +1,14 @@
-import { agent } from '@/lib/agentport'
-import type { AgentIdentity } from '@agentport/sdk'
+import { agent, verifyIdentity } from '@/lib/agentport'
 
 /**
  * EXECUTE.
  *
  * Each outcome maps to its own status code. A refusal is 403 with a
- * machine-readable reason, never a 500 and never a bare "forbidden": an agent
- * that cannot tell why it was refused will either retry forever or route
- * around the control.
+ * machine-readable reason, never a 500 and never a bare "forbidden": an agent that
+ * cannot tell why it was refused will either retry forever or route around the
+ * control.
  */
 export const dynamic = 'force-dynamic'
-
-/**
- * Stands in for real credential verification. In production this validates a
- * short-lived scoped token issued by the business and resolves it to an
- * AgentIdentity. It must never trust an agentId supplied in the request body.
- */
-async function verifyIdentity(req: Request): Promise<AgentIdentity> {
-  const header = req.headers.get('authorization') ?? ''
-  const token = header.replace(/^Bearer\s+/i, '').trim()
-  const agentId = token || 'anonymous'
-  return {
-    agentId,
-    scopes: ['*'],
-    credentialId: `cred_${agentId}`,
-    issuedAt: new Date().toISOString(),
-    expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
-  }
-}
 
 export async function POST(req: Request) {
   let body: { capability?: string; input?: unknown }
@@ -38,16 +19,30 @@ export async function POST(req: Request) {
   }
 
   if (!body.capability) {
-    return Response.json(
-      { status: 'error', message: 'A capability name is required.' },
-      { status: 400 },
-    )
+    return Response.json({ status: 'error', message: 'A capability name is required.' }, { status: 400 })
+  }
+
+  /**
+   * Trust comes from a credential the merchant issued, never from the request.
+   *
+   * `verifyToken` returns an `unverified` identity with no scopes and a
+   * already-passed expiry when the signature does not verify, so handing that
+   * straight to `invoke` makes a bad credential produce a *recorded refusal*
+   * with a named reason, rather than a 500 and no ledger row.
+   *
+   * The verification reason is logged and never returned: a response saying
+   * "your signature was malformed" tells an attacker which part of their forgery
+   * was wrong.
+   */
+  const identity = await verifyIdentity(req.headers.get('authorization') ?? undefined)
+  if (identity.reason) {
+    console.warn(`[agentport] credential refused: ${identity.reason}`)
   }
 
   const outcome = await agent.invoke({
     capability: body.capability,
     input: body.input ?? {},
-    identity: await verifyIdentity(req),
+    identity,
   })
 
   switch (outcome.status) {

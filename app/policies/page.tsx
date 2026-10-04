@@ -100,13 +100,13 @@ export default function PoliciesPage() {
           <div className="flex justify-between gap-3 border-b border-ink-line/60 py-2">
             <dt className="text-bone-faint">Approval threshold</dt>
             <dd className="tabular font-mono text-bone">
-              {policy.maxOrderValue.amount} {policy.maxOrderValue.currency}
+              {policy.maxOrderValue.minor} {policy.maxOrderValue.currency}
             </dd>
           </div>
           <div className="flex justify-between gap-3 border-b border-ink-line/60 py-2">
             <dt className="text-bone-faint">Absolute ceiling</dt>
             <dd className="tabular font-mono text-bone">
-              {policy.absoluteMaxOrderValue.amount} {policy.absoluteMaxOrderValue.currency}
+              {policy.absoluteMaxOrderValue.minor} {policy.absoluteMaxOrderValue.currency}
             </dd>
           </div>
           <div className="flex justify-between gap-3 border-b border-ink-line/60 py-2">

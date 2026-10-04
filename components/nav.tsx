@@ -1,10 +1,15 @@
 import Link from 'next/link'
 
 const links = [
+  { href: '/setup', label: 'Get started' },
   { href: '/', label: 'Overview' },
+  { href: '/capabilities', label: 'Capabilities' },
+  { href: '/rules', label: 'Rules' },
+  { href: '/policies', label: 'Limits' },
   { href: '/ledger', label: 'Ledger' },
-  { href: '/policies', label: 'Policies' },
   { href: '/approvals', label: 'Approvals' },
+  { href: '/analytics', label: 'Analytics' },
+  { href: '/connect', label: 'Connect' },
   { href: '/chat', label: 'Storefront chat' },
 ]
 

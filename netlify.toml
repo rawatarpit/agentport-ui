@@ -1,0 +1,38 @@
+# Netlify — AgentPort console (Next.js 14 App Router).
+#
+# Build: npm run build (must typecheck cleanly — see AGENTS.md gate).
+# Deploy preview per PR; production from main.
+#
+# REQUIRED in Netlify site settings (never in this file):
+#   AGENTPORT_SIGNING_SECRET  — HMAC key from `agent-port secret` (server-only)
+#   SUPABASE_URL / SUPABASE_ANON_KEY as needed (anon only; never service-role
+#   or access tokens — see TASKS.md "What to push to GitHub").
+#
+# NOTE on `@agentport/sdk: file:../agentport-sdk`: Netlify clones only this
+# repo, so the sibling path does not exist at build time. Until the SDK is
+# published or vendored, set the SDK as an npm dependency or add a pre-build
+# step that fetches agentport-sdk at the pinned tag. The build below assumes
+# the dependency resolves (publish/submodule); without it `npm ci` fails and
+# that failure is the correct signal, not something to paper over.
+
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "20.18.0"
+  NEXT_TELEMETRY_DISABLED = "1"
+
+# Next.js App Router needs the Essential Next.js plugin on Netlify.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Security headers for an enterprise console. CSP stays loose enough for
+# Next.js inline runtime; tighten script-src with nonces if this becomes strict.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
