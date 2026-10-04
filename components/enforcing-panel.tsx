@@ -1,15 +1,21 @@
 import { Badge } from '@/components/stat'
-import { ageLabel, demoEnforcing } from '@/lib/enforcing'
+import { ageLabel, enforcingFromPush } from '@/lib/enforcing'
+import { getPush, resolveTenant } from '@/lib/store'
 
 /**
  * The anti-blur control for the entire product.
  *
  * Shows what the runtime asserted it enforces — digest + age — separately
- * from whatever draft is open in the editor. A draft that has not been merged
- * reads `not deployed`. A stale heartbeat reads `unknown`, never `enabled`.
+ * from whatever draft is open in the editor. The assertion comes from the
+ * store, whose only writer is the analytics heartbeat (`POST /api/analytics`
+ * carrying configHash + pushedAt); before the first real push it holds the
+ * seeded demo heartbeat, labelled as such in lib/store.ts. A draft that has
+ * not been merged reads `not deployed`. A stale heartbeat reads `unknown`,
+ * never `enabled`.
  */
 export function EnforcingPanel({ draftLabel }: { draftLabel: string }) {
-  const state = demoEnforcing()
+  const push = getPush(resolveTenant())
+  const state = enforcingFromPush({ digest: push?.digest ?? null, pushedAt: push?.pushedAt ?? null })
 
   return (
     <div className="panel p-5">

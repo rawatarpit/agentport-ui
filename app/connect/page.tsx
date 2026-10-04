@@ -1,52 +1,43 @@
+'use client'
+
+import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { EnforcingPanel } from '@/components/enforcing-panel'
+import { SignupForm } from '@/components/signup-form'
 
-export const dynamic = 'force-dynamic'
+type Step = { n: string; title: string; body: string; state: 'missing' | 'done'; href?: string }
 
 /**
- * Phase 3/4 scaffolding that is safe without credentials.
+ * The front door as computed state.
  *
- * Steps 1, 2, 4 need a registered GitHub OAuth App — code is not the
- * blocker, credentials are. This screen states what is connected, what is
- * missing, and what each path produces, without implying any of it works
- * today. A capability saved but not merged is visibly not deployed; a sync
- * that never landed is an explicit unknown, never a stale enabled.
+ * Steps come from GET /api/connect, which reports what the store can prove.
+ * GitHub steps stay `missing` until real App credentials exist — the screen
+ * must not imply otherwise. The signup form completes step 1: an account
+ * with us, after which the same list re-renders with step 1 done.
  */
-const STEPS = [
-  {
-    n: '1',
-    title: 'Sign in with GitHub',
-    body: 'Your identity, and the org that becomes the tenantId the ledger already requires.',
-    state: 'missing' as const,
-  },
-  {
-    n: '2',
-    title: 'Install the App, pick a repo',
-    body: 'Analysis runs in your workflow — names and types only. Never your rows, never your database credentials.',
-    state: 'missing' as const,
-  },
-  {
-    n: '3',
-    title: 'Answer four questions',
-    body: 'Done here, today. Four answers become a typed policy you can review.',
-    state: 'done' as const,
-    href: '/setup',
-  },
-  {
-    n: '4',
-    title: 'Review the pull request — the signature',
-    body: 'We open a branch. You merge. Nothing affects a running system without that merge, and we cannot merge into a protected branch.',
-    state: 'missing' as const,
-  },
-  {
-    n: '5',
-    title: 'Sync — the fast path',
-    body: 'Signed payload, distinct credential, replay protection. Never carries the kill switch — enforced by type, not review. Offline keeps enforcing; this screen shows unknown.',
-    state: 'missing' as const,
-  },
-]
-
 export default function ConnectPage() {
+  const [steps, setSteps] = useState<Step[] | null>(null)
+  const [failed, setFailed] = useState(false)
+  const [showSignup, setShowSignup] = useState(false)
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch('/api/connect')
+      const body = (await res.json()) as { status: string; steps?: Step[] }
+      if (body.status !== 'ok' || !body.steps) throw new Error()
+      setSteps(body.steps)
+      setFailed(false)
+    } catch {
+      setFailed(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const step1 = steps?.[0]
+
   return (
     <div className="space-y-6">
       <div>
@@ -62,27 +53,47 @@ export default function ConnectPage() {
 
       <EnforcingPanel draftLabel="no draft open" />
 
-      <ol className="space-y-3">
-        {STEPS.map((s) => (
-          <li key={s.n} className="panel flex flex-wrap items-start justify-between gap-3 p-5">
-            <div className="max-w-[60ch]">
-              <p className="font-mono text-[11px] text-bone-faint">Step {s.n}</p>
-              <p className="mt-1 text-[15px] text-bone">{s.title}</p>
-              <p className="mt-1 text-[13px] leading-relaxed text-bone-dim">{s.body}</p>
-              {s.href ? (
-                <Link href={s.href} className="btn mt-3">Open it</Link>
-              ) : null}
-            </div>
-            <span
-              className={`inline-block rounded border px-2 py-0.5 font-mono text-[11px] ${
-                s.state === 'done' ? 'border-verdant/40 text-verdant' : 'border-ink-line text-bone-faint'
-              }`}
-            >
-              {s.state}
-            </span>
-          </li>
-        ))}
-      </ol>
+      {step1 && step1.state === 'missing' && !showSignup ? (
+        <button type="button" className="btn btn-primary" onClick={() => setShowSignup(true)}>
+          Create your account — step 1
+        </button>
+      ) : null}
+      {showSignup && (!step1 || step1.state === 'missing') ? (
+        <SignupForm
+          onDone={() => {
+            setShowSignup(false)
+            void load()
+          }}
+        />
+      ) : null}
+
+      {failed ? (
+        <p className="text-[13px] text-rust" role="alert">Could not read connection state.</p>
+      ) : !steps ? (
+        <p className="text-[13px] text-bone-faint">Reading connection state…</p>
+      ) : (
+        <ol className="space-y-3">
+          {steps.map((s) => (
+            <li key={s.n} className="panel flex flex-wrap items-start justify-between gap-3 p-5">
+              <div className="max-w-[60ch]">
+                <p className="font-mono text-[11px] text-bone-faint">Step {s.n}</p>
+                <p className="mt-1 text-[15px] text-bone">{s.title}</p>
+                <p className="mt-1 text-[13px] leading-relaxed text-bone-dim">{s.body}</p>
+                {s.href ? (
+                  <Link href={s.href} className="btn mt-3">Open it</Link>
+                ) : null}
+              </div>
+              <span
+                className={`inline-block rounded border px-2 py-0.5 font-mono text-[11px] ${
+                  s.state === 'done' ? 'border-verdant/40 text-verdant' : 'border-ink-line text-bone-faint'
+                }`}
+              >
+                {s.state}
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
 
       <div className="panel p-5">
         <p className="label">What never happens here</p>

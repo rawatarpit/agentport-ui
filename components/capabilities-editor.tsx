@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Badge } from '@/components/stat'
 
 /**
@@ -61,6 +61,51 @@ export function CapabilitiesEditor() {
   const [hidden, setHidden] = useState<Record<string, string[]>>(
     Object.fromEntries(CAPS.map((c) => [c.name, c.hidden])),
   )
+  const [savedAt, setSavedAt] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  // The form edits a copy; the API holds truth. Unknown capabilities in a
+  // saved draft are ignored rather than rendered — the known list is the UI.
+  useEffect(() => {
+    let live = true
+    fetch('/api/drafts/capabilities')
+      .then((r) => r.json())
+      .then((body: { draft?: { hidden?: Record<string, string[]> } | null }) => {
+        if (!live || !body.draft?.hidden) return
+        setHidden((h) => {
+          const next = { ...h }
+          for (const [cap, fields] of Object.entries(body.draft!.hidden!)) {
+            if (next[cap] && Array.isArray(fields)) next[cap] = fields.filter((f) => typeof f === 'string')
+          }
+          return next
+        })
+        setSavedAt('loaded')
+      })
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [])
+
+  const save = async () => {
+    setSaving(true)
+    setSaveError(null)
+    try {
+      const res = await fetch('/api/drafts/capabilities', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ payload: { hidden } }),
+      })
+      const body = (await res.json()) as { status: string; reason?: string; errors?: string[]; updatedAt?: string }
+      if (body.status !== 'ok') throw new Error(body.errors?.[0] ?? body.reason ?? 'Save refused.')
+      setSavedAt(body.updatedAt ?? 'saved')
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : 'Save refused.')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const toggle = (cap: string, field: string) =>
     setHidden((h) => ({
@@ -76,13 +121,23 @@ export function CapabilitiesEditor() {
         <div>
           <p className="label">Draft</p>
           <p className="mt-1 text-[13px] text-bone-dim">
-            {totalHidden === 0
-              ? 'Every field is visible to agents.'
-              : `${totalHidden} field${totalHidden === 1 ? '' : 's'} hidden from agents.`}
+            {savedAt
+              ? 'Draft saved. Nothing changed for agents yet.'
+              : totalHidden === 0
+                ? 'Every field is visible to agents.'
+                : `${totalHidden} field${totalHidden === 1 ? '' : 's'} hidden from agents.`}
           </p>
         </div>
-        <Badge tone="idle">not deployed</Badge>
+        <div className="flex items-center gap-3">
+          <Badge tone="idle">not deployed</Badge>
+          <button type="button" className="btn btn-primary" disabled={saving} onClick={save}>
+            {saving ? 'Saving…' : savedAt ? 'Saved as draft' : 'Save as draft'}
+          </button>
+        </div>
       </div>
+      {saveError ? (
+        <p className="text-[13px] text-rust" role="alert">{saveError}</p>
+      ) : null}
 
       {CAPS.map((c) => (
         <div key={c.name} className="panel p-5">

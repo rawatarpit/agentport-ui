@@ -1,4 +1,5 @@
 import { RulesEditor } from '@/components/rules-editor'
+import { GolivePanel } from '@/components/golive-panel'
 import { EnforcingPanel } from '@/components/enforcing-panel'
 
 export const dynamic = 'force-dynamic'
@@ -17,6 +18,7 @@ export default function RulesPage() {
       </div>
       <EnforcingPanel draftLabel="rules draft" />
       <RulesEditor />
+      <GolivePanel />
     </div>
   )
 }

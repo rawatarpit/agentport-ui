@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 /**
  * Setup: four questions, then one line.
@@ -51,6 +51,9 @@ export function SetupWizard() {
   const [a, setA] = useState<Answers>(DEFAULT_ANSWERS)
   const [step, setStep] = useState(0)
   const [copied, setCopied] = useState(false)
+  const [savedAt, setSavedAt] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
 
   const minor = useMemo(() => {
     const toMinor = (v: string): number | null => {
@@ -97,6 +100,54 @@ export function SetupWizard() {
   }, [minor, a.alwaysAsk, a.forbidden])
 
   const ready = generated !== null && !hardTooLow
+
+  // Answers persist as the setup draft (minor units at the edge, like rules).
+  useEffect(() => {
+    let live = true
+    fetch('/api/drafts/setup')
+      .then((r) => r.json())
+      .then(
+        (body: {
+          draft?: { ceilingMinor?: number; hardCeilingMinor?: number; alwaysAsk?: boolean; forbidRefunds?: boolean } | null
+        }) => {
+          if (!live || !body.draft) return
+          const v = body.draft
+          setA({
+            ceiling: typeof v.ceilingMinor === 'number' ? String(v.ceilingMinor / 100) : DEFAULT_ANSWERS.ceiling,
+            hardCeiling: typeof v.hardCeilingMinor === 'number' ? String(v.hardCeilingMinor / 100) : DEFAULT_ANSWERS.hardCeiling,
+            alwaysAsk: typeof v.alwaysAsk === 'boolean' ? v.alwaysAsk : DEFAULT_ANSWERS.alwaysAsk,
+            forbidden: typeof v.forbidRefunds === 'boolean' ? v.forbidRefunds : DEFAULT_ANSWERS.forbidden,
+          })
+          setSavedAt('loaded')
+        },
+      )
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [])
+
+  const save = async () => {
+    if (minor.ceiling === null || minor.hard === null) return
+    setSaving(true)
+    setSaveError(null)
+    try {
+      const res = await fetch('/api/drafts/setup', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          payload: { ceilingMinor: minor.ceiling, hardCeilingMinor: minor.hard, alwaysAsk: a.alwaysAsk, forbidRefunds: a.forbidden },
+        }),
+      })
+      const body = (await res.json()) as { status: string; reason?: string; errors?: string[]; updatedAt?: string }
+      if (body.status !== 'ok') throw new Error(body.errors?.[0] ?? body.reason ?? 'Save refused.')
+      setSavedAt(body.updatedAt ?? 'saved')
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : 'Save refused.')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -210,6 +261,14 @@ export function SetupWizard() {
               <button
                 type="button"
                 className="btn btn-primary"
+                disabled={!ready || saving}
+                onClick={save}
+              >
+                {saving ? 'Saving…' : savedAt ? 'Saved as draft' : 'Save answers as draft'}
+              </button>
+              <button
+                type="button"
+                className="btn"
                 disabled={!ready}
                 onClick={async () => {
                   await navigator.clipboard.writeText(generated ?? '')
@@ -218,6 +277,9 @@ export function SetupWizard() {
               >
                 {copied ? 'Copied' : 'Copy'}
               </button>
+              {saveError ? (
+                <span className="text-[13px] text-rust" role="alert">{saveError}</span>
+              ) : null}
               {!ready && (
                 <span className="font-mono text-[11px] text-rust">
                   Answer the first two questions to finish.
