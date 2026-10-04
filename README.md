@@ -24,9 +24,9 @@ and `agentport-ui`. See the naming section in
 > | `maxOrderValue: { amount, currency }` | `{ minor, currency }` — **minor units** |
 > | `input: { q: 'string' }` | `InputSchema`: `{ q: { type: 'string' } }` |
 >
-> The `amount` → `minor` rename is a hundredfold trap — rupees and paise. See
-> [`AGENTS.md`](./AGENTS.md) for the full gate and for the two invariants these
-> touch.
+> The `amount` → `minor` rename is a hundredfold trap — rupees and paise. Two
+> invariants govern these: authoring versus evaluating, and caller-chosen
+> identities.
 
 ## Where this sits
 
@@ -42,7 +42,6 @@ the deciding. Nothing a merchant types passes through a machine we operate
 before it becomes a rule. **It is not the enforcement point** — the AgentPort
 runtime inside the merchant's own application is, and it is the only thing
 that can say yes or no.
-See [`../agentport-sdk/docs/PRODUCT-CLOUD.md`](../agentport-sdk/docs/PRODUCT-CLOUD.md).
 
 ## The screens
 
@@ -211,18 +210,11 @@ merchant sets it and where they see it working, or does not.
 
 ## Further reading
 
-- [`TASKS.md`](./TASKS.md) — every task, ordered by the merchant's path
-- [`PRODUCT.md`](PRODUCT.md) — why this console exists, what it is allowed to
-  claim, and what it deliberately leaves out
-- [`AGENTS.md`](./AGENTS.md) — the invariants, including authoring versus
-  evaluating and caller-chosen identities
 - [`../agentport-sdk/docs/PRODUCT-RUNTIME.md`](../agentport-sdk/docs/PRODUCT-RUNTIME.md)
   — the enforcement primitive: CLI, SDK, and its gaps
 - [`../agentport-sdk/docs/PRODUCT-CLOUD.md`](../agentport-sdk/docs/PRODUCT-CLOUD.md)
-  — the hosted control plane, unbuilt, and why it may never decide
+  — the hosted dashboard: the front door, and why it may never decide
 - [`../agentport-sdk/AGENTS.md`](../agentport-sdk/AGENTS.md) — the invariants this
   dashboard inherits, and the two-thing contract both sides sit inside
 - [`../agentport-sdk/PRODUCT.md`](../agentport-sdk/PRODUCT.md) — the product this
-  console is evidence for
-- [`TASKS.md`](./TASKS.md) — every task, ordered by the merchant's path
-  and in which gate
+  dashboard is evidence for
