@@ -1,8 +1,16 @@
-# TASKS — AgentPort Dashboard
+# TASKS — AgentPort, complete
 
 Referenced from code by section number (e.g. `TASKS.md 5.7`). **Those references
 are the point of this file** — a comment that cites a section is a claim that the
 section exists, so renumbering here breaks the reader's ability to check it.
+
+**Whole system, top to bottom: [`SYSTEM.md`](SYSTEM.md).**
+
+**This file is the complete list — dashboard, Supabase backend, and runtime.**
+§1–§7 are the dashboard. **§8 is the backend, §9 is the runtime**, §10 is
+permanently open, §11 is done and must not regress. Nothing is duplicated in
+`agentport-sdk/TASKS.md`; the split is here, and that file is now the short
+pointer back to this one.
 
 The dashboard is a **UI over Supabase**, not the backend and not on the data
 path. Architecture: `agentport-sdk/ARCHITECTURE.md` §0. Data classification:
@@ -129,3 +137,80 @@ Safe to commit: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_PROJECT_REF`,
 > `NEXT_PUBLIC_AGENTPORT_BASE_URL` is build-time inlined, so a value compiled as
 > `localhost` ships as `localhost` until you rebuild. It is **not** the manifest's
 > `baseUrl` — see `lib/agentport.ts`, which currently conflates them.
+---
+
+## 8. Backend — Supabase
+
+Schema is **13 migrations, applied**. `analytics-ingest` is **ACTIVE v3**. What
+is missing is the guarded entry point, not the database.
+
+| # | Task | State |
+| --- | --- | --- |
+| B1 | `public.agentport_ingest` — the `SECURITY DEFINER` wrapper that checks, then **sets the role** | **not built.** `agentport_ingest_push` exists; the wrapper never was written. Until it is, every push fails closed with `503 ingest_unavailable` — which is the **correct** behaviour, not a bug. It refuses to write through a role it has not narrowed |
+| B2 | Provisioned per-tenant push key (`apk1.*`) | **not provisioned** — needs an operator |
+| B3 | Authenticated end-to-end push against the hosted receiver | **blocked** on B1 + B2. Cannot verify until both exist |
+| B4 | Projection-table DDL for the merchant to install | **not built** — one table, counts + digests, never their ledger |
+| B5 | Webhook receiver: per-tenant signature, **server** receipt time, dedupe by event id, out-of-order tolerance, retries + dead-letter | **not built.** A spoofed green is worse than no signal |
+| B6 | Forwarder vs. the SDK pushing directly | **decided** — the SDK pushes. A forwarder is an extra credential, an extra hop, and a new place to leak |
+| B7 | Config-distribution endpoint — the backend half of the hinge | **not built.** No equivalent of `analytics-ingest` serves policy |
+| B8 | Durable read model so `/ledger` and `/approvals` stop being fixtures | **partial** — tables and the ledger exist; **no dashboard route reads the DB** |
+| B9 | Supabase Auth (magic-link sessions) | **not built** — `POST /api/signup` issues no credential and starts no session |
+| B10 | Rotate the compromised Supabase PAT in `.env.local` | **blocked** on the owner. `service_role` bypasses RLS |
+
+---
+
+## 9. Runtime — the SDK / CLI / binary
+
+The enforcement path is the strongest part of the system. The gap is everything
+that **feeds** it.
+
+| # | Task | State |
+| --- | --- | --- |
+| R1 | **Config artifact channel** — backend publishes, runtime fetches | **not built. The hinge.** Nothing downstream works without it: a working enforcement point with no way to receive configuration. Every `artifact` hit in `main.ts`/`upgrade.ts` is *our own release* download, not policy |
+| R2 | Merchant signs via **PR merge**; runtime verifies **locally** per request | **not built** |
+| R3 | Reject unsigned, stale, or unknown-tenant artifacts | **not built** |
+| R4 | Offline: cache config, **keep enforcing** when we are unreachable | **not built.** Our outage must not become a merchant's payment outage |
+| R5 | Kill switch excluded from sync **by type**, monotonic locally | **partial** — excluded by type; there is no sync to exclude it from |
+| R6 | `onBehalfOf` enforced as an **intersection** of merchant grant and user grant | **done** — request path `agent.ts:531`, commit path `agent.ts:862`, `delegation_insufficient`, 8 tests |
+| R7 | Field projection applied to handler results | **not built** (UI 3.3 is the same task) |
+| R8 | In-page discovery surface | **not built** |
+| R9 | `connect-assistant` (MCP channel) | **not built** |
+| R10 | Publish a **signed** release — `0.1.0+source` is not publishable | **blocked** on R11 |
+| R11 | Linux SEA binaries — targets are `linux-x64` / `linux-arm64`; this host is `darwin-arm64` | **blocked** on a Linux runner |
+| R12 | Four test files still spawn stale `dist/` instead of `dist-test/` | **not built** |
+| R14 | Sessions — handle, resubmit, recovery | **not built.** *An agent acting for a person and an agent acting for nobody are the same call until a handle can be replayed into an authority.* That is the remaining shape of the gap — **not** delegation, which is enforced |
+| R13 | **Re-run code + test + security review after the R12-era fixes** | **not built — and it gates the release.** Reviews were green *before* the analytics/CLI/architecture changes; none has run since. VETO stands until all three are clean |
+
+---
+
+## 10. Permanently open — needs a decision, not an implementation
+
+| # | Question | State |
+| --- | --- | --- |
+| O1 | A write executes, then the ledger append **fails** | **not built.** Handlers run first, then append; a failure loses the evidence and the merchant cannot reconcile what they authorised |
+| O2 | Export full-fidelity logs to us | **decided: no.** `capability + amount + precise timestamp` is joinable against their processor and makes us a party to the transaction. The answer is "amounts live in your ledger, not ours" |
+| O3 | Show the merchant their own revenue in the dashboard | **decided: no.** The consequence of O2. `agent-port ledger` reads it, locally |
+
+---
+
+## 11. Done — do not regress
+
+Each was a real defect, found by review and mutation-proven.
+
+| # | Fixed |
+| --- | --- |
+| D1 | Policy-input assembly duplicated across the authorisation and commit paths — the same bug three times. Now one `assemblePolicyInput`, called by both |
+| D2 | Ceiling rules guarded by `amount !== undefined` — an unreadable amount **skipped** the ceiling instead of failing it. `amount_unmeasurable` / `units_unmeasurable` now deny |
+| D3 | A declared figure no longer leaves the caller's payload aliases readable; `policyInputFor` is per-request, not a constant |
+| D4 | Ceiling scoping gates on `access === 'write'` plus `ceilingExempt` — **never** on `dataClass === 'payment'`, which is merchant-chosen and unverified |
+| D5 | `approve()` re-runs `evaluate()` at commit — kill switch flipped mid-hold, and a credential that expired mid-hold, both deny |
+| D6 | `redact()` handles a **top-level** array; key matching is whole-name and word-token, so `company` and `shipping` survive while `customerEmail` and `cardToken` do not |
+| D7 | `assurance` is required and `NOT NULL`; a request with no identity records `unverified` / `unidentified` |
+| D8 | `intentId` claimed durably before the handler runs — retries replay, a reused id with different input is `intent_conflict` |
+| D9 | Append-only by construction: `BEFORE UPDATE`/`DELETE` triggers abort, and a test asserts the SDK emits no `UPDATE` or `DELETE` |
+| D10 | Logger wired in every production construction, enforced structurally by `test/architecture.test.ts` |
+| D11 | Logger redaction bounded, injection-safe, and unable to throw into the enforcement path |
+| D12 | `agent-port ledger` — read-only, tenant-scoped, no edit verb |
+| D13 | `agent-port ledger-table` — prints canonical DDL without opening a database |
+| D14 | Analytics producer — aggregate-only, off the request path, offline-tolerant, unref'd interval, flush on SIGINT/SIGTERM |
+| D15 | Test review — 14 blockers found and fixed; mutations prove each |

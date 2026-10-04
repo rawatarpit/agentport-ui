@@ -1,5 +1,8 @@
 # AgentPort Dashboard
 
+> **The whole system, top to bottom — dashboard, Supabase backend, runtime — is
+> [`SYSTEM.md`](SYSTEM.md).** Start there. This file is the dashboard only.
+
 The business side of AgentPort: what external AI agents may do to a small
 business, what they have done, what is waiting on a human, and how to change
 those without writing code.
