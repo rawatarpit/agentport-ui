@@ -45,7 +45,7 @@ export default function ConnectPage() {
     void load()
   }, [load])
 
-  const step1 = steps?.[0]
+  const step1 = steps?.find((s) => s.n === '1')
 
   return (
     <div className="space-y-6">

@@ -1,4 +1,5 @@
 import { getDraft, getLive, getMerchant, hasAnalytics, hasSync, resolveTenant } from '@/lib/store'
+import { supabasePresence } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,8 +20,17 @@ export async function GET() {
   const caps = getDraft(tenantId, 'capabilities')
   const rules = getDraft(tenantId, 'rules')
   const live = getLive(tenantId)
+  const sb = supabasePresence()
 
   const steps: Step[] = [
+    {
+      n: '0',
+      title: 'Supabase backend',
+      body: sb.readable
+        ? 'Project reachable for merchant-scoped reads. Durable reads land on top of this.'
+        : 'Not wired — set SUPABASE_URL + SUPABASE_ANON_KEY in this deployment. Until then the store is process RAM.',
+      state: sb.readable ? 'done' : 'missing',
+    },
     {
       n: '1',
       title: 'Create your account',
