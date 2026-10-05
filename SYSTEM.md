@@ -5,8 +5,9 @@ down, so the shape is visible before the parts.
 
 Status of record — SDK `npm run verify` → **626 tests, 625 pass, 0 fail, 1
 skipped**. Backend **21 migrations applied** to
-`xqsfzhhgfhdemencsmii`, edge function `analytics-ingest` **v3, ACTIVE**.
-UI `npm run build` + `npm run lint` clean.
+ `xqsfzhhgfhdemencsmii`, edge functions `analytics-ingest` and
+ `agentport-team` **both ACTIVE v10** (verified via functions list).
+ UI `npm run build` + `npm run lint` clean.
 
 Authoritative sources: SDK `ARCHITECTURE.md` §0 · SDK
 `dashboard_runtime_integration.md` §7 · UI `TASKS.md` · SDK `TASKS.md`.
@@ -155,8 +156,8 @@ vanishing.
 
 | Function | State |
 | --- | --- |
-| `analytics-ingest` | **ACTIVE v3.** Verifies the per-tenant push key, validates the payload digest, refuses unregistered capability names, collapses to counts. `verify_jwt=false` because it authenticates its own HMAC and must answer unauthenticated callers with 401 |
-| `agentport-team` | **ACTIVE v3**, `verify_jwt=true`. Invite / set_role / remove / list. Refuses self-escalation, admin-creates-owner, and removal of an owner; returns no email addresses |
+| `analytics-ingest` | **ACTIVE v10.** Verifies the per-tenant push key, validates the payload digest, refuses unregistered capability names, collapses to counts. `verify_jwt=false` because it authenticates its own HMAC and must answer unauthenticated callers with 401 |
+| `agentport-team` | **ACTIVE v10**, `verify_jwt=true`. Invite / set_role / remove / list. Refuses self-escalation, admin-creates-owner, and removal of an owner; returns no email addresses |
 
 **Why analytics ingest currently returns `503 ingest_unavailable`.** It is **not**
 a missing SQL function. The edge function picks its door from the validated body

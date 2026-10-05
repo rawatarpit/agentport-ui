@@ -5,7 +5,8 @@
 to wire first, what each page renders, and what is deliberately not built.
 
 Status of record — UI `npm run build` + `npm run lint` clean · SDK 626 tests,
-625 pass · Supabase 21 migrations applied, `agentport-team` v1 ACTIVE.
+625 pass · Supabase 21 migrations applied, both edge functions ACTIVE v10
+(verified). First analytics push stored and read back from `push_batches`.
 
 ---
 
