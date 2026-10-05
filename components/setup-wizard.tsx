@@ -54,6 +54,7 @@ export function SetupWizard() {
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [loadError, setLoadError] = useState(false)
 
   const minor = useMemo(() => {
     const toMinor = (v: string): number | null => {
@@ -121,7 +122,9 @@ export function SetupWizard() {
           setSavedAt('loaded')
         },
       )
-      .catch(() => {})
+      .catch(() => {
+        if (live) setLoadError(true)
+      })
     return () => {
       live = false
     }
@@ -279,6 +282,9 @@ export function SetupWizard() {
               </button>
               {saveError ? (
                 <span className="text-[13px] text-rust" role="alert">{saveError}</span>
+              ) : null}
+              {loadError ? (
+                <span className="text-[12px] text-rust" role="alert">Saved answers would not load — starting fresh. Saving still works.</span>
               ) : null}
               {!ready && (
                 <span className="font-mono text-[11px] text-rust">

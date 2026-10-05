@@ -1,0 +1,36 @@
+# TASKS.md 12.4.3 — typecheck + lint + unit tests + build on every push and PR.
+#
+# Node is pinned to match netlify.toml. The SDK is a `file:../agentport-sdk`
+# sibling, so CI needs it checked out next to this repo before `npm ci`.
+# Where the SDK lives (private repo, submodule, vendored tarball) is an owner
+# decision — the step below fails with instructions instead of guessing.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.18.0'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Provide the SDK sibling
+        run: |
+          if [ ! -f ../agentport-sdk/package.json ]; then
+            echo '::error::Missing ../agentport-sdk. Check out the SDK repo next to this one (it needs a token if private), vendor it, or publish @agentport/sdk — see netlify.toml.'
+            exit 1
+          fi
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'

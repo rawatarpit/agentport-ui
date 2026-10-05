@@ -384,8 +384,8 @@ the merchant.
 | # | Task | State |
 | --- | --- | --- |
 | 12.4.1 | **Make `npm run lint` a gate.** | **done — correction.** The audit claimed `next lint` finds no ESLint config and blocks interactively. Wrong in this tree: `.eslintrc.json` exists and `npm run lint` exits clean, verified non-interactively. The gate is real; keep it in CI (12.4.3) |
-| 12.4.2 | Security headers in `next.config.mjs` — CSP, `X-Frame-Options`, `Strict-Transport-Security`, `X-Content-Type-Options`, `Referrer-Policy` | **not built** — none present |
-| 12.4.3 | CI running typecheck + lint + build on every PR | **not built** |
+| 12.4.2 | Security headers in `next.config.mjs` — CSP, `X-Frame-Options`, `Strict-Transport-Security`, `X-Content-Type-Options`, `Referrer-Policy` | **done, minus CSP on purpose** — static headers ship from `next.config.mjs` (mirrored in `netlify.toml`); no CSP because Next hydration needs inline scripts and an `unsafe-inline` CSP is theatre. HSTS stays host-side so localhost never pins |
+| 12.4.3 | CI running typecheck + lint + build on every PR | **done** — `.github/workflows/ci.yml` runs typecheck, lint, `npm test`, build. The SDK checkout step fails with instructions instead of guessing a repo slug |
 | 12.4.4 | Keep the existing `NEXT_PUBLIC_`-service-role build guard | **done and real** — `next.config.mjs:27-34` throws on `NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY`, `…_ACCESS_TOKEN`, `…_SIGNING_SECRET` |
 | 12.4.5 | Confirm `netlify.toml`'s SDK dependency strategy still resolves in CI | **not verified** — the comment at line 13 warns `npm ci` fails without a published package or pre-build step |
 
@@ -394,9 +394,9 @@ the merchant.
 | # | Task | State |
 | --- | --- | --- |
 | 12.5.1 | `lib/agentport.ts:72` — `baseUrl: process.env.NEXT_PUBLIC_AGENTPORT_BASE_URL ?? 'http://localhost:3000'` | **live defect** |
-| 12.5.2 | Make `baseUrl` a merchant setting. `app/.well-known/agent.json/route.ts` already overrides it from `websiteUrl` and emits an honest `note` when unset — **that fix is in the right place and `lib/agentport.ts` should not contradict it** | **not built** |
-| 12.5.3 | A missing baseUrl must not silently become the dashboard's own origin | **not built** |
-| 12.5.4 | Add tests. There is **no test directory** in this repo — `package.json` has no `test` script | **not built** |
+| 12.5.2 | Make `baseUrl` a merchant setting. `app/.well-known/agent.json/route.ts` already overrides it from `websiteUrl` and emits an honest `note` when unset — **that fix is in the right place and `lib/agentport.ts` should not contradict it** | **done at the route** — the in-process default stays a labelled demo fallback on purpose: the store imports that module for `configHash`, so reading the merchant there is a module cycle that crashes at import. Documented in the file |
+| 12.5.3 | A missing baseUrl must not silently become the dashboard's own origin | **done** — the manifest route emits the fallback **plus** the note; silent was the defect, labelled is the fix |
+| 12.5.4 | Add tests. There is **no test directory** in this repo — `package.json` has no `test` script | **done (unit)** — vitest, `npm test`, `lib/gates.test.ts`: 10 tests over validators + enforcing states. Enforcement path stays the SDK's, tested there |
 
 **12.5.1 is the same bug the manifest route's comment says it already fixed**
 ("Was the live bug in README/SYSTEM: the two addresses were conflated"). The

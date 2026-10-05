@@ -67,6 +67,16 @@ export const configHash = 'a1b2c3d4e5f6a1b2'
 
 export const ledger = new InMemoryLedger()
 
+/**
+ * TASKS.md 12.5.2 — demo default only, never the merchant's address.
+ *
+ * The agent-facing baseUrl is a merchant setting (`websiteUrl`, set via
+ * `PUT /api/me`) and the manifest route reads it per request, with an honest
+ * note when unset. This constant deliberately does NOT read the store: the
+ * store imports this module for `configHash`, so reaching back at import
+ * time is a module cycle that crashes. A missing baseUrl must never silently
+ * become the dashboard's origin (12.5.3) — the route's note is that guarantee.
+ */
 export const agent = new AgentPort({
   business: 'Example Shoes',
   baseUrl: process.env.NEXT_PUBLIC_AGENTPORT_BASE_URL ?? 'http://localhost:3000',

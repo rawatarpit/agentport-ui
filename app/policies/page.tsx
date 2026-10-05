@@ -71,7 +71,7 @@ export default function PoliciesPage() {
         </p>
       </div>
 
-      <div className="panel overflow-x-auto">
+      <div className="panel hidden overflow-x-auto md:block">
         <table className="w-full min-w-[760px] text-left text-[13px]">
           <thead>
             <tr className="border-b border-ink-line">
@@ -94,6 +94,18 @@ export default function PoliciesPage() {
           </tbody>
         </table>
       </div>
+
+      <ul className="space-y-3 md:hidden">
+        {ORDER.map((r) => (
+          <li key={r.rule} className="panel space-y-2 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="font-mono text-[12px] text-bone">{r.rule}</span>
+              <Badge tone={r.outcome === 'deny' ? 'deny' : 'held'}>{r.outcome}</Badge>
+            </div>
+            <p className="text-[13px] leading-relaxed text-bone-dim">{r.why}</p>
+          </li>
+        ))}
+      </ul>
 
       <div className="panel p-5">
         <p className="label">Currently configured</p>

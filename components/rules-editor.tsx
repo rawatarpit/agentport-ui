@@ -34,6 +34,7 @@ export function RulesEditor() {
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [loadError, setLoadError] = useState(false)
 
   // The API stores minor units; the form speaks rupees. Convert at the edge.
   useEffect(() => {
@@ -62,7 +63,9 @@ export function RulesEditor() {
           setSavedAt('saved draft loaded')
         },
       )
-      .catch(() => {})
+      .catch(() => {
+        if (live) setLoadError(true)
+      })
     return () => {
       live = false
     }
@@ -129,6 +132,11 @@ export function RulesEditor() {
               ? 'Draft saved. Nothing changed for agents yet.'
               : 'Unsaved draft. Nothing here affects agents.'}
           </p>
+          {loadError ? (
+            <p className="mt-1 text-[12px] text-rust" role="alert">
+              Could not load your saved draft — editing from defaults. Saving still works.
+            </p>
+          ) : null}
         </div>
         <Badge tone="idle">not deployed</Badge>
       </div>

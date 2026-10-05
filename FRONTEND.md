@@ -186,12 +186,16 @@ screenshot gate in CI, so this is a manual step until one exists.
 - GitHub App install flow (branch → PR → merge as the signature).
 
 **Genuinely UI work, not blocked:**
-
-- Responsive pass (§5) — nothing exists.
-- Empty, loading, and error states for every view. Every table above will be empty on day one, and "no data" must not read as "broken" or "healthy".
-- `/team` page.
-- Delete `app/api/analytics`, `app/api/config`, and `lib/store.ts`.
-- Fix the `baseUrl` conflation (§6).
+- Responsive pass (§5) — **done**: nav collapses to a disclosure under 768px,
+  ledger + policies tables render as labelled cards on phones, 44px targets on
+  coarse pointers, `prefers-reduced-motion` kills transitions.
+- Empty, loading, and error states — **partial**: connect/golive/test flows
+  carry all three; the three draft editors now surface load failures instead
+  of silently defaulting. Tables still assume seeded rows.
+- `/team` page — **not built**.
+- Delete `app/api/analytics`, `app/api/config`, and `lib/store.ts` — **not built**,
+  correctly: the RAM store is the only backend until Supabase reads land.
+- Fix the `baseUrl` conflation (§6) — **done at the manifest route** (see TASKS 12.5.2).
 
 **Decided NOT to build:**
 

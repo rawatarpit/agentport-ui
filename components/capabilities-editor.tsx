@@ -64,6 +64,7 @@ export function CapabilitiesEditor() {
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [loadError, setLoadError] = useState(false)
 
   // The form edits a copy; the API holds truth. Unknown capabilities in a
   // saved draft are ignored rather than rendered — the known list is the UI.
@@ -82,7 +83,9 @@ export function CapabilitiesEditor() {
         })
         setSavedAt('loaded')
       })
-      .catch(() => {})
+      .catch(() => {
+        if (live) setLoadError(true)
+      })
     return () => {
       live = false
     }
@@ -137,6 +140,9 @@ export function CapabilitiesEditor() {
       </div>
       {saveError ? (
         <p className="text-[13px] text-rust" role="alert">{saveError}</p>
+      ) : null}
+      {loadError ? (
+        <p className="text-[12px] text-rust" role="alert">Could not load your saved draft — showing defaults. Saving still works.</p>
       ) : null}
 
       {CAPS.map((c) => (

@@ -23,13 +23,25 @@ export function Nav() {
           </p>
           <h1 className="font-display text-2xl text-bone">Example Shoes</h1>
         </div>
-        <nav className="flex flex-wrap gap-1">
+        {/* Desktop: the full row. Mobile: a disclosure — ten links will not
+            fit a 375px bar, and a wrapped wall of buttons is not navigation. */}
+        <nav className="hidden flex-wrap gap-1 md:flex" aria-label="Primary">
           {links.map((l) => (
             <Link key={l.href} href={l.href} className="btn">
               {l.label}
             </Link>
           ))}
         </nav>
+        <details className="w-full md:hidden">
+          <summary className="btn w-full cursor-pointer justify-center">Menu</summary>
+          <nav className="mt-2 grid grid-cols-2 gap-1" aria-label="Primary">
+            {links.map((l) => (
+              <Link key={l.href} href={l.href} className="btn justify-center">
+                {l.label}
+              </Link>
+            ))}
+          </nav>
+        </details>
       </div>
     </header>
   )

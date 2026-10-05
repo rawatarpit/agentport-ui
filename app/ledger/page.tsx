@@ -39,7 +39,13 @@ export default async function LedgerPage() {
         </p>
       </div>
 
-      <div className="panel overflow-x-auto">
+      {/*
+        FRONTEND.md §5 — below 768px each row becomes a stacked card with
+        labelled pairs. Horizontal-scrolling a nine-column table on a phone
+        hides the refusal column exactly where the anxious owner looks first,
+        so the table stays desktop-only and the cards carry the same fields.
+      */}
+      <div className="panel hidden overflow-x-auto md:block">
         <table className="w-full min-w-[1100px] text-left text-[13px]">
           <thead>
             <tr className="border-b border-ink-line">
@@ -103,6 +109,49 @@ export default async function LedgerPage() {
           </tbody>
         </table>
       </div>
+
+      <ul className="space-y-3 md:hidden">
+        {entries.map((e) => (
+          <li key={`${e.tenantId}:${e.requestId}`} className="panel space-y-2 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="font-mono text-[13px] text-bone">{e.capability}</span>
+              <Badge tone={tone(e)}>{e.decision}</Badge>
+            </div>
+            <dl className="space-y-1.5 text-[13px]">
+              <div className="flex justify-between gap-3">
+                <dt className="label">Agent</dt>
+                <dd className="font-mono text-[12px] text-bone-dim">{e.agentId} · {e.assurance}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="label">Rule</dt>
+                <dd className="font-mono text-[12px] text-bone-faint">{e.rule}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="label">Measured</dt>
+                <dd className="max-w-[60%] text-right font-mono text-[12px] text-bone-faint">{evaluated(e)}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="label">Approval</dt>
+                <dd className="text-[12px] text-bone-dim">
+                  {e.approval?.approvedBy ? `by ${e.approval.approvedBy}` : e.approval?.required ? 'awaiting human' : '—'}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="label">Result</dt>
+                <dd className="text-[12px] text-bone-dim">{e.result ?? '—'}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="label">Config</dt>
+                <dd className="font-mono text-[12px] text-bone-faint">{e.configHash ?? '—'}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="label">Request</dt>
+                <dd className="font-mono text-[11px] text-bone-faint">{e.requestId}</dd>
+              </div>
+            </dl>
+          </li>
+        ))}
+      </ul>
 
       <div className="space-y-2">
         <p className="font-mono text-[11px] text-bone-faint">

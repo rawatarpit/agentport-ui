@@ -5,6 +5,33 @@ const nextConfig = {
   transpilePackages: ['@agentport/sdk'],
 
   /**
+   * Security headers on every response (TASKS.md 12.4.2).
+   *
+   * Deliberately no `Content-Security-Policy`: Next.js needs inline scripts
+   * to hydrate, so a CSP without per-request nonces would be `unsafe-inline`
+   * theatre — a header that looks like a control and enforces nothing. The
+   * headers below are all enforceable as static values. HSTS is set by the
+   * host (Netlify) rather than here, so `http://localhost` development never
+   * gets pinned to https by a dev-server response.
+   */
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(), geolocation=(), payment=()',
+          },
+        ],
+      },
+    ]
+  },
+
+  /**
    * Fail the build if a server-only Supabase credential is exposed to the client.
    *
    * `.gitignore` covers `.env.local`, and it does nothing about this. A

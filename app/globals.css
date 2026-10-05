@@ -28,8 +28,7 @@ body {
     @apply inline-flex items-center gap-2 rounded-md border border-ink-line px-3 py-1.5
       font-mono text-[12px] text-bone-dim transition-colors hover:border-verdant
       hover:text-bone;
-  }
-  .btn-primary {
+  }  .btn-primary {
     @apply border-verdant/50 bg-verdant/10 text-bone hover:bg-verdant/20;
   }
   .btn-danger {
@@ -40,4 +39,28 @@ body {
 /* Ledger and approval tables are dense by design; keep rows aligned. */
 .tabular {
   font-variant-numeric: tabular-nums;
+}
+
+/*
+ * FRONTEND.md §5 — the minimum that is not embarrassing.
+ * Tap targets hit 44px on coarse pointers while the desktop surface keeps
+ * its density; status transitions are decorative, so reduced-motion drops
+ * them entirely rather than shortening them.
+ */
+@media (pointer: coarse) {
+  .btn {
+    min-height: 44px;
+  }
+  input[type='checkbox'] {
+    min-width: 22px;
+    min-height: 22px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+  }
 }
