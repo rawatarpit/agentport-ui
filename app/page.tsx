@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Badge, Stat } from '@/components/stat'
 import { EnforcingPanel } from '@/components/enforcing-panel'
+import { TenantCard } from '@/components/tenant-card'
 import { agent, ensureSeeded, ledger, policy } from '@/lib/agentport'
 
 export const dynamic = 'force-dynamic'
@@ -34,6 +35,8 @@ export default async function Overview() {
       </section>
 
       <EnforcingPanel draftLabel="overview — no draft open" />
+
+      <TenantCard />
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Calls recorded" value={entries.length} />

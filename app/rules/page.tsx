@@ -1,4 +1,5 @@
 import { RulesEditor } from '@/components/rules-editor'
+import { DenialReasons } from '@/components/denial-reasons'
 import { GolivePanel } from '@/components/golive-panel'
 import { EnforcingPanel } from '@/components/enforcing-panel'
 
@@ -17,6 +18,7 @@ export default function RulesPage() {
         </p>
       </div>
       <EnforcingPanel draftLabel="rules draft" />
+      <DenialReasons />
       <RulesEditor />
       <GolivePanel />
     </div>

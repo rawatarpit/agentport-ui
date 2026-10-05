@@ -88,15 +88,15 @@ working:
 
 | # | Step | Replaces |
 | --- | --- | --- |
-| 1 | `lib/supabase/client.ts` — one browser client, anon key | `lib/supabase.ts` (which only returns booleans) |
-| 2 | `/login`, `/signup`, middleware redirect when no session | `POST /api/signup` |
-| 3 | `/` home reads `v_tenant_home` | seeded demo heartbeat |
-| 4 | `/analytics` reads `v_capability_activity` + `v_conversion` | fabricated numbers |
-| 5 | `/rules` panel reads `v_denial_reasons` | fixtures |
-| 6 | `/ledger` + `/approvals` | fixtures — **needs the durable projection first** |
-| 7 | `/team` page → `agentport-team` | nothing |
-| 8 | Delete `app/api/analytics` + `app/api/config` | RAM ingest |
-| 9 | Delete `lib/store.ts` | everything |
+| 1 | `lib/supabase/client.ts` — one browser client, anon key | `lib/supabase.ts` (which only returns booleans) | **done** |
+| 2 | `/login`, `/signup`, middleware redirect when no session | `POST /api/signup` | **done** — `/login`, `/signup`, `/reset-password`, `/auth/callback`, `/onboarding`, `middleware.ts`. Live-session QA pending (email rate-limited during probe; no orphans created) |
+| 3 | `/` home reads `v_tenant_home` | seeded demo heartbeat | **done** — `<TenantCard/>`, NULL push renders unknown |
+| 4 | `/analytics` reads `v_capability_activity` + `v_conversion` | fabricated numbers | **done** — empty renders unknown, never zero |
+| 5 | `/rules` panel reads `v_denial_reasons` | fixtures | **done** — silent when empty |
+| 6 | `/ledger` + `/approvals` | fixtures — **needs the durable projection first** | still blocked, correctly |
+| 7 | `/team` page → `agentport-team` | nothing | **done** — session JWT, coarse refusals, last-owner sentence |
+| 8 | Delete `app/api/analytics` + `app/api/config` | RAM ingest | still correctly waiting (config serves the snippet until the artifact channel) |
+| 9 | Delete `lib/store.ts` | everything | still correctly waiting |
 
 Step 6 is blocked: there is no durable read model for decisions yet. Steps 1–5,
 7 and 8 are unblocked **today**.
