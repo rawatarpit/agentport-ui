@@ -9,25 +9,26 @@ export const dynamic = 'force-dynamic'
  *
  * Fixtures, not the real approval store. The real queue is durable and
  * server-side; see TASKS.md 2.1.
+ *
+ * Four columns only — capability, agent, reason for hold, rule that fired.
+ * No amounts, no line items, no customer: the boundary (amounts and
+ * parameters never reach us) holds for fixtures too, because a column is how
+ * an amount ends up in a dashboard query later. See TASKS.md 12.2.5.
  */
 const PENDING = [
   {
     requestId: 'req_held_9f2',
     agent: 'gpt-shopping',
     capability: 'createOrder',
-    reason: 'Order of 31,400 minor units is above the 25,000 approval threshold.',
-    amount: '31,400 minor',
-    items: 'Chelsea Boot × 1, Waxed Lace × 2',
-    customer: 'A shopper in the storefront chat',
+    reason: 'Order is above the approval threshold. Nothing moves until you decide.',
+    rule: 'max_order_value',
   },
   {
     requestId: 'req_held_4ab',
     agent: 'perplexity',
     capability: 'createOrder',
-    reason: 'Order of 24,800 minor units meets the bulk threshold of 20 units.',
-    amount: '24,800 minor',
-    items: 'Everyday Boot × 20',
-    customer: 'A group order routed from a research agent',
+    reason: 'Basket meets the bulk threshold. Volume waits too, whatever the value.',
+    rule: 'bulk_order_threshold',
   },
 ]
 
@@ -84,7 +85,6 @@ export default function ApprovalsPage() {
                   <p className="mt-2 text-[14px] text-bone-dim">{p.reason}</p>
                 </div>
                 <div className="text-right">
-                  <p className="tabular font-display text-2xl text-bone">{p.amount}</p>
                   <p className="font-mono text-[11px] text-bone-faint">{p.requestId}</p>
                 </div>
               </div>
@@ -95,12 +95,12 @@ export default function ApprovalsPage() {
                   <dd className="mt-1 font-mono text-[12px] text-bone-dim">{p.agent}</dd>
                 </div>
                 <div>
-                  <dt className="label">Items</dt>
-                  <dd className="mt-1 text-bone-dim">{p.items}</dd>
+                  <dt className="label">Rule that fired</dt>
+                  <dd className="mt-1 font-mono text-[12px] text-bone-dim">{p.rule}</dd>
                 </div>
                 <div>
-                  <dt className="label">On behalf of</dt>
-                  <dd className="mt-1 text-bone-dim">{p.customer}</dd>
+                  <dt className="label">State</dt>
+                  <dd className="mt-1 text-bone-dim">held, not executed</dd>
                 </div>
               </dl>
 

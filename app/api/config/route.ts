@@ -5,10 +5,12 @@ export const dynamic = 'force-dynamic'
 /**
  * GET /api/config — the signed live config for this tenant's snippet.
  *
- * Same-origin demo surface: in production this answers only a snippet
- * credential, because the payload names what is forbidden and what is held —
- * useful reconnaissance for whoever can read it. No live config yet is a
- * 404 with a reason, never an empty policy that reads as "allow everything".
+ * Honestly open in this demo: there is NO snippet-credential check here, so
+ * this answers anyone who asks — and the payload names what is forbidden and
+ * what is held, which is useful reconnaissance. Production must gate this on
+ * a snippet credential (TASKS.md 12.1.1); until then, do not mistake this
+ * comment for that control. No live config yet is a 404 with a reason, never
+ * an empty policy that reads as "allow everything".
  */
 export async function GET() {
   const tenantId = resolveTenant()

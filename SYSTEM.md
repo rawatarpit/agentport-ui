@@ -4,7 +4,7 @@
 down, so the shape is visible before the parts.
 
 Status of record — SDK `npm run verify` → **626 tests, 625 pass, 0 fail, 1
-skipped**. Backend **13 migrations applied** to
+skipped**. Backend **21 migrations applied** to
 `xqsfzhhgfhdemencsmii`, edge function `analytics-ingest` **v3, ACTIVE**.
 UI `npm run build` + `npm run lint` clean.
 
@@ -122,7 +122,7 @@ because a hash is not a disclosure.
 
 ## 5. Supabase — our hosted backend
 
-### 5a. Schema (13 migrations, all applied)
+### 5a. Schema (21 migrations, all applied)
 
 | Table | Holds |
 | --- | --- |
@@ -155,16 +155,43 @@ vanishing.
 
 | Function | State |
 | --- | --- |
-| `analytics-ingest` | **ACTIVE, v3.** Verifies the per-tenant push key, validates the payload digest, refuses unregistered capability names, collapses to counts. Has its own `trust_probe.ts`. |
+| `analytics-ingest` | **ACTIVE v3.** Verifies the per-tenant push key, validates the payload digest, refuses unregistered capability names, collapses to counts. `verify_jwt=false` because it authenticates its own HMAC and must answer unauthenticated callers with 401 |
+| `agentport-team` | **ACTIVE v3**, `verify_jwt=true`. Invite / set_role / remove / list. Refuses self-escalation, admin-creates-owner, and removal of an owner; returns no email addresses |
 
-**Why it currently returns `503 ingest_unavailable`, and why that is correct.**
-The inner function `public.agentport_ingest_push` exists. The guarded entry
-point `public.agentport_ingest` — a `SECURITY DEFINER` wrapper that checks, then
-*sets the role* — **has not been written.** It fails closed rather than writing
-through a role it has not narrowed. Shipping the wrapper is the last step, not a
-bug fix.
+**Why analytics ingest currently returns `503 ingest_unavailable`.** It is **not**
+a missing SQL function. The edge function picks its door from the validated body
+— `agentport_ingest_push` or `agentport_ingest_schema` (`index.ts:1475`) — and
+both are live; `authenticator` is correctly a member of `agentport_ingest_caller`.
+The cause is that `callIngestRpc` (`index.ts:1454`) reads three env vars and fails
+closed if any is empty, and **neither `AGENTPORT_INGEST_JWT` nor
+`AGENTPORT_PUSH_PEPPER` is set.** Deployed secrets are the 7 platform-managed
+ones. Setting those two values opens the path.
 
----
+> An earlier draft of this document blamed a missing `public.agentport_ingest`
+> "guarded entry point". **Nothing calls that function**, and writing it would
+> add a third, unguarded, uncalled door. There is a stale comment at
+> `index.ts:1381` making the same claim about `agentport_ingest_push`, which
+> migration `13800` created.
+
+### 5d. Identity (added 2026-10-05)
+
+**GoTrue is deployed.** Email/password signup and login need no code and no edge
+function — `supabase.auth.signUp()` / `signInWithPassword()` are the whole
+implementation. Reimplementing password hashing here would be a second trust
+path, which `AGENTS.md` §9 forbids. What is missing is SMTP, so confirmation and
+reset emails have nowhere to go.
+
+The AgentPort layer on top of it:
+
+- `tenants.owner_id`, and `tenant_members(tenant_id, user_id, role)` with `owner` / `admin` / `viewer`.
+- `agentport_provision_tenant` fires on `auth.users` INSERT and mints the tenant plus its first owner — in the database, atomically with the signup, so there is no window where a user exists with no tenant.
+- `agentport_is_tenant_member()` is `SECURITY DEFINER` with `search_path` pinned, because the read policies call it and a policy on a table cannot call a function whose own read is policed by that same policy.
+- `agentport_refuse_last_owner` refuses to let a tenant lose its last owner, on both delete and demotion.
+- **5 views with `security_invoker = true`**, so RLS applies *through* them: `v_tenant_home`, `v_capability_activity`, `v_conversion`, `v_denial_reasons`, `v_schema_inventory`. A plain view is evaluated as its owner and would hand every member every tenant's rows.
+- `agentport_user_id_by_email` resolves an address to a uid for invites. `service_role` only — verified that `anon` and `authenticated` are refused. It is the one function whose answer is "does this person have an account", so no browser-reachable role may ask it.
+
+**Everything above is deployed against a database with zero tenants and zero
+events.** The machinery is verified; it has never carried a customer's data.
 
 ## 6. The dashboard (this app)
 

@@ -8,3 +8,5 @@ out/
 # Local operator tooling — never pushed to GitHub.
 .opencode/
 opencode.json
+# Supabase CLI scratch (link state). Backend lives in the SDK repo.
+supabase/.temp/
