@@ -179,7 +179,7 @@ that **feeds** it.
 
 | # | Task | State |
 | --- | --- | --- |
-| R1 | **Config artifact channel** — backend publishes, runtime fetches | **not built. The hinge.** Nothing downstream works without it: a working enforcement point with no way to receive configuration. Every `artifact` hit in `main.ts`/`upgrade.ts` is *our own release* download, not policy |
+| R1 | **Config artifact channel** — backend publishes, runtime fetches | **crypto primitive done 2026-10-06** — `src/artifact.ts` (merchant Ed25519 keypair, canonical bytes over `stableStringify`, sign/verify, kill-switch refused, tenant/version bound) + 8 tests, SDK suite 634/633 green. Still pending: provision ceremony (keypair at tenant provision, private-key delivery), distribution endpoint (B7), runtime load-path verify + offline cache. Committed SDK-side locally (`d9f5ebd`, no remote to push to) |
 | R2 | Merchant signs via **PR merge**; runtime verifies **locally** per request | **not built** |
 | R3 | Reject unsigned, stale, or unknown-tenant artifacts | **not built** |
 | R4 | Offline: cache config, **keep enforcing** when we are unreachable | **not built.** Our outage must not become a merchant's payment outage |
