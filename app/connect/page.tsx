@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { EnforcingPanel } from '@/components/enforcing-panel'
+import { GithubPanel } from '@/components/github-panel'
 import { SignupForm } from '@/components/signup-form'
 import { TestEventButton } from '@/components/test-event-button'
 import { WebsiteForm } from '@/components/website-form'
@@ -53,7 +54,7 @@ export default function ConnectPage() {
     <div className="space-y-6">
       <div>
         <p className="label">Front door</p>
-        <h2 className="mt-2 font-display text-3xl text-bone">Connect your store</h2>
+        <h2 className="mt-2 font-display text-3xl text-bone">Connect your business</h2>
         <p className="prose-bone mt-3 max-w-[68ch]">
           Two doors, one artifact. The dashboard is the front door;{' '}
           <span className="font-mono text-bone">agent-port init</span> stays as the
@@ -123,6 +124,8 @@ export default function ConnectPage() {
       </div>
 
       <TestEventButton />
+
+      <GithubPanel />
 
       <WebhookPanel />
     </div>
