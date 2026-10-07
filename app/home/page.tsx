@@ -44,7 +44,7 @@ export default function HomePage() {
           <Audience title="Local shops" body="A customer asks a bot to buy. Below your line it runs; above it, you approve; refunds never go through an agent." />
           <Audience title="D2C brands" body="Discovery on marketplaces and search, checkout on your store — held to the same policy on every surface." />
           <Audience title="Travel & bookings" body="Itineraries change, prices move, cancellations sting. Holds for a human on anything that costs money." />
-          <Audience title="SaaS & platforms" body="Your customers' agents calling your API get scoped credentials, ceilings, and an audit trail per tenant." />
+          <Audience title="SaaS & platforms" body="Your customers' agents calling your API get scoped credentials, ceilings, and an audit trail per customer." />
         </div>
       </section>
 

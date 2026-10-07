@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { EnforcingPanel } from '@/components/enforcing-panel'
-import { TenantCard } from '@/components/tenant-card'
-import { DashboardKpis, GettingStarted, GithubHowto, PullRequestCard } from '@/components/dashboard'
+import { BusinessCard } from '@/components/business-card'
+import { DashboardKpis, GettingStarted, GithubHowto, GithubNudge, PullRequestCard } from '@/components/dashboard'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,7 +9,7 @@ const VERTICALS = [
   { label: 'Local shops', body: 'Counter questions, held orders, refused refunds.' },
   { label: 'D2C brands', body: 'Marketplace discovery, checkout held to one policy.' },
   { label: 'Travel & bookings', body: 'Itinerary changes wait for a human.' },
-  { label: 'SaaS & platforms', body: 'Scoped credentials per tenant, audit per call.' },
+  { label: 'SaaS & platforms', body: 'Scoped credentials per customer, audit per call.' },
 ]
 
 /**
@@ -43,7 +43,9 @@ export default async function Overview() {
         ))}
       </section>
 
-      <TenantCard />
+      <BusinessCard />
+
+      <GithubNudge />
 
       <GettingStarted />
 

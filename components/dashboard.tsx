@@ -158,7 +158,7 @@ export async function GettingStarted() {
  * The pull request, on the dashboard where the owner watches it.
  *
  * Once the App exists this shows the live PR — branch, CI state, merge
- * state — for this tenant. Until then it says there is no PR instead of
+ * state — for your business. Until then it says there is no PR instead of
  * rendering an empty widget as if one were coming. The merge is the
  * signature: nothing here merges, approves, or implies either happened.
  */
@@ -180,8 +180,38 @@ export function PullRequestCard() {
     <div className="panel p-5">
       <p className="label">Pull request</p>
       <p className="mt-1 text-[14px] text-bone-dim">
-        Connected — open pull requests for this tenant will appear here with branch, CI, and merge state.
+        Connected — open pull requests for your business will appear here with branch, CI, and merge state.
       </p>
+    </div>
+  )
+}
+
+/**
+ * The nudge for everybody signed up but not connected.
+ *
+ * You have an account, the App is not installed, so nothing can reach your
+ * site yet — this banner says exactly that and points at the one button
+ * that fixes it. Amber-tinted because it is the single most important
+ * un-done thing, not because anything is wrong. Disappears the moment the
+ * App connects; nagging a connected business would be the boy who cried.
+ */
+export function GithubNudge() {
+  if (githubConnected()) return null
+  return (
+    <div className="panel space-y-3 border-amber/40 bg-amber/5 p-5">
+      <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-amber">
+        One step left — connect GitHub
+      </p>
+      <p className="max-w-[62ch] text-[14px] leading-relaxed text-bone-dim">
+        Your account is ready, but nothing is governed yet — no code of yours
+        is touched until you install the App on your website&apos;s repo. It
+        takes two clicks, you pick the repo, and your merge is what turns
+        everything on.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Link href="/connect" className="btn btn-primary">Connect GitHub now</Link>
+        <Link href="/setup" className="btn">Answer questions first</Link>
+      </div>
     </div>
   )
 }
