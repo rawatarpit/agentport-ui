@@ -6,7 +6,6 @@
   --font-display: 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
   --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
 }
-
 html,
 body {
   background: #0f0e0c;
@@ -14,9 +13,19 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Quiet depth behind everything: a faint top glow, never a gradient wash. */
+body {
+  background-image: radial-gradient(1200px 320px at 50% -120px, rgba(120, 200, 150, 0.06), transparent 70%);
+}
+
+::selection {
+  background: rgba(120, 200, 150, 0.25);
+}
+
 @layer components {
   .panel {
     @apply rounded-lg border border-ink-line bg-ink-soft;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 12px 32px rgba(0, 0, 0, 0.25);
   }
   .label {
     @apply font-mono text-[11px] uppercase tracking-[0.14em] text-bone-faint;
@@ -25,14 +34,29 @@ body {
     @apply text-[15px] leading-[1.7] text-bone-dim;
   }
   .btn {
-    @apply inline-flex items-center gap-2 rounded-md border border-ink-line px-3 py-1.5
+    @apply inline-flex items-center justify-center gap-2 rounded-md border border-ink-line px-4 py-2
       font-mono text-[12px] text-bone-dim transition-colors hover:border-verdant
-      hover:text-bone;
-  }  .btn-primary {
+      hover:text-bone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-verdant/60;
+  }
+  .btn-primary {
     @apply border-verdant/50 bg-verdant/10 text-bone hover:bg-verdant/20;
   }
   .btn-danger {
     @apply border-rust/50 text-rust hover:bg-rust/10;
+  }
+  /* The one input style. Every form field in the product uses it, so a
+     merchant learns what "type here" looks like exactly once. */
+  .field-label {
+    @apply mb-2 block text-[13px] font-medium text-bone;
+  }
+  .input {
+    @apply w-full rounded-md border border-ink-line bg-ink/60 px-3 py-2.5 text-[14px]
+      text-bone placeholder:text-bone-faint/60 outline-none transition-colors
+      focus:border-verdant focus:bg-ink-soft;
+  }
+  /* Auth shell: one centered column, generous air, brand on top. */
+  .auth-card {
+    @apply panel w-full max-w-md space-y-5 p-8;
   }
 }
 

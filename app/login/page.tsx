@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { AuthShell, FieldError } from '@/components/auth-shell'
 
 /** Email + password login. GoTrue holds the password; this form never sees it twice. */
 export default function LoginPage() {
@@ -30,30 +31,30 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="mx-auto max-w-md space-y-6">
+    <AuthShell
+      eyebrow="Agent Port · sign in"
+      title="Welcome back"
+      lede="Your policies, ledger, and approvals are behind this door."
+      footer={
+        <>
+          No account? <Link className="text-bone underline underline-offset-4" href="/signup">Create one</Link>
+          {' · '}
+          <Link className="text-bone underline underline-offset-4" href="/reset-password">Reset password</Link>
+        </>
+      }
+    >
       <div>
-        <p className="label">Sign in</p>
-        <h2 className="mt-2 font-display text-3xl text-bone">Welcome back</h2>
+        <label className="field-label" htmlFor="login-email">Email</label>
+        <input id="login-email" className="input" value={email} inputMode="email" autoComplete="email" placeholder="you@yourshop.in" onChange={(e) => setEmail(e.target.value)} />
       </div>
-      <div className="panel space-y-4 p-6">
-        <div>
-          <label className="block text-[13px] text-bone" htmlFor="login-email">Email</label>
-          <input id="login-email" className="mt-2 w-full border border-ink-line bg-transparent px-3 py-2 text-[14px] text-bone outline-none focus:border-verdant" value={email} inputMode="email" onChange={(e) => setEmail(e.target.value)} />
-        </div>
-        <div>
-          <label className="block text-[13px] text-bone" htmlFor="login-password">Password</label>
-          <input id="login-password" type="password" className="mt-2 w-full border border-ink-line bg-transparent px-3 py-2 text-[14px] text-bone outline-none focus:border-verdant" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void submit() }} />
-        </div>
-        <button type="button" className="btn btn-primary" disabled={busy || !email || !password} onClick={submit}>
-          {busy ? 'Signing in…' : 'Sign in'}
-        </button>
-        {err ? <p className="text-[13px] text-rust" role="alert">{err}</p> : null}
+      <div>
+        <label className="field-label" htmlFor="login-password">Password</label>
+        <input id="login-password" type="password" className="input" value={password} autoComplete="current-password" onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void submit() }} />
       </div>
-      <p className="text-[13px] text-bone-dim">
-        No account? <Link className="text-bone underline" href="/signup">Create one</Link>
-        {' · '}
-        <Link className="text-bone underline" href="/reset-password">Reset password</Link>
-      </p>
-    </div>
+      <button type="button" className="btn btn-primary w-full py-2.5" disabled={busy || !email || !password} onClick={submit}>
+        {busy ? 'Signing in…' : 'Sign in'}
+      </button>
+      {err ? <FieldError>{err}</FieldError> : null}
+    </AuthShell>
   )
 }

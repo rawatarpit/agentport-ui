@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { AuthShell, FieldError } from '@/components/auth-shell'
 
 /**
  * Signup — email + password + business name. The name rides in
@@ -45,41 +46,37 @@ export default function SignupPage() {
 
   if (sent) {
     return (
-      <div className="mx-auto max-w-md space-y-6">
-        <p className="label">Check your email</p>
-        <h2 className="mt-2 font-display text-3xl text-bone">Confirm to continue</h2>
-        <p className="prose-bone">We sent a confirmation link to {email}. Nothing is set up until you click it — an unconfirmed account owns nothing.</p>
-      </div>
+      <AuthShell eyebrow="Agent Port · verify" title="Check your email" lede={`We sent a confirmation link to ${email}. Nothing is set up until you click it — an unconfirmed account owns nothing.`} footer={<Link className="text-bone underline underline-offset-4" href="/login">Back to sign in</Link>} >
+        <div />
+      </AuthShell>
     )
   }
 
   return (
-    <div className="mx-auto max-w-md space-y-6">
+    <AuthShell
+      eyebrow="Agent Port · create account"
+      title="Your shop, governed"
+      lede="One account, one tenant. Four questions later, agents answer to your policy."
+      footer={
+        <>Have an account? <Link className="text-bone underline underline-offset-4" href="/login">Sign in</Link></>
+      }
+    >
       <div>
-        <p className="label">Create your account</p>
-        <h2 className="mt-2 font-display text-3xl text-bone">Your shop, governed</h2>
+        <label className="field-label" htmlFor="su-email">Email</label>
+        <input id="su-email" className="input" value={email} inputMode="email" autoComplete="email" placeholder="you@yourshop.in" onChange={(e) => setEmail(e.target.value)} />
       </div>
-      <div className="panel space-y-4 p-6">
-        <div>
-          <label className="block text-[13px] text-bone" htmlFor="su-email">Email</label>
-          <input id="su-email" className="mt-2 w-full border border-ink-line bg-transparent px-3 py-2 text-[14px] text-bone outline-none focus:border-verdant" value={email} inputMode="email" onChange={(e) => setEmail(e.target.value)} />
-        </div>
-        <div>
-          <label className="block text-[13px] text-bone" htmlFor="su-password">Password</label>
-          <input id="su-password" type="password" className="mt-2 w-full border border-ink-line bg-transparent px-3 py-2 text-[14px] text-bone outline-none focus:border-verdant" value={password} onChange={(e) => setPassword(e.target.value)} />
-        </div>
-        <div>
-          <label className="block text-[13px] text-bone" htmlFor="su-business">Business name</label>
-          <input id="su-business" className="mt-2 w-full border border-ink-line bg-transparent px-3 py-2 text-[14px] text-bone outline-none focus:border-verdant" value={business} onChange={(e) => setBusiness(e.target.value)} placeholder="Example Shoes" />
-        </div>
-        <button type="button" className="btn btn-primary" disabled={busy || !email || !password || !business} onClick={submit}>
-          {busy ? 'Creating…' : 'Create account'}
-        </button>
-        {err ? <p className="text-[13px] text-rust" role="alert">{err}</p> : null}
+      <div>
+        <label className="field-label" htmlFor="su-password">Password</label>
+        <input id="su-password" type="password" className="input" value={password} autoComplete="new-password" placeholder="At least 8 characters" onChange={(e) => setPassword(e.target.value)} />
       </div>
-      <p className="text-[13px] text-bone-dim">
-        Have an account? <Link className="text-bone underline" href="/login">Sign in</Link>
-      </p>
-    </div>
+      <div>
+        <label className="field-label" htmlFor="su-business">Business name</label>
+        <input id="su-business" className="input" value={business} autoComplete="organization" placeholder="Example Shoes" onChange={(e) => setBusiness(e.target.value)} />
+      </div>
+      <button type="button" className="btn btn-primary w-full py-2.5" disabled={busy || !email || !password || !business} onClick={submit}>
+        {busy ? 'Creating…' : 'Create account'}
+      </button>
+      {err ? <FieldError>{err}</FieldError> : null}
+    </AuthShell>
   )
 }

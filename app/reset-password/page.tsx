@@ -1,7 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { AuthShell, FieldError } from '@/components/auth-shell'
 
 /** Password reset: request link, then set the new password after the recovery link. */
 export default function ResetPasswordPage() {
@@ -28,27 +30,26 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="mx-auto max-w-md space-y-6">
-      <div>
-        <p className="label">Reset password</p>
-        <h2 className="mt-2 font-display text-3xl text-bone">Get back in</h2>
-      </div>
-      <div className="panel space-y-4 p-6">
-        {sent ? (
-          <p className="prose-bone">If that address has an account, a recovery link is on its way.</p>
-        ) : (
-          <>
-            <div>
-              <label className="block text-[13px] text-bone" htmlFor="rp-email">Email</label>
-              <input id="rp-email" className="mt-2 w-full border border-ink-line bg-transparent px-3 py-2 text-[14px] text-bone outline-none focus:border-verdant" value={email} inputMode="email" onChange={(e) => setEmail(e.target.value)} />
-            </div>
-            <button type="button" className="btn btn-primary" disabled={busy || !email} onClick={submit}>
-              {busy ? 'Sending…' : 'Send recovery link'}
-            </button>
-            {err ? <p className="text-[13px] text-rust" role="alert">{err}</p> : null}
-          </>
-        )}
-      </div>
-    </div>
+    <AuthShell
+      eyebrow="Agent Port · recovery"
+      title="Get back in"
+      lede={sent ? undefined : 'One link, by email. It lands you back at sign in.'}
+      footer={<Link className="text-bone underline underline-offset-4" href="/login">Back to sign in</Link>}
+    >
+      {sent ? (
+        <p className="prose-bone text-[14px]">If that address has an account, a recovery link is on its way.</p>
+      ) : (
+        <>
+          <div>
+            <label className="field-label" htmlFor="rp-email">Email</label>
+            <input id="rp-email" className="input" value={email} inputMode="email" autoComplete="email" placeholder="you@yourshop.in" onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void submit() }} />
+          </div>
+          <button type="button" className="btn btn-primary w-full py-2.5" disabled={busy || !email} onClick={submit}>
+            {busy ? 'Sending…' : 'Send recovery link'}
+          </button>
+          {err ? <FieldError>{err}</FieldError> : null}
+        </>
+      )}
+    </AuthShell>
   )
 }
