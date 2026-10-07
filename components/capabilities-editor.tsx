@@ -125,14 +125,14 @@ export function CapabilitiesEditor() {
           <p className="label">Draft</p>
           <p className="mt-1 text-[13px] text-bone-dim">
             {savedAt
-              ? 'Draft saved. Nothing changed for agents yet.'
+              ? 'Draft saved. Nothing changed for your visitors yet.'
               : totalHidden === 0
-                ? 'Every field is visible to agents.'
+                ? 'Agents currently see every field.'
                 : `${totalHidden} field${totalHidden === 1 ? '' : 's'} hidden from agents.`}
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Badge tone="idle">not deployed</Badge>
+          <Badge tone="idle">not published yet</Badge>
           <button type="button" className="btn btn-primary" disabled={saving} onClick={save}>
             {saving ? 'Saving…' : savedAt ? 'Saved as draft' : 'Save as draft'}
           </button>
@@ -187,26 +187,27 @@ export function CapabilitiesEditor() {
       ))}
 
       {/*
-        The distinction that keeps this screen honest. Hiding a field shapes what
-        an agent is told exists. It does not stop the field arriving, does not
-        change the ledger, and does not change a single enforcement decision. A
-        merchant who believes hiding a field makes it safe has been told
-        something false by the absence of a warning here.
+        The distinction that keeps this screen honest. Hiding a field changes
+        what an agent is told exists. It does not stop the field arriving, does
+        not change the record, and does not change a single decision. Anyone
+        who believes hiding a field makes it safe has been told something
+        false by the absence of a warning here.
       */}
       <div className="panel border-amber/30 p-5">
-        <p className="font-mono text-[11px] uppercase tracking-widest text-amber">What this does not do</p>
+        <p className="font-mono text-[11px] uppercase tracking-widest text-amber">What hiding does not do</p>
         <ul className="mt-3 space-y-2 text-[13px] leading-relaxed text-bone-dim">
           <li>
-            Hiding a field changes the manifest an agent reads. It does not stop the field
-            being sent, and it is not a security control.
+            Hiding a field changes what an agent is told about. It does not stop
+            the field being sent, and it is not a security measure.
           </li>
           <li>
-            The ledger still records the full request. What an agent was allowed to see and
-            what it sent are different questions, and the ledger answers the second.
+            The record still keeps the full request. What an agent was allowed
+            to see and what it sent are different questions — the record
+            answers the second.
           </li>
           <li>
-            Nothing here is live until it is merged into your project. A draft saved on this
-            screen is <span className="text-bone">not deployed</span>.
+            Nothing here is live until you publish it. A saved draft on this
+            screen is <span className="text-bone">not published yet</span>.
           </li>
         </ul>
       </div>

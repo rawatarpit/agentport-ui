@@ -20,14 +20,30 @@ export async function GET() {
   const rules = getDraft(tenantId, 'rules')
   const live = getLive(tenantId)
 
+  // Real users sign in with Supabase Auth; the demo record is the fallback.
+  // Step 1 is done for whoever actually has an account, not whoever has a row.
+  let sessionEmail: string | null = null
+  try {
+    const { createClient } = await import('@/lib/supabase/server')
+    const {
+      data: { session },
+    } = await createClient().auth.getSession()
+    sessionEmail = session?.user.email ?? null
+  } catch {
+    // No session available — demo record below decides.
+  }
+  const account = sessionEmail
+    ? { done: true as const, body: `Signed in as ${sessionEmail}.` }
+    : merchant
+      ? { done: true as const, body: `Signed up as ${merchant.businessName} (${merchant.email}).` }
+      : { done: false as const, body: 'An account with us — email and password. GitHub comes later, for your repo, not your identity.' }
+
   const steps: Step[] = [
     {
       n: '1',
       title: 'Create your account',
-      body: merchant
-        ? `Signed up as ${merchant.businessName} (${merchant.email}). Magic-link sign-in arrives with Supabase Auth.`
-        : 'An account with us — email only, no password to hold. GitHub comes later, for your repo, not your identity.',
-      state: merchant ? 'done' : 'missing',
+      body: account.body,
+      state: account.done ? 'done' : 'missing',
     },
     {
       n: '2',

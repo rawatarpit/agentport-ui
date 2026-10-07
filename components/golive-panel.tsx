@@ -59,7 +59,7 @@ export function GolivePanel() {
       })
       const body = (await res.json()) as { status: string; reason?: string; version?: number; digest?: string }
       if (body.status !== 'ok') throw new Error(body.reason ?? 'Publish refused.')
-      setMsg(`Live at version ${body.version}, digest ${body.digest?.slice(0, 12)}. Your runtime picks it up from here.`)
+      setMsg(`Published as version ${body.version}. Your site picks it up from here.`)
       await load()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Publish refused.')
@@ -71,13 +71,13 @@ export function GolivePanel() {
   return (
     <div className="panel space-y-4 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="label">Go live</p>
+        <p className="label">Publish</p>
         {s?.live ? (
           <span className="font-mono text-[11px] text-bone-faint">
-            live v{s.live.version} · {s.live.digest.slice(0, 12)}
+            live version {s.live.version}
           </span>
         ) : (
-          <Badge tone="idle">not deployed</Badge>
+          <Badge tone="idle">not published</Badge>
         )}
       </div>
 
@@ -85,10 +85,13 @@ export function GolivePanel() {
         <p className="text-[13px] text-bone-faint">Reading publish state…</p>
       ) : !s.businessName ? (
         <p className="text-[13px] leading-relaxed text-bone-dim">
-          No account yet — create one on the <a className="text-bone underline" href="/connect">connect screen</a>, then come back.
+          No account yet — create one on the <a className="text-bone underline" href="/connect">connect screen</a>, then come back. Publishing always happens as your business.
         </p>
       ) : s.draft ? (
         <>
+          <p className="text-[13px] leading-relaxed text-bone-dim">
+            Read this carefully — publishing turns exactly this on:
+          </p>
           <ul className="space-y-1.5 text-[13px] leading-relaxed text-bone-dim">
             {s.draft.summary.map((line) => (
               <li key={line}>· {line}</li>
@@ -98,7 +101,7 @@ export function GolivePanel() {
             <button type="button" className="btn btn-primary" disabled={busy} onClick={publish}>
               {busy ? 'Publishing…' : s.live ? 'Publish new version' : 'Publish'}
             </button>
-            <span className="font-mono text-[11px] text-bone-faint">review above — publishing signs exactly this</span>
+            <span className="font-mono text-[11px] text-bone-faint">review above — publishing turns on exactly this</span>
           </div>
         </>
       ) : (
@@ -111,7 +114,7 @@ export function GolivePanel() {
           {err}
         </p>
       ) : null}
-      <p className="font-mono text-[11px] text-bone-faint">publishing signs a version — the runtime heartbeat is what turns it live on screen</p>
+      <p className="font-mono text-[11px] text-bone-faint">your site picks up the new version from here</p>
     </div>
   )
 }

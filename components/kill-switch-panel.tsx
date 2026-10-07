@@ -66,28 +66,28 @@ export function KillSwitchPanel() {
   return (
     <div className="panel space-y-4 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="label">Emergency switch</p>
+        <p className="label">Emergency stop</p>
         {engaged === null ? (
-          <Badge tone="idle">not deployed</Badge>
+          <Badge tone="idle">nothing to stop yet</Badge>
         ) : (
-          <Badge tone={engaged ? 'deny' : 'idle'}>{engaged ? 'engaged' : 'clear'}</Badge>
+          <Badge tone={engaged ? 'deny' : 'idle'}>{engaged ? 'stopped' : 'running normally'}</Badge>
         )}
       </div>
 
       {engaged === null ? (
         <p className="text-[13px] leading-relaxed text-bone-dim">
-          Nothing live to stop — publish a config first. The switch only exists against something running.
+          Nothing is live yet, so there is nothing to stop — publish first. The stop button only exists against something running.
         </p>
       ) : !businessName ? (
         <p className="text-[13px] leading-relaxed text-bone-dim">
-          No account yet — create one on the <a className="text-bone underline" href="/connect">connect screen</a>. The switch flips on a typed business name, nothing less.
+          No account yet — create one on the <a className="text-bone underline" href="/connect">connect screen</a>. The stop only moves on your typed business name, nothing less.
         </p>
       ) : (
         <>
           <p className="text-[13px] leading-relaxed text-bone-dim">
             {engaged
-              ? 'Engaged: writes stop, reads go audit-only. Releasing restores the published policy exactly — nothing is re-decided.'
-              : 'Clear: the published policy enforces. Engaging stops writes immediately and is recorded against your account.'}
+              ? 'Stopped: nothing new runs, and looking stays available. Releasing brings back exactly what you published — nothing is re-decided.'
+              : 'Running normally under your published rules. Stopping halts everything new immediately, and it is recorded against your account.'}
           </p>
           <div>
             <label className="block text-[13px] text-bone" htmlFor="kill-confirm">

@@ -62,8 +62,8 @@ export function ageLabel(pushedAt: string, now = Date.now()): string {
   if (!Number.isFinite(ms) || ms < 0) return 'unknown age'
   const min = Math.floor(ms / 60_000)
   if (min < 1) return 'just now'
-  if (min === 1) return '1 min old'
-  return `${min} min old`
+  if (min === 1) return '1 min ago'
+  return `${min} min ago`
 }
 
 /**

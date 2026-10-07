@@ -77,9 +77,10 @@ export default function TeamPage() {
         <p className="label">Team</p>
         <h2 className="mt-2 font-display text-3xl text-bone">Who else can do this</h2>
         <p className="prose-bone mt-3 max-w-[68ch]">
-          Owners manage; admins invite; viewers read. The function refuses
-          self-escalation and removing the last owner — this screen shows those
-          refusals, it does not make them.
+          Owners manage everything; admins can invite people; viewers can only
+          look. Nobody can give themselves a bigger role, and the last owner
+          cannot be removed — this screen shows those refusals plainly, in
+          words, instead of hiding the buttons and leaving you guessing.
         </p>
       </div>
 

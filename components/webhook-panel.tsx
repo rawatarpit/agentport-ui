@@ -3,14 +3,14 @@
 import { useEffect, useState } from 'react'
 
 /**
- * TASKS.md 6.4 — the log stream, as far as it honestly goes.
+ * Where your site's updates go — and whether any have arrived.
  *
- * Shows the ingest endpoint the merchant configures their webhook against,
- * whether a push key exists for them, and what has actually been delivered.
- * Three deliberate absences: no key provisioning here (B2 needs an
- * operator), no projection DDL yet (B4), and no rows — counts and digests
- * only, per the custody boundary. A green light this panel cannot prove
- * would be a spoofed green, so every row states its source.
+ * Shows the delivery address your site reports to, whether its access key
+ * exists yet, and what has actually arrived. Three deliberate absences: keys
+ * are created with us, not here; the detailed setup lives with your
+ * developer; and no rows ever travel — counts only. A green light this
+ * panel cannot prove would be worse than none, so every row states plainly
+ * what is known.
  */
 export function WebhookPanel() {
   const [endpoint, setEndpoint] = useState<string | null>(null)
@@ -32,25 +32,24 @@ export function WebhookPanel() {
 
   return (
     <div className="panel space-y-4 p-6">
-      <p className="label">Log stream — webhook</p>
+      <p className="label">Delivery status</p>
       <dl className="space-y-2 text-[13px]">
         <div className="flex flex-wrap justify-between gap-3 border-b border-ink-line/60 py-2">
-          <dt className="text-bone-faint">Ingest endpoint</dt>
-          <dd className="font-mono text-[12px] text-bone">{endpoint ?? 'Supabase URL not configured'}</dd>
+          <dt className="text-bone-faint">Where your site reports to</dt>
+          <dd className="font-mono text-[12px] text-bone">{endpoint ?? 'Not set up yet'}</dd>
         </div>
         <div className="flex flex-wrap justify-between gap-3 border-b border-ink-line/60 py-2">
-          <dt className="text-bone-faint">Push key</dt>
-          <dd className="font-mono text-[12px] text-bone-faint">not provisioned — needs an operator (B2)</dd>
+          <dt className="text-bone-faint">Site access key</dt>
+          <dd className="font-mono text-[12px] text-bone-faint">not created yet — we make one together at setup</dd>
         </div>
         <div className="flex flex-wrap justify-between gap-3 border-b border-ink-line/60 py-2">
-          <dt className="text-bone-faint">Deliveries received</dt>
-          <dd className="font-mono text-[12px] text-bone-faint">none yet — receiver blocked on the SQL wrapper (B1)</dd>
+          <dt className="text-bone-faint">Updates received</dt>
+          <dd className="font-mono text-[12px] text-bone-faint">none yet</dd>
         </div>
       </dl>
       <p className="text-[12px] leading-relaxed text-bone-faint">
-        Their side pushes to an address they chose; we never hold a credential into
-        their database. The SDK fires it — a database trigger would put our endpoint
-        inside their commit path.
+        Your site sends us short summaries — never customer details, never
+        amounts. We never hold a password into your systems.
       </p>
     </div>
   )

@@ -3,12 +3,12 @@
 import { useState } from 'react'
 
 /**
- * The merchant's public runtime endpoint (TASKS.md 1.2).
+ * Your site's public address (TASKS.md 1.2).
  *
- * This is the manifest's baseUrl — the address external agents call — and it
- * is deliberately not the dashboard origin. The form accepts https only
- * (localhost for development); the API re-validates, because the browser is
- * not a boundary.
+ * This is the address outside assistants call — and deliberately not this
+ * dashboard's address. The form accepts https only (your own computer's
+ * address works while developing); the server checks again, because the
+ * browser is not a boundary.
  */
 export function WebsiteForm({ current, onDone }: { current: string | null; onDone: () => void }) {
   const [url, setUrl] = useState(current ?? '')
@@ -36,11 +36,11 @@ export function WebsiteForm({ current, onDone }: { current: string | null; onDon
 
   return (
     <div className="panel space-y-3 p-6">
-      <p className="label">Your runtime address</p>
+      <p className="label">Your site address</p>
       <p className="text-[13px] leading-relaxed text-bone-dim">
-        The public address your runtime serves — this is what the manifest advertises
-        to agents. Not this dashboard: agents calling here would reach a UI, not an
-        enforcement point.
+        The public address assistants call — the one customers reach you at.
+        It is deliberately not this dashboard&apos;s address: anyone calling
+        here would reach these screens, not your business.
       </p>
       <div className="flex flex-wrap items-center gap-3">
         <input

@@ -1,6 +1,7 @@
 import { Badge } from '@/components/stat'
 import { KillSwitchPanel } from '@/components/kill-switch-panel'
-import { agent, policy } from '@/lib/agentport'
+import { policy } from '@/lib/agentport'
+import { getLive, resolveTenant } from '@/lib/store'
 
 export const dynamic = 'force-dynamic'
 
@@ -57,7 +58,29 @@ const ORDER = [
 ]
 
 export default function PoliciesPage() {
-  const m = agent.manifest()
+  // Live values win; the demo constant below is only the fallback shape.
+  // Nothing published yet renders as exactly that — never demo numbers
+  // dressed as the merchant's configuration.
+  const live = getLive(resolveTenant())
+  const livePolicy = live?.policy as
+    | {
+        maxOrderValue?: { minor?: number; currency?: string }
+        absoluteMaxOrderValue?: { minor?: number; currency?: string }
+        forbiddenCapabilities?: string[]
+        alwaysRequireApproval?: string[]
+        rateLimit?: { requestsPerMinute?: number }
+      }
+    | undefined
+  const shown = {
+    ask: livePolicy?.maxOrderValue?.minor ?? null,
+    currency: livePolicy?.maxOrderValue?.currency ?? livePolicy?.absoluteMaxOrderValue?.currency ?? 'INR',
+    never: livePolicy?.absoluteMaxOrderValue?.minor ?? null,
+    forbidden: livePolicy?.forbiddenCapabilities ?? null,
+    alwaysAsk: livePolicy?.alwaysRequireApproval ?? null,
+    rate: livePolicy?.rateLimit?.requestsPerMinute ?? policy.rateLimit?.requestsPerMinute,
+    kill: live ? live.emergencyKillSwitch : null,
+  }
+  const fmt = (minor: number | null) => (minor === null ? '—' : `${minor.toLocaleString()} ${shown.currency} minor`)
 
   return (
     <div className="space-y-6">
@@ -108,41 +131,53 @@ export default function PoliciesPage() {
       </ul>
 
       <div className="panel p-5">
-        <p className="label">Currently configured</p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="label">Currently in force</p>
+          {live ? (
+            <span className="font-mono text-[11px] text-bone-faint">published version {live.version}</span>
+          ) : (
+            <Badge tone="idle">nothing published yet</Badge>
+          )}
+        </div>
         <dl className="mt-3 grid gap-x-8 gap-y-2 text-[13px] sm:grid-cols-2">
           <div className="flex justify-between gap-3 border-b border-ink-line/60 py-2">
-            <dt className="text-bone-faint">Approval threshold</dt>
-            <dd className="tabular font-mono text-bone">
-              {policy.maxOrderValue.minor} {policy.maxOrderValue.currency}
-            </dd>
+            <dt className="text-bone-faint">Ask you first above</dt>
+            <dd className="tabular font-mono text-bone">{fmt(shown.ask)}</dd>
           </div>
           <div className="flex justify-between gap-3 border-b border-ink-line/60 py-2">
-            <dt className="text-bone-faint">Absolute ceiling</dt>
-            <dd className="tabular font-mono text-bone">
-              {policy.absoluteMaxOrderValue.minor} {policy.absoluteMaxOrderValue.currency}
-            </dd>
+            <dt className="text-bone-faint">Always say no above</dt>
+            <dd className="tabular font-mono text-bone">{fmt(shown.never)}</dd>
           </div>
           <div className="flex justify-between gap-3 border-b border-ink-line/60 py-2">
-            <dt className="text-bone-faint">Forbidden</dt>
-            <dd className="font-mono text-bone">{m.policies.forbidden.join(', ') || 'none'}</dd>
+            <dt className="text-bone-faint">Never allowed</dt>
+            <dd className="font-mono text-bone">{shown.forbidden ? shown.forbidden.join(', ') : '—'}</dd>
           </div>
           <div className="flex justify-between gap-3 border-b border-ink-line/60 py-2">
-            <dt className="text-bone-faint">Always needs approval</dt>
-            <dd className="font-mono text-bone">{m.policies.requiresApproval.join(', ') || 'none'}</dd>
+            <dt className="text-bone-faint">Always needs you</dt>
+            <dd className="font-mono text-bone">{shown.alwaysAsk ? shown.alwaysAsk.join(', ') : '—'}</dd>
           </div>
           <div className="flex justify-between gap-3 border-b border-ink-line/60 py-2">
             <dt className="text-bone-faint">Rate limit</dt>
-            <dd className="tabular font-mono text-bone">{policy.rateLimit?.requestsPerMinute}/min</dd>
+            <dd className="tabular font-mono text-bone">{shown.rate ?? '—'}/min</dd>
           </div>
           <div className="flex justify-between gap-3 border-b border-ink-line/60 py-2">
-            <dt className="text-bone-faint">Kill switch</dt>
+            <dt className="text-bone-faint">Emergency stop</dt>
             <dd>
-              <Badge tone={m.policies.emergencyKillSwitch ? 'deny' : 'idle'}>
-                {m.policies.emergencyKillSwitch ? 'engaged' : 'clear'}
-              </Badge>
+              {shown.kill === null ? (
+                <span className="font-mono text-[12px] text-bone-faint">—</span>
+              ) : (
+                <Badge tone={shown.kill ? 'deny' : 'idle'}>
+                  {shown.kill ? 'stopped' : 'running normally'}
+                </Badge>
+              )}
             </dd>
           </div>
         </dl>
+        {!live ? (
+          <p className="mt-3 text-[13px] text-bone-dim">
+            Answer the setup questions or save a rules draft, then publish — until then there is nothing to show here, and this screen will not invent any.
+          </p>
+        ) : null}
       </div>
 
       <KillSwitchPanel />

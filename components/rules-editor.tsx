@@ -8,7 +8,7 @@ import { Badge } from '@/components/stat'
  * at save time.
  *
  * A rule saves as a **draft** and its generated code is reviewable. Nothing
- * here is live: the badge reads `not deployed` in idle grey, never verdant,
+ * here is live: the badge reads `not published yet` in idle grey, never green,
  * until the generated file is merged and the runtime reports its digest.
  * A technical term in the only label on a field is a support ticket, so every
  * label is a sentence a non-technical operator would say.
@@ -112,7 +112,7 @@ export function RulesEditor() {
   const generated = useMemo(() => {
     if (!ready) return null
     const lines = [
-      `// Draft — reviewable, not live. Merge to deploy.`,
+      `// Draft — reviewable, not live. Publish to turn it on.`,
       `maxOrderValue: { minor: ${ask}, currency: 'INR' },          // ask you first`,
       `absoluteMaxOrderValue: { minor: ${never}, currency: 'INR' }, // always say no`,
       `bulkOrderThreshold: { units: ${bulk} },                     // big baskets wait too`,
@@ -129,8 +129,8 @@ export function RulesEditor() {
           <p className="label">Draft</p>
           <p className="mt-1 text-[13px] text-bone-dim">
             {savedAt
-              ? 'Draft saved. Nothing changed for agents yet.'
-              : 'Unsaved draft. Nothing here affects agents.'}
+              ? 'Draft saved. Nothing changed for your visitors yet.'
+              : 'Unsaved draft. Nothing here affects your visitors.'}
           </p>
           {loadError ? (
             <p className="mt-1 text-[12px] text-rust" role="alert">
@@ -138,7 +138,7 @@ export function RulesEditor() {
             </p>
           ) : null}
         </div>
-        <Badge tone="idle">not deployed</Badge>
+        <Badge tone="idle">not published yet</Badge>
       </div>
 
       <div className="panel space-y-5 p-6">
@@ -207,7 +207,7 @@ export function RulesEditor() {
           <button type="button" className="btn btn-primary" disabled={!ready || saving} onClick={save}>
             {saving ? 'Saving…' : savedAt && savedAt !== 'saved draft loaded' ? 'Saved as draft' : 'Save as draft'}
           </button>
-          <span className="font-mono text-[11px] text-bone-faint">saving never deploys — merging does</span>
+          <span className="font-mono text-[11px] text-bone-faint">saving never turns anything on — publishing does</span>
           {saveError ? (
             <span className="text-[13px] text-rust" role="alert">{saveError}</span>
           ) : null}

@@ -252,10 +252,10 @@ export function SetupWizard() {
       {step >= STEPS.length + 2 && (
         <div className="space-y-4">
           <div className="panel p-6">
-            <h3 className="font-display text-2xl text-bone">Your policy</h3>
+            <h3 className="font-display text-2xl text-bone">Your answers, ready</h3>
             <p className="mt-2 text-[13px] leading-relaxed text-bone-dim">
-              This is the whole thing. It saves as a draft and does nothing until it is
-              merged into your project — a saved change is not a live one.
+              This is everything you told us. It saves as a draft and changes
+              nothing until you publish it — a saved answer is not a live one.
             </p>
             <pre className="mt-4 overflow-x-auto border border-ink-line bg-ink/40 p-4 font-mono text-[12px] leading-relaxed text-bone-dim">
               {generated}
@@ -295,15 +295,14 @@ export function SetupWizard() {
           </div>
 
           <div className="panel p-6">
-            <p className="label">Next</p>
+            <p className="label">Next — two ways forward</p>
             <ol className="mt-3 space-y-2 text-[13px] leading-relaxed text-bone-dim">
-              <li>1. Save this into your project as <span className="font-mono text-bone">agentport.config.ts</span>.</li>
-              <li>2. Mint a credential: <span className="font-mono text-bone">npx agent-port token</span>.</li>
-              <li>3. Run it: <span className="font-mono text-bone">npx agent-port serve</span>.</li>
+              <li>1. <span className="text-bone">Stay here:</span> keep answering on the capabilities and rules screens, then publish when the summary looks right.</li>
+              <li>2. <span className="text-bone">Hands-on:</span> save this into your project as <span className="font-mono text-bone">agentport.config.ts</span>, mint a credential (<span className="font-mono text-bone">npx agent-port token</span>), run it (<span className="font-mono text-bone">npx agent-port serve</span>) — for you or your developer.</li>
             </ol>
             <p className="mt-4 text-[12px] leading-relaxed text-bone-faint">
-              Steps 1 and 3 happen in your project, not here. This console reads your
-              runtime; it does not run it.
+              Either way, nothing takes effect until it is published and your
+              site picks it up. This screen shows drafts; it never runs anything.
             </p>
           </div>
         </div>

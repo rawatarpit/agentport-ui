@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { Badge } from '@/components/stat'
-import { ensureSeeded, ledger } from '@/lib/agentport'
-import { getDraft, getLive, getMerchant, resolveTenant } from '@/lib/store'
+import { getCounts, getDraft, getLive, getMerchant, resolveTenant } from '@/lib/store'
 
 /** True when the GitHub App credentials exist — the only thing code cannot invent. */
 export function githubConnected(): boolean {
@@ -16,34 +15,64 @@ export const dynamic = 'force-dynamic'
 /**
  * The business owner's landing: numbers first, then what needs them.
  *
- * KPIs across the top (calls, held, refused, capabilities), a this-week
- * activity bar per capability, the five most recent decisions as a feed,
- * and a getting-started checklist that is computed from real state — each
- * item links to the screen that completes it, and completed items stay
- * checked. A dashboard that opens with prose is a document; this opens
- * with the business.
+ * Every number comes from counted runtime pushes in the store — never
+ * fixtures, never invented. A business with no pushes yet gets an honest
+ * empty state (unknown, not zero), because zero would claim a healthy
+ * runtime that may not exist.
  */
 export async function DashboardKpis() {
-  await ensureSeeded()
-  const entries = await ledger.list({ limit: 200 })
-  const held = entries.filter((e) => e.decision === 'require_approval')
-  const denied = entries.filter((e) => e.decision === 'deny')
+  const rows = getCounts(resolveTenant())
 
-  const byCap = new Map<string, number>()
-  for (const e of entries) byCap.set(e.capability, (byCap.get(e.capability) ?? 0) + 1)
-  const caps = [...byCap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5)
-  const max = caps[0]?.[1] ?? 1
+  if (rows.length === 0) {
+    return (
+      <div className="panel space-y-2 p-6">
+        <p className="label">Activity</p>
+        <p className="text-[14px] leading-relaxed text-bone-dim">
+          Nothing recorded yet — this reads <span className="text-bone">unknown</span>,
+          not zero. Numbers appear here once your site starts reporting.
+        </p>
+        <Link href="/connect" className="btn mt-2">Connect your site</Link>
+      </div>
+    )
+  }
 
-  const feed = [...entries].slice(-5).reverse()
-  const tone = (d: string) => (d === 'allow' ? 'allow' : d === 'deny' ? 'deny' : 'held');
+  const heldKinds = new Set(['held', 'approved', 'require_approval'])
+  const held = rows.filter((r) => heldKinds.has(r.decision)).reduce((n, r) => n + r.n, 0)
+  const denied = rows.filter((r) => r.decision === 'deny' || r.decision === 'denied').reduce((n, r) => n + r.n, 0)
+  const allowed = rows.reduce((n, r) => n + r.n, 0) - held - denied
+
+  const byCap = new Map<string, { ok: number; held: number; refused: number }>()
+  for (const r of rows) {
+    const row = byCap.get(r.capability) ?? { ok: 0, held: 0, refused: 0 }
+    if (heldKinds.has(r.decision)) row.held += r.n
+    else if (r.decision === 'deny' || r.decision === 'denied') row.refused += r.n
+    else row.ok += r.n
+    byCap.set(r.capability, row)
+  }
+  const caps = [...byCap.entries()].sort((a, b) => b[1].ok + b[1].held + b[1].refused - (a[1].ok + a[1].held + a[1].refused)).slice(0, 5)
+  const max = Math.max(1, ...caps.map(([, r]) => r.ok + r.held + r.refused))
+
+  const feed = [...rows]
+    .sort((a, b) => b.n - a.n)
+    .slice(0, 5)
+    .map((r) => ({
+      key: `${r.capability}:${r.rule}:${r.decision}`,
+      capability: r.capability,
+      detail: r.rule,
+      decision: heldKinds.has(r.decision) ? 'held' : r.decision === 'deny' || r.decision === 'denied' ? 'deny' : 'allow',
+      n: r.n,
+    }))
+  const tone = (d: string): 'allow' | 'deny' | 'held' => (d === 'allow' ? 'allow' : d === 'deny' ? 'deny' : 'held')
+
+  const total = allowed + held + denied
 
   return (
     <div className="space-y-3">
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Kpi label="Agent calls" value={entries.length} sub="recorded, refusals included" />
-        <Kpi label="Waiting on you" value={held.length} sub="held, nothing executed" tone="text-amber" link="/approvals" />
-        <Kpi label="Refused" value={denied.length} sub="with the rule that fired" tone="text-rust" link="/ledger" />
-        <Kpi label="Capabilities live" value={caps.length} sub="on the manifest" link="/capabilities" />
+        <Kpi label="Agent calls" value={total} sub="recorded, refusals included" />
+        <Kpi label="Waiting on you" value={held} sub="held, nothing executed" tone="text-amber" link="/approvals" />
+        <Kpi label="Refused" value={denied} sub="with the rule that fired" tone="text-rust" link="/ledger" />
+        <Kpi label="Capabilities seen" value={caps.length} sub="reported by your site" link="/capabilities" />
       </section>
 
       <section className="grid gap-3 lg:grid-cols-2">
@@ -53,33 +82,36 @@ export async function DashboardKpis() {
             <Link href="/analytics" className="font-mono text-[11px] text-bone-faint hover:text-bone">all analytics →</Link>
           </div>
           <ul className="mt-4 space-y-3">
-            {caps.map(([cap, n]) => (
-              <li key={cap}>
-                <div className="flex items-baseline justify-between text-[13px]">
-                  <span className="font-mono text-bone">{cap}</span>
-                  <span className="tabular font-mono text-[11px] text-bone-faint">{n}</span>
-                </div>
-                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-ink">
-                  <div className="h-full rounded-full bg-verdant/70" style={{ width: `${Math.max(6, Math.round((n / max) * 100))}%` }} />
-                </div>
-              </li>
-            ))}
+            {caps.map(([cap, r]) => {
+              const n = r.ok + r.held + r.refused
+              return (
+                <li key={cap}>
+                  <div className="flex items-baseline justify-between text-[13px]">
+                    <span className="font-mono text-bone">{cap}</span>
+                    <span className="tabular font-mono text-[11px] text-bone-faint">{n}</span>
+                  </div>
+                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-ink">
+                    <div className="h-full rounded-full bg-verdant/70" style={{ width: `${Math.max(6, Math.round((n / max) * 100))}%` }} />
+                  </div>
+                </li>
+              )
+            })}
           </ul>
         </div>
 
         <div className="panel p-5">
           <div className="flex items-baseline justify-between">
-            <p className="label">Latest decisions</p>
+            <p className="label">Most frequent outcomes</p>
             <Link href="/ledger" className="font-mono text-[11px] text-bone-faint hover:text-bone">full ledger →</Link>
           </div>
           <ul className="mt-3 space-y-2">
             {feed.map((e) => (
-              <li key={`${e.tenantId}:${e.requestId}`} className="flex items-center justify-between gap-3 border-b border-ink-line/60 py-2 text-[13px] last:border-0">
+              <li key={e.key} className="flex items-center justify-between gap-3 border-b border-ink-line/60 py-2 text-[13px] last:border-0">
                 <span>
                   <span className="font-mono text-bone">{e.capability}</span>
-                  <span className="ml-2 text-bone-faint">{e.agentId}</span>
+                  <span className="ml-2 text-bone-faint">{e.detail} · ×{e.n}</span>
                 </span>
-                <Badge tone={tone(e.decision) as 'allow' | 'deny' | 'held'}>{e.decision === 'require_approval' ? 'held' : e.decision}</Badge>
+                <Badge tone={tone(e.decision)}>{e.decision === 'allow' ? 'ok' : e.decision === 'deny' ? 'refused' : 'held'}</Badge>
               </li>
             ))}
           </ul>
@@ -106,9 +138,11 @@ function Kpi({ label, value, sub, tone, link }: { label: string; value: number; 
 
 /**
  * Getting started, computed — never a static list. Each row checks real
- * state (account, website URL, drafts, live publish, GitHub App) and links
- * to the screen that finishes it. An owner opening the dashboard on day one
- * sees exactly what is left, in order.
+ * state and links to the screen that finishes it. The account row reads the
+ * signed-in session first (real users) and the demo record second; drafts
+ * and publishes read the store. When everything is done the whole card
+ * returns null — a finished onboarding disappears instead of nagging. An
+ * owner opening the dashboard on day one sees exactly what is left, in order.
  */
 export async function GettingStarted() {
   const tenantId = resolveTenant()
@@ -118,12 +152,28 @@ export async function GettingStarted() {
   const live = getLive(tenantId)
   const github = githubConnected()
 
+  let account: { done: boolean; body: string } = {
+    done: !!merchant,
+    body: 'Email + password + business name — two minutes.',
+  }
+  try {
+    const { createClient } = await import('@/lib/supabase/server')
+    const {
+      data: { session },
+    } = await createClient().auth.getSession()
+    if (session?.user.email) {
+      account = { done: true, body: `Signed in as ${session.user.email}.` }
+    }
+  } catch {
+    // No session available (demo mode) — fall back to the demo record above.
+  }
+
   const items = [
-    { done: !!merchant, label: 'Create your account', body: 'Email + business name — two minutes, no password to hold.', href: '/connect' },
+    { done: account.done, label: 'Create your account', body: account.body, href: '/connect' },
     { done: !!setup, label: 'Answer four questions', body: 'Plain language in, typed policy out, saved as a draft.', href: '/setup' },
     { done: !!rules, label: 'Set capabilities and limits', body: 'What agents see, what waits for you, what is always no.', href: '/rules' },
     { done: github, label: 'Connect GitHub', body: github ? 'App installed — open the connect screen to pick the repo.' : 'Install the App on the website repo so the runtime can move in.', href: '/connect' },
-    { done: !!live, label: 'Publish your first version', body: 'Review the summary, publish, watch the digest go live.', href: '/rules' },
+    { done: !!live, label: 'Publish your first version', body: 'Review the summary, publish, watch your site pick it up.', href: '/rules' },
   ]
   const done = items.filter((i) => i.done).length
   if (done === items.length) return null
