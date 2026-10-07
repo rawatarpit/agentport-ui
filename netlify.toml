@@ -28,11 +28,15 @@
   NODE_VERSION = "22"
   NEXT_TELEMETRY_DISABLED = "1"
   # The two NEXT_PUBLIC_ values are public project identifiers by design
-  # (they ship in client JavaScript; RLS protects the data). The secrets
-  # scanner cannot tell a public identifier from a leaked secret, so it is
-  # told explicitly — this omits keys, never values, and changes nothing
-  # about what ships.
-  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY"
+  # (they ship in client JavaScript; RLS protects the data). GITHUB_APP_ID
+  # and GITHUB_CLIENT_ID are likewise public identifiers — GitHub shows them
+  # on the App settings page to anyone who can see the App, and the client
+  # ID rides in OAuth URLs. The scanner cannot tell either class from a
+  # leaked secret, so they are named here explicitly. This omits keys, never
+  # values, and changes nothing about what ships. Private key, client
+  # secret, and webhook secret are NOT omitted: if any of those ever matches
+  # a file, the build must fail.
+  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, GITHUB_APP_ID, GITHUB_CLIENT_ID"
 
 # Next.js App Router needs the Essential Next.js plugin on Netlify.
 [[plugins]]
