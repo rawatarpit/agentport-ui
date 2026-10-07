@@ -17,12 +17,16 @@ import { getMerchant, resolveTenant } from '@/lib/store'
  */
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+export async function GET(req: Request) {
   const manifest = agent.manifest() as Record<string, unknown> & { baseUrl: string; note?: string }
   const websiteUrl = getMerchant(resolveTenant())?.websiteUrl ?? null
   if (websiteUrl) {
     manifest.baseUrl = websiteUrl
   } else {
+    // No dashboard-origin variable exists by design: the fallback is the
+    // request's own origin, labelled, so a missing merchant URL can never
+    // silently become anything else — and nothing compiled-in can go stale.
+    manifest.baseUrl = new URL(req.url).origin
     manifest.note =
       'Demo manifest: baseUrl is this dashboard because no merchant runtime URL is set yet (PUT /api/me). Agents calling it reach a UI, not an enforcement point.'
   }

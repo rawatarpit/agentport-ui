@@ -68,7 +68,13 @@ const key = (tenantId: string, section: string) => `${tenantId}:${section}`
 
 let seeded = false
 
-/** Demo heartbeat so the panel has something true to render before a real push lands. */
+/**
+ * Demo heartbeat removed: the panel now renders `unknown` until a real push
+ * lands (POST /api/analytics carrying configHash + pushedAt, dev only — the
+ * production path is the Supabase heartbeat). A seeded "live 4 minutes ago"
+ * was the fabricated panel this whole architecture exists to prevent.
+ * `seedDemoPush` is kept for tests only and is never called by the app.
+ */
 export function seedDemoPush(now = Date.now()): void {
   if (seeded) return
   seeded = true
@@ -148,7 +154,6 @@ export function publishLive(cfg: Omit<LiveConfig, 'confirmedAt'>): LiveConfig {
 }
 
 export function getPush(tenantId: string): RuntimePush | null {
-  seedDemoPush()
   return pushes.get(tenantId) ?? null
 }
 

@@ -107,12 +107,10 @@ processor, and it makes us a party to the transaction. Normative form:
 The runtime is configured with exactly one of these — ours. It is never told the
 first, because it *is* that address.
 
-> **Known bug.** `lib/agentport.ts` passes `NEXT_PUBLIC_AGENTPORT_BASE_URL` into
-> `new AgentPort({ baseUrl })`, which `manifest()` publishes as the agent-facing
-> execution endpoint. So the manifest currently advertises **this dashboard** to
-> every external assistant — correct only because the demo runs the SDK
-> in-process here. Fix: make the manifest's `baseUrl` a merchant setting, and
-> give the snippet its own dashboard-origin variable. See SDK `ARCHITECTURE.md` §0.
+> **Fixed.** The manifest's `baseUrl` is the merchant's `websiteUrl` setting,
+> falling back to the request's own origin with an honest note when unset.
+> There is no dashboard-origin variable anymore — nothing compiled-in can go
+> stale, and a missing merchant URL can never silently become anything else.
 
 ## The screens
 

@@ -8,8 +8,9 @@ import { getPush, resolveTenant } from '@/lib/store'
  * Shows what the runtime asserted it enforces — digest + age — separately
  * from whatever draft is open in the editor. The assertion comes from the
  * store, whose only writer is the analytics heartbeat (`POST /api/analytics`
- * carrying configHash + pushedAt); before the first real push it holds the
- * seeded demo heartbeat, labelled as such in lib/store.ts. A draft that has
+ * carrying configHash + pushedAt). Before the first real push there is no
+ * assertion at all, and the panel renders `unknown` — a seeded "live" would
+ * be the fabricated panel this product exists to prevent. A draft that has
  * not been merged reads `not deployed`. A stale heartbeat reads `unknown`,
  * never `enabled`.
  */

@@ -131,12 +131,9 @@ account-admin and can drop the database. `next.config.mjs` fails the build on
 these three by name, and **the name is the protection** — do not weaken the list
 without replacing the check.
 
-Safe to commit: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_PROJECT_REF`,
-`NEXT_PUBLIC_AGENTPORT_BASE_URL`.
-
-> `NEXT_PUBLIC_AGENTPORT_BASE_URL` is build-time inlined, so a value compiled as
-> `localhost` ships as `localhost` until you rebuild. It is **not** the manifest's
-> `baseUrl` — see `lib/agentport.ts`, which currently conflates them.
+Safe to commit: `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_PROJECT_REF`.
+`NEXT_PUBLIC_AGENTPORT_BASE_URL` no longer exists — the manifest falls back to
+the request origin, so there is nothing compiled-in to go stale.
 ---
 
 ## 8. Backend — Supabase
@@ -404,7 +401,7 @@ the merchant.
 
 | # | Task | State |
 | --- | --- | --- |
-| 12.5.1 | `lib/agentport.ts:72` — `baseUrl: process.env.NEXT_PUBLIC_AGENTPORT_BASE_URL ?? 'http://localhost:3000'` | **live defect** |
+| 12.5.1 | `lib/agentport.ts` baseUrl default | **done** — the constructor takes a static demo placeholder nothing reads; the manifest route serves the merchant setting, or the request origin with a note. No environment variable involved, so the conflation is structurally impossible |
 | 12.5.2 | Make `baseUrl` a merchant setting. `app/.well-known/agent.json/route.ts` already overrides it from `websiteUrl` and emits an honest `note` when unset — **that fix is in the right place and `lib/agentport.ts` should not contradict it** | **done at the route** — the in-process default stays a labelled demo fallback on purpose: the store imports that module for `configHash`, so reading the merchant there is a module cycle that crashes at import. Documented in the file |
 | 12.5.3 | A missing baseUrl must not silently become the dashboard's own origin | **done** — the manifest route emits the fallback **plus** the note; silent was the defect, labelled is the fix |
 | 12.5.4 | Add tests. There is **no test directory** in this repo — `package.json` has no `test` script | **done (unit)** — vitest, `npm test`, `lib/gates.test.ts`: 10 tests over validators + enforcing states. Enforcement path stays the SDK's, tested there |

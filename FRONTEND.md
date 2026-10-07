@@ -162,19 +162,11 @@ screenshot gate in CI, so this is a manual step until one exists.
 
 - **`SUPABASE_SERVICE_ROLE_KEY` must never be `NEXT_PUBLIC_`.** `next.config.mjs`
   fails the build if one is. Do not work around that check.
-- **`NEXT_PUBLIC_AGENTPORT_BASE_URL` is currently misused.** `lib/agentport.ts`
-  passes it into `new AgentPort({ baseUrl })`, and `manifest()` publishes that as
-  the **agent-facing runtime endpoint** — so the manifest tells every external
-  assistant to send execution requests to this dashboard. Split it:
-
-  ```ts
-  // WRONG — publishes the dashboard as the agent's runtime endpoint
-  new AgentPort({ baseUrl: process.env.NEXT_PUBLIC_AGENTPORT_BASE_URL! })
-
-  // RIGHT — the merchant's own runtime, and where we host the dashboard
-  new AgentPort({ baseUrl: merchantRuntimeUrl })   // e.g. https://api.acme.test
-  dashboardOrigin = process.env.NEXT_PUBLIC_AGENTPORT_BASE_URL!
-  ```
+- **`NEXT_PUBLIC_AGENTPORT_BASE_URL` is deleted.** There is no dashboard-origin
+  variable: the manifest serves the merchant's `websiteUrl` setting, falling
+  back to the request origin with an honest note. Netlify needs exactly three
+  variables — `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
+  `AGENTPORT_SIGNING_SECRET` — and nothing else.
 
 ---
 

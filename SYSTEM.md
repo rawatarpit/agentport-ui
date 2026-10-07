@@ -72,12 +72,9 @@ No route in `app/api/` may relay ingest: that queues every merchant's push
 traffic behind this app's deploys and function concurrency, and turns "is the
 backend up" into a question about a UI.
 
-> **Live bug.** `lib/agentport.ts` passes `NEXT_PUBLIC_AGENTPORT_BASE_URL` into
-> `new AgentPort({ baseUrl })`, which `manifest()` publishes as the agent-facing
-> endpoint — so the manifest currently advertises *this dashboard* to every
-> external assistant. Correct only because the demo runs the SDK in-process here.
-> `NEXT_PUBLIC_*` is also build-time inlined, so a build compiled as `localhost`
-> ships `localhost` until rebuilt.
+> **Fixed.** The manifest serves the merchant's `websiteUrl` setting, falling
+> back to the request's own origin with an honest note when unset. There is no
+> dashboard-origin variable — nothing compiled-in can go stale.
 
 ---
 
