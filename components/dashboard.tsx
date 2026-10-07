@@ -155,6 +155,38 @@ export async function GettingStarted() {
 }
 
 /**
+ * The pull request, on the dashboard where the owner watches it.
+ *
+ * Once the App exists this shows the live PR — branch, CI state, merge
+ * state — for this tenant. Until then it says there is no PR instead of
+ * rendering an empty widget as if one were coming. The merge is the
+ * signature: nothing here merges, approves, or implies either happened.
+ */
+export function PullRequestCard() {
+  if (!githubConnected()) {
+    return (
+      <div className="panel flex flex-wrap items-center justify-between gap-3 p-5">
+        <div>
+          <p className="label">Pull request</p>
+          <p className="mt-1 text-[14px] text-bone-dim">
+            No pull request yet — there is nothing to review until GitHub is connected.
+          </p>
+        </div>
+        <Link href="/connect" className="btn btn-primary">Connect GitHub</Link>
+      </div>
+    )
+  }
+  return (
+    <div className="panel p-5">
+      <p className="label">Pull request</p>
+      <p className="mt-1 text-[14px] text-bone-dim">
+        Connected — open pull requests for this tenant will appear here with branch, CI, and merge state.
+      </p>
+    </div>
+  )
+}
+
+/**
  * GitHub in the owner's language. No OAuth jargon, no scopes lecture: three
  * steps, each saying who acts and what it produces. Shown on the overview
  * until the App is connected — the front door belongs where the owner lands,

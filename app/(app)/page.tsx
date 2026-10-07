@@ -1,6 +1,6 @@
 import { EnforcingPanel } from '@/components/enforcing-panel'
 import { TenantCard } from '@/components/tenant-card'
-import { DashboardKpis, GettingStarted, GithubHowto } from '@/components/dashboard'
+import { DashboardKpis, GettingStarted, GithubHowto, PullRequestCard } from '@/components/dashboard'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,6 +26,8 @@ export default async function Overview() {
       <GettingStarted />
 
       <GithubHowto />
+
+      <PullRequestCard />
 
       <DashboardKpis />
 

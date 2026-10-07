@@ -29,5 +29,10 @@ export async function GET() {
       'Their CI runs; they review; they merge — the merge is the signature',
       'Sync status and heartbeat land on this screen',
     ],
+    // The pull request is shown on the overview the moment one exists for
+    // this tenant — review state, CI state, merge state. Until the App
+    // exists there is no PR to show, and the dashboard says exactly that
+    // instead of rendering an empty PR widget as if one were coming.
+    pr: { state: 'none' as const, reason: 'No GitHub App connected — no pull request exists yet.' },
   })
 }
