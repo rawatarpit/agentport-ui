@@ -206,7 +206,7 @@ npm run build
 npm run typecheck
 ```
 
-Node 20 or newer. After changing anything under `app/.well-known/`, exercise the
+Node 22 or newer (matches Netlify; supabase-js deprecates 20 and below). After changing anything under `app/.well-known/`, exercise the
 curl calls above. A dashboard that renders correctly over a broken
 enforcement path is worse than no dashboard, because it looks trustworthy.
 

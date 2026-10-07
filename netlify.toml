@@ -4,23 +4,35 @@
 # Deploy preview per PR; production from main.
 #
 # REQUIRED in Netlify site settings (never in this file):
-#   AGENTPORT_SIGNING_SECRET  — HMAC key from `agent-port secret` (server-only)
-#   SUPABASE_URL / SUPABASE_ANON_KEY as needed (anon only; never service-role
-#   or access tokens — see TASKS.md "What to push to GitHub").
+#   AGENTPORT_SIGNING_SECRET  — HMAC key (server-only)
+#   NEXT_PUBLIC_SUPABASE_URL + NEXT_PUBLIC_SUPABASE_ANON_KEY — public project
+#   identifiers (anon only; never service-role or access tokens).
 #
 # NOTE on `@agentport/sdk`: it is vendored at `vendor/agentport-sdk`
 # (prebuilt `dist` snapshot of the SDK repo) and consumed as
 # `file:./vendor/agentport-sdk`, so this build is self-contained — no sibling
 # checkout, no publish step. Refresh the snapshot by re-copying `dist` (and
 # `package.json`) from the SDK repo after its own `npm run verify` passes.
+#
+# Netlify runs NO backend here: no ingest, no sync, no sessions, no reads.
+# Every edge/server function it bundles (`server-handler`, middleware) is the
+# UI serving itself — pages, auth redirects, and the dashboard's own
+# authoring APIs. Runtime traffic goes to Supabase edge functions directly;
+# the data plane never touches this host.
 
 [build]
   command = "npm run build"
   publish = ".next"
 
 [build.environment]
-  NODE_VERSION = "20.18.0"
+  NODE_VERSION = "22"
   NEXT_TELEMETRY_DISABLED = "1"
+  # The two NEXT_PUBLIC_ values are public project identifiers by design
+  # (they ship in client JavaScript; RLS protects the data). The secrets
+  # scanner cannot tell a public identifier from a leaked secret, so it is
+  # told explicitly — this omits keys, never values, and changes nothing
+  # about what ships.
+  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY"
 
 # Next.js App Router needs the Essential Next.js plugin on Netlify.
 [[plugins]]
