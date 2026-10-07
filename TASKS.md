@@ -275,6 +275,17 @@ Edge functions now: `analytics-ingest` v10 (`verify_jwt=false`),
 `agentport-team` v10 (`verify_jwt=true`). A temporary `ap-probe` function was
 deployed to read runtime env and has been **deleted**.
 
+### Teardown proven + residue cleared (2026-10-06)
+
+The one-arg owner delete could never succeed — it deleted the tenant row
+*before* inserting the receipt (which requires the row to exist), and it never
+populated the NOT NULL receipt columns at all. Fixed in migration `15800`
+(receipt first with session-attributed counts, delete second), applied live,
+history recorded, `migration list` 29/29 in sync. All three stranded QA probe
+tenants deleted through the fixed path as their owners, then the probe users
+removed: **zero residue** (4 legitimate tenants remain), and each deletion left
+its receipt. SDK commit `8ac1fa3` (local — that repo has no remote).
+
 ### Still yours
 
 1. **Rotate `sbp_fca4c07…`** and the project **JWT signing secret** — both were
@@ -403,13 +414,24 @@ the merchant.
 override works; the underlying default still points at the dashboard.
 
 ### 12.6 Still blocked on someone else
-
 | # | Task | Blocked on |
 | --- | --- | --- |
 | 12.6.1 | GitHub App OAuth, repo selection, `agentport/install` branch, PR with mirrored CI (§1.3, §1.5, §1.6) | merchant-owned App ID, private key, webhook secret |
 | 12.6.2 | Linux SEA binaries and a signed release | a linux runner and release tag |
 | 12.6.3 | Rotate `sbp_fca4c07…` and the project JWT signing secret | owner action — see "Still yours" above |
 | 12.6.4 | Config artifact verify + offline cache (the SDK half of 12.3) | SDK implementation, then security review |
+
+### 12.8 Tracked hardening — from the R13 code + security reviews (2026-10-06)
+
+Both gates returned APPROVE-WITH-FIXES with no veto. SF-1–SF-7 and H1/H2/H4/H5
+are fixed; H7 was informational (accepted as label, keep it labeled). These
+three remain open, ordered by value. None blocks the release.
+
+| # | Task | State |
+| --- | --- | --- |
+| 12.8.1 | Version ratchet on the artifact cache (H3). Fresh bytes are verified first and the cache only answers on failure — but a distributor serving an *older correctly-signed* artifact passes verification and overwrites the cache backwards. `minVersionExclusive` is static config, not a last-seen watermark. Fix: persist last-accepted version alongside the cache and refuse `version <= lastSeen` | **done 2026-10-06** — `<cachePath>.version` sidecar (0600); stale-but-valid falls into the offline path which serves the cached newer version with a loud `FREEZE` stderr warning (refusing startup over a freeze the cache defeats would be availability theater); stale with no cache fails closed. Pinned by two tests |
+| 12.8.2 | Retention purge for the webhook tables (H6). Rate limits bound velocity; nothing bounds total. A stolen key at 10 rows/min grows `webhook_event_projection` ~14k rows/day/tenant, and dead letters accumulate even for opted-out tenants. Content is hashes + bounded tokens (storage pressure, not a leak), but there is no insert-time expiry purge and no quota/alert | **done 2026-10-06** — migration `15500`: purge-on-delivery trigger + separate `agentport_purge_webhook_expired()` backstop (the analytics one returns a fixed TABLE, so it could not be extended in place), same tenant window, failures swallowed, PUBLIC revoked / retainer granted. Applied live; insert path proven with trigger attached, backstop runs clean |
+| 12.8.3 | `CREATE EXTENSION IF NOT EXISTS pgcrypto` for the `15200` digest (N-1). Fine on Supabase where pgcrypto ships by default; fails on self-hosted Postgres. One line, fail-loud either way | **done 2026-10-06** — in migration `15500`, verified live (`pg_extension` present) |
 
 ### 12.7 What this dashboard must never do
 
