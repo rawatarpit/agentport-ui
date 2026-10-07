@@ -77,3 +77,49 @@ describe('oauth exchange', () => {
     assert.ok(!text.includes('CODE123'), 'the code reached the reason')
   })
 })
+
+describe('repo listing + PR shapes (offline guards)', () => {
+  it('mintInstallationTokenFor refuses non-numeric installations without env', async () => {
+    const { mintInstallationTokenFor } = await import('./github.js')
+    const r = await mintInstallationTokenFor(Number.NaN)
+    assert.equal(r.ok, false)
+    assert.equal((r as { reason: string }).reason, 'unknown installation')
+  })
+
+  it('mintInstallationTokenFor names setup, not secrets, when unconfigured', async () => {
+    const { mintInstallationTokenFor } = await import('./github.js')
+    const savedApp = process.env.GITHUB_APP_ID
+    const savedKey = process.env.GITHUB_APP_PRIVATE_KEY
+    delete process.env.GITHUB_APP_ID
+    delete process.env.GITHUB_APP_PRIVATE_KEY
+    try {
+      const r = await mintInstallationTokenFor(123)
+      assert.equal(r.ok, false)
+      const text = JSON.stringify(r)
+      assert.ok(!text.includes('PRIVATE'), 'key material reached the reason')
+    } finally {
+      if (savedApp !== undefined) process.env.GITHUB_APP_ID = savedApp
+      if (savedKey !== undefined) process.env.GITHUB_APP_PRIVATE_KEY = savedKey
+    }
+  })
+
+  it('openInstallPr refuses a missing repo before touching the network', async () => {
+    const { openInstallPr } = await import('./github.js')
+    const r = await openInstallPr({
+      installationToken: 'x',
+      repoFullName: 'not-a-repo',
+      filePath: 'agentport.config.ts',
+      fileContent: '// draft',
+      prTitle: 't',
+      prBody: 'b',
+    })
+    assert.equal(r.ok, false)
+    assert.equal((r as { reason: string }).reason, 'pick a repository first')
+  })
+
+  it('readPrState refuses a missing repo before touching the network', async () => {
+    const { readPrState } = await import('./github.js')
+    const r = await readPrState({ installationToken: 'x', repoFullName: 'nope', prNumber: 1 })
+    assert.equal(r.ok, false)
+  })
+})

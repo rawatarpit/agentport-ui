@@ -233,3 +233,33 @@ export function removeInstallation(tenantId: string, installationId: number): vo
 export function getInstallations(tenantId: string): Installation[] {
   return installations.get(tenantId) ?? []
 }
+
+/**
+ * The install pull request per tenant repo. One row per repo: opening again
+ * updates the same PR (same branch), so this record is replaced, never
+ * appended. RAM like the rest of the store — restart loses it, and the
+ * dashboard re-derives it from GitHub on next read.
+ */
+export type PullRequestRecord = {
+  repo: string
+  number: number
+  url: string
+  branch: string
+  installationId: number
+  recordedAt: string
+}
+
+const pullRequests = new Map<string, PullRequestRecord[]>()
+
+export function recordPullRequest(tenantId: string, pr: Omit<PullRequestRecord, 'recordedAt'>): void {
+  const cur = pullRequests.get(tenantId) ?? []
+  const ix = cur.findIndex((r) => r.repo === pr.repo)
+  const row: PullRequestRecord = { ...pr, recordedAt: new Date().toISOString() }
+  if (ix >= 0) cur[ix] = row
+  else cur.push(row)
+  pullRequests.set(tenantId, cur)
+}
+
+export function getPullRequests(tenantId: string): PullRequestRecord[] {
+  return pullRequests.get(tenantId) ?? []
+}

@@ -116,12 +116,13 @@ export type InstallationTokenResult =
   | { ok: false; reason: string }
 
 /**
- * Mint an installation access token: the credential that actually opens
- * branches and pull requests. Scoped to the installation's repositories and
- * expiring in 1 hour by GitHub's design — never stored, minted per operation,
- * and never logged (a token in a log is a token in a backup).
- */
-export async function createInstallationToken(opts: {
+ * Server-side mint for a tenant's installation: reads the App credentials
+ * from the environment (never arguments, never the browser), mints the
+ * short-lived App JWT, then the hour-long installation token. The private
+ * key arrives with literal `\n` in env and is restored before use — a PEM
+ * that fails to parse fails closed here, not at GitHub with a confusing
+ * 401.
+ */export async function createInstallationToken(opts: {
   appJwt: string
   installationId: number
   permissions?: Record<string, string>
@@ -153,4 +154,220 @@ export async function createInstallationToken(opts: {
     return { ok: false, reason: 'installation token malformed' }
   }
   return { ok: true, token: body.token, expiresAt: body.expires_at }
+}
+
+const API = 'https://api.github.com'
+const API_HEADERS = { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' }
+
+export type InstallationRepo = { id: number; fullName: string; defaultBranch: string; private: boolean }
+
+type GhResult<T> = { ok: true; value: T } | { ok: false; reason: string }
+
+async function gh<T>(path: string, token: string, init?: RequestInit): Promise<GhResult<T>> {
+  let res: Response
+  try {
+    res = await fetch(`${API}${path}`, {
+      ...init,
+      headers: { ...API_HEADERS, Authorization: `Bearer ${token}`, ...(init?.headers ?? {}) },
+    })
+  } catch {
+    return { ok: false, reason: 'github unreachable' }
+  }
+  if (res.status === 401 || res.status === 403) return { ok: false, reason: 'github refused the credential' }
+  if (res.status === 404) return { ok: false, reason: 'not found on GitHub' }
+  if (res.status === 422) {
+    const detail = await res.text().catch(() => '')
+    return { ok: false, reason: detail.slice(0, 160) || 'github rejected the request' }
+  }
+  if (!res.ok) return { ok: false, reason: `github refused (${res.status})` }
+  try {
+    return { ok: true, value: (await res.json()) as T }
+  } catch {
+    return { ok: false, reason: 'github response unreadable' }
+  }
+}
+
+/**
+ * Repositories the installation can touch. Names and default branches only —
+ * the picker needs nothing else, and nothing else leaves GitHub.
+ */
+export async function listInstallationRepos(installationToken: string): Promise<GhResult<InstallationRepo[]>> {
+  const r = await gh<{ repositories: Array<{ id: number; full_name: string; default_branch: string; private: boolean }> }>(
+    '/installation/repositories?per_page=100',
+    installationToken,
+  )
+  if (!r.ok) return r
+  return {
+    ok: true,
+    value: r.value.repositories.map((repo) => ({
+      id: repo.id,
+      fullName: repo.full_name,
+      defaultBranch: repo.default_branch,
+      private: repo.private,
+    })),
+  }
+}
+
+export type OpenPrResult =
+  | { ok: true; prUrl: string; prNumber: number; branch: string }
+  | { ok: false; reason: string }
+
+/**
+ * Open the install PR: branch off the default branch, commit the generated
+ * install file, open the pull request. One branch name per tenant so a
+ * second run updates the same PR instead of opening duplicates — the branch
+ * is force-pushed only when it is ours (created here), never otherwise.
+ *
+ * Everything the merchant reviews is in that single file. Nothing executes
+ * on merge except what their own CI runs.
+ */
+export async function openInstallPr(opts: {
+  installationToken: string
+  repoFullName: string
+  filePath: string
+  fileContent: string
+  prTitle: string
+  prBody: string
+}): Promise<OpenPrResult> {
+  const [owner, repo] = opts.repoFullName.split('/')
+  if (!owner || !repo) return { ok: false, reason: 'pick a repository first' }
+  const branch = 'agentport/install'
+
+  const repoInfo = await gh<{ default_branch: string }>(`/repos/${owner}/${repo}`, opts.installationToken)
+  if (!repoInfo.ok) return repoInfo
+  const base = repoInfo.value.default_branch
+
+  const ref = await gh<{ object: { sha: string } }>(`/repos/${owner}/${repo}/git/ref/heads/${base}`, opts.installationToken)
+  if (!ref.ok) return { ok: false, reason: 'could not read the default branch' }
+  const baseSha = ref.value.object.sha
+
+  // Reuse our branch when it already exists (update the PR); create otherwise.
+  const existing = await gh<{ object: { sha: string } }>(`/repos/${owner}/${repo}/git/ref/heads/${branch.replace('/', '%2F')}`, opts.installationToken)
+  if (!existing.ok && existing.reason !== 'not found on GitHub') {
+    return { ok: false, reason: existing.reason }
+  }
+  if (!existing.ok) {
+    const created = await gh<{ object: { sha: string } }>(
+      `/repos/${owner}/${repo}/git/refs`,
+      opts.installationToken,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ref: `refs/heads/${branch}`, sha: baseSha }),
+      },
+    )
+    if (!created.ok) return created
+  }
+
+  // File content: fetch current blob sha when the file exists (update),
+  // absent otherwise (create). Both go through the contents API so the
+  // commit is one file, reviewable in one screen.
+  const contentB64 = Buffer.from(opts.fileContent, 'utf8').toString('base64')
+  const current = await gh<{ sha: string }>(
+    `/repos/${owner}/${repo}/contents/${opts.filePath}?ref=${encodeURIComponent(branch)}`,
+    opts.installationToken,
+  )
+  const put = await gh<{ commit: { sha: string } }>(
+    `/repos/${owner}/${repo}/contents/${opts.filePath}`,
+    opts.installationToken,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: 'Govern agent access with AgentPort',
+        content: contentB64,
+        branch,
+        ...(current.ok ? { sha: current.value.sha } : {}),
+      }),
+    },
+  )
+  if (!put.ok) return put
+
+  const pr = await gh<{ html_url: string; number: number }>(
+    `/repos/${owner}/${repo}/pulls`,
+    opts.installationToken,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: opts.prTitle, body: opts.prBody, head: branch, base }),
+    },
+  )
+  if (pr.ok) return { ok: true, prUrl: pr.value.html_url, prNumber: pr.value.number, branch }
+  // A PR already open for the branch is the normal second-run outcome —
+  // list open PRs and return ours instead of failing.
+  const open = await gh<Array<{ html_url: string; number: number; head: { ref: string } }>>(
+    `/repos/${owner}/${repo}/pulls?state=open&head=${encodeURIComponent(`${owner}:${branch}`)}`,
+    opts.installationToken,
+  )
+  if (open.ok && open.value.length > 0) {
+    return { ok: true, prUrl: open.value[0]!.html_url, prNumber: open.value[0]!.number, branch }
+  }
+  return { ok: false, reason: 'could not open the pull request' }
+}
+
+export type PrState =
+  | { ok: true; state: 'open' | 'merged' | 'closed'; merged: boolean; checks: 'passing' | 'failing' | 'pending' | 'none'; url: string }
+  | { ok: false; reason: string }
+
+/**
+ * Read PR state for the dashboard card: open/merged/closed plus a rollup of
+ * check runs. Read-only by construction — GETs only, nothing here can merge,
+ * approve, or comment. The merge stays the merchant's, in their repo.
+ */
+export async function readPrState(opts: {
+  installationToken: string
+  repoFullName: string
+  prNumber: number
+}): Promise<PrState> {
+  const [owner, repo] = opts.repoFullName.split('/')
+  if (!owner || !repo) return { ok: false, reason: 'pick a repository first' }
+  const pr = await gh<{ state: string; merged_at: string | null; html_url: string; head: { sha: string } }>(
+    `/repos/${owner}/${repo}/pulls/${opts.prNumber}`,
+    opts.installationToken,
+  )
+  if (!pr.ok) return pr
+  const checks = await gh<{ check_runs: Array<{ conclusion: string | null; status: string }> }>(
+    `/repos/${owner}/${repo}/commits/${pr.value.head.sha}/check-runs`,
+    opts.installationToken,
+  )
+  let rollup: 'passing' | 'failing' | 'pending' | 'none' = 'none'
+  if (checks.ok && checks.value.check_runs.length > 0) {
+    const runs = checks.value.check_runs
+    rollup = runs.some((r) => r.conclusion === 'failure' || r.conclusion === 'cancelled' || r.conclusion === 'timed_out')
+      ? 'failing'
+      : runs.every((r) => r.conclusion === 'success')
+        ? 'passing'
+        : 'pending'
+  }
+  return {
+    ok: true,
+    state: pr.value.merged_at ? 'merged' : pr.value.state === 'open' ? 'open' : 'closed',
+    merged: pr.value.merged_at !== null,
+    checks: rollup,
+    url: pr.value.html_url,
+  }
+}
+
+/**
+ * Mint an installation token from server environment for a known
+ * installation. Refuses when the App is unconfigured or the installation
+ * id is not a number — both are owner-setup problems with plain reasons,
+ * never 500s.
+ */
+export async function mintInstallationTokenFor(installationId: number): Promise<InstallationTokenResult> {
+  if (!Number.isInteger(installationId) || installationId <= 0) {
+    return { ok: false, reason: 'unknown installation' }
+  }
+  const appId = (process.env.GITHUB_APP_ID ?? '').trim()
+  const privateKey = (process.env.GITHUB_APP_PRIVATE_KEY ?? '').replace(/\\n/g, '\n').trim()
+  if (!appId || !privateKey) {
+    return { ok: false, reason: 'GitHub App is not configured — install it first' }
+  }
+  let appJwt: string
+  try {
+    appJwt = createAppJwt(appId, privateKey)
+  } catch {
+    return { ok: false, reason: 'GitHub App key does not parse' }
+  }
+  return createInstallationToken({ appJwt, installationId })
 }

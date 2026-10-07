@@ -187,6 +187,32 @@ export function compileLive(tenantId: string): { ok: true; compiled: Compiled } 
   return { ok: true, compiled: { policy, capabilities, summary } }
 }
 
+/**
+ * The install file committed by the GitHub PR: the compiled drafts as a
+ * reviewable `agentport.config.ts`, one file, one screen. What the merchant
+ * merges is exactly what the summary described — the PR body carries the
+ * same lines, so review happens once, in their repo, against branch
+ * protection they built for another purpose.
+ */
+export function buildInstallFile(tenantId: string): { ok: true; path: string; content: string } | { ok: false; reason: string } {
+  const compiled = compileLive(tenantId)
+  if (!compiled.ok) return compiled
+  const { policy, capabilities, summary } = compiled.compiled
+  const lines = [
+    '// Governed agent access — generated from your answers, reviewable here.',
+    '// What you merge is what enforces: nothing here executes until this file',
+    '// is on your default branch and your runtime loads it.',
+    '//',
+    ...summary.map((s) => `// - ${s}`),
+    'export default {',
+    `  policy: ${JSON.stringify(policy, null, 2).replace(/\n/g, '\n  ')},`,
+    `  capabilities: ${JSON.stringify(capabilities.map((c) => c.name))},`,
+    `  hiddenFields: ${JSON.stringify(Object.fromEntries(capabilities.filter((c) => c.hiddenFields.length > 0).map((c) => [c.name, c.hiddenFields])))}`,
+    '} as const',
+  ]
+  return { ok: true, path: 'agentport.config.ts', content: `${lines.join('\n')}\n` }
+}
+
 /** Canonical bytes: sorted keys, no whitespace surprises. The digest signs these. */
 export function canonical(v: unknown): string {
   if (v === null || typeof v !== 'object') return JSON.stringify(v) ?? 'null'
