@@ -199,3 +199,37 @@ export function getCounts(tenantId: string): CountRow[] {
 export function hasAnalytics(tenantId: string): boolean {
   return (counts.get(tenantId) ?? []).length > 0
 }
+
+/** A GitHub App installation linked to a tenant. RAM until the durable
+ *  read model lands (TASKS.md 12.2) — same posture as every other map here:
+ *  restart loses it, and nothing below pretends otherwise. */
+export type Installation = {
+  installationId: number
+  accountLogin: string
+  repositories: string[]
+  installerUserId: string | null
+  receivedAt: string
+}
+
+const installations = new Map<string, Installation[]>()
+
+export function recordInstallation(tenantId: string, inst: Omit<Installation, 'receivedAt'>): Installation[] {
+  const row: Installation = { ...inst, receivedAt: new Date().toISOString() }
+  const cur = installations.get(tenantId) ?? []
+  const ix = cur.findIndex((r) => r.installationId === row.installationId)
+  if (ix >= 0) cur[ix] = row
+  else cur.push(row)
+  installations.set(tenantId, cur)
+  return cur
+}
+
+export function removeInstallation(tenantId: string, installationId: number): void {
+  installations.set(
+    tenantId,
+    (installations.get(tenantId) ?? []).filter((r) => r.installationId !== installationId),
+  )
+}
+
+export function getInstallations(tenantId: string): Installation[] {
+  return installations.get(tenantId) ?? []
+}

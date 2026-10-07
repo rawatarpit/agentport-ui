@@ -13,10 +13,14 @@ export async function GET() {
   const appId = (process.env.GITHUB_APP_ID ?? '').trim()
   const key = (process.env.GITHUB_APP_PRIVATE_KEY ?? '').trim()
   const webhook = (process.env.GITHUB_WEBHOOK_SECRET ?? '').trim()
+  const clientId = (process.env.GITHUB_CLIENT_ID ?? '').trim()
+  const clientSecret = (process.env.GITHUB_CLIENT_SECRET ?? '').trim()
   const missing = [
     !appId && 'GITHUB_APP_ID — from the App settings page after you create it',
     !key && 'GITHUB_APP_PRIVATE_KEY — generate on the App settings page, server-only',
     !webhook && 'GITHUB_WEBHOOK_SECRET — set on the App, verified on every delivery',
+    !clientId && 'GITHUB_CLIENT_ID — App settings page, needed for the install callback',
+    !clientSecret && 'GITHUB_CLIENT_SECRET — generate on the App settings page, server-only',
   ].filter(Boolean) as string[]
 
   return Response.json({

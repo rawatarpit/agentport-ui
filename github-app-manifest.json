@@ -1,0 +1,27 @@
+{
+  "_comment": [
+    "Register at: https://github.com/settings/apps/new?manifest=<url-encoded-manifest>",
+    "Or POST this JSON to https://github.com/settings/apps/new (the documented manifest flow).",
+    "GitHub renders a review page YOU approve in the browser, then redirects with a",
+    "one-time code. Exchange it for the App ID + private key + webhook secret.",
+    "FILL THE THREE PLACEHOLDERS FIRST: name, homepage url, webhook url (must be your",
+    "deployed dashboard origin — localhost never receives deliveries).",
+    "The private key downloads ONCE, to you. Nobody else — including this repo's",
+    "automation — should ever hold it. That is the custody rule, not paperwork."
+  ],
+  "name": "agentport-install-REPLACE-ME",
+  "url": "https://agentport.relayforge.in",
+  "hook_attributes": {
+    "url": "https://agentport.relayforge.in/api/github/webhook",
+    "active": true
+  },
+  "redirect_url": "https://agentport.relayforge.in/api/github/callback",
+  "public": false,
+  "default_permissions": {
+    "contents": "write",
+    "pull_requests": "write",
+    "checks": "read",
+    "metadata": "read"
+  },
+  "default_events": ["installation", "installation_repositories", "pull_request"]
+}

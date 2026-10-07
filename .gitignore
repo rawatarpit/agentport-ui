@@ -5,8 +5,17 @@ out/
 .env
 .env.local
 .DS_Store
+# GitHub App private keys and any PEM. The merchant key downloads once from
+# GitHub and must never enter version control — a key in git history is a key
+# in every clone forever. Server env only, never NEXT_PUBLIC_.
+*.pem
+*.key
 # Local operator tooling — never pushed to GitHub.
 .opencode/
 opencode.json
 # Supabase CLI scratch (link state). Backend lives in the SDK repo.
 supabase/.temp/
+
+# Netlify env sheet WITH SECRET VALUES (owner-generated 2026-10-07).
+# Same rule as .pem: never committed, never shared. Mode 0600.
+netlify-env.md
