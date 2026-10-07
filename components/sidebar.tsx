@@ -5,7 +5,29 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
+/**
+ * Sections follow the user flow, in order: start (account → questions →
+ * connect the repo), configure (what agents may do and under what
+ * conditions), operate (what happened and what waits). A sidebar ordered by
+ * the journey onboards; one ordered by the data model merely navigates.
+ */
 const SECTIONS: Array<{ title: string; links: Array<{ href: string; label: string }> }> = [
+  {
+    title: 'Start',
+    links: [
+      { href: '/setup', label: 'Get started' },
+      { href: '/connect', label: 'Connect GitHub' },
+    ],
+  },
+  {
+    title: 'Configure',
+    links: [
+      { href: '/capabilities', label: 'Capabilities' },
+      { href: '/rules', label: 'Rules' },
+      { href: '/policies', label: 'Limits' },
+      { href: '/team', label: 'Team' },
+    ],
+  },
   {
     title: 'Operate',
     links: [
@@ -16,21 +38,8 @@ const SECTIONS: Array<{ title: string; links: Array<{ href: string; label: strin
     ],
   },
   {
-    title: 'Configure',
-    links: [
-      { href: '/setup', label: 'Get started' },
-      { href: '/capabilities', label: 'Capabilities' },
-      { href: '/rules', label: 'Rules' },
-      { href: '/policies', label: 'Limits' },
-      { href: '/team', label: 'Team' },
-    ],
-  },
-  {
-    title: 'Build',
-    links: [
-      { href: '/connect', label: 'Connect' },
-      { href: '/chat', label: 'Storefront chat' },
-    ],
+    title: 'Try',
+    links: [{ href: '/chat', label: 'Storefront chat' }],
   },
 ]
 
