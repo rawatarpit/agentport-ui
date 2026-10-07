@@ -71,7 +71,7 @@ export default function SignupPage() {
       </div>
       <div>
         <label className="field-label" htmlFor="su-business">Business name</label>
-        <input id="su-business" className="input" value={business} autoComplete="organization" placeholder="Example Shoes" onChange={(e) => setBusiness(e.target.value)} />
+          <input id="su-business" className="input" value={business} autoComplete="organization" placeholder="What customers call you" onChange={(e) => setBusiness(e.target.value)} />
       </div>
       <button type="button" className="btn btn-primary w-full py-2.5" disabled={busy || !email || !password || !business} onClick={submit}>
         {busy ? 'Creating…' : 'Create account'}

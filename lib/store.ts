@@ -10,7 +10,7 @@ import { configHash } from '@/lib/agentport'
  * tenant: `resolveTenant()` says so out loud instead of pretending.
  */
 
-export const DEMO_TENANT = 'example-shoes'
+export const DEMO_TENANT = 'demo-tenant'
 
 /** Single-tenant demo. Supabase Auth sessions replace this — see /connect step 1. */
 export function resolveTenant(): string {

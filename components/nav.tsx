@@ -51,7 +51,7 @@ export function Nav() {
             <span className="block font-mono text-[11px] uppercase tracking-[0.18em] text-verdant">
               Agent Port
             </span>
-            <span className="block font-display text-2xl leading-tight text-bone">Example Shoes</span>
+            <span className="block font-display text-2xl leading-tight text-bone">Console</span>
           </span>
         </Link>
         <nav className="hidden flex-wrap gap-1 md:flex" aria-label="Primary">

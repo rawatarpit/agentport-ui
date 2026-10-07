@@ -5,17 +5,17 @@ import { useState } from 'react'
 /**
  * The governed conversion surface.
  *
- * This is the half of the thesis that is about money coming in: a shopper
+ * This is the half of the thesis that is about money coming in: a customer
  * talks to an assistant, and the assistant is subject to the same policy as
  * every other agent. Reads answer immediately. Anything that writes is held
- * for a human. Anything forbidden is refused with a reason the shopper can be
+ * for a human. Anything forbidden is refused with a reason the customer can be
  * shown, not an error they have to guess at.
  *
  * The calls below go to the real /.well-known/agent/invoke route, so what you
  * see here is the enforcement path, not a simulation of it.
  */
 
-type Role = 'shopper' | 'assistant' | 'system'
+type Role = 'customer' | 'assistant' | 'system'
 
 interface Turn {
   id: number
@@ -64,7 +64,7 @@ export function StorefrontChat() {
     if (!text || busy) return
     setDraft('')
     setBusy(true)
-    setTurns((t) => [...t, { id: seq++, role: 'shopper', text }])
+    setTurns((t) => [...t, { id: seq++, role: 'customer', text }])
 
     const step = SCRIPT.find((s) => s.match.test(text))
     if (!step) {
@@ -139,14 +139,14 @@ export function StorefrontChat() {
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
       <div className="panel flex min-h-[460px] flex-col p-5">
-        <p className="label">Example Shoes — storefront</p>
+        <p className="label">Governed demo — storefront</p>
 
         <div className="mt-4 flex-1 space-y-4">
           {turns.map((t) => (
             <div key={t.id} className="space-y-1">
               <p
                 className={`text-[14px] leading-relaxed ${
-                  t.role === 'shopper'
+                  t.role === 'customer'
                     ? 'text-bone'
                     : t.tone === 'denied'
                       ? 'text-rust'
@@ -201,7 +201,7 @@ export function StorefrontChat() {
           <p className="mt-2 text-[13px] leading-relaxed text-bone-dim">
             <code className="font-mono text-bone">createOrder</code> is a write, and
             every write this business exposes requires human approval. The assistant
-            gets 202 and a held request. The shopper is told the truth rather than
+            gets 202 and a held request. The customer is told the truth rather than
             shown a fake success.
           </p>
           <p className="mt-3 text-[13px] leading-relaxed text-bone-dim">

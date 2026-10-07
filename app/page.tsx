@@ -21,8 +21,9 @@ export default async function Overview() {
       <section>
         <p className="label">The position · enterprise onboarding</p>
         <h2 className="mt-2 max-w-[62ch] font-display text-3xl leading-tight text-bone">
-          Agents can already find this store. What they cannot do is decided here,
-          in one place, before anything runs.
+          Agents can already find this business. What they cannot do is decided here,
+          in one place, before anything runs. Owners check what happened,
+          operators clear what is held, developers wire what is exposed.
         </h2>
         <p className="prose-bone mt-4 max-w-[68ch]">
           {manifest.capabilities.length} capabilities are exposed to external agents.

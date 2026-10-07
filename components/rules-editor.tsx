@@ -11,7 +11,7 @@ import { Badge } from '@/components/stat'
  * here is live: the badge reads `not deployed` in idle grey, never verdant,
  * until the generated file is merged and the runtime reports its digest.
  * A technical term in the only label on a field is a support ticket, so every
- * label is a sentence a café owner would say.
+ * label is a sentence a non-technical operator would say.
  */
 
 type Draft = {

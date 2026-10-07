@@ -57,7 +57,7 @@ export default function ConnectPage() {
         <p className="prose-bone mt-3 max-w-[68ch]">
           Two doors, one artifact. The dashboard is the front door;{' '}
           <span className="font-mono text-bone">agent-port init</span> stays as the
-          second door for the shop with no GitHub. Both produce the same committed
+          second door for the team with no GitHub. Both produce the same committed
           file — the merge is the signature either way.
         </p>
       </div>

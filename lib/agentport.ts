@@ -78,14 +78,14 @@ export const ledger = new InMemoryLedger()
  * replaces it on every serve, and nothing else reads it.
  */
 export const agent = new AgentPort({
-  business: 'Example Shoes',
+  business: 'Demo business',
   baseUrl: 'http://localhost:3000',
   policy,
   ledger,
   configHash,
   // Stamped on every row. Required, and never taken from the request — this is
   // what keeps one tenant's ledger separate from another's (TASKS.md 5.7).
-  tenantId: 'example-shoes',
+  tenantId: 'demo-tenant',
   requestId: () => `req_${Math.random().toString(36).slice(2, 10)}`,
 })
 
@@ -228,7 +228,7 @@ export async function ensureSeeded(): Promise<void> {
       result: s.decision === 'allow' ? 'ok' : undefined,
       durationMs: 18 + i * 7,
       configHash,
-      tenantId: 'example-shoes',
+      tenantId: 'demo-tenant',
     })
   }
 }

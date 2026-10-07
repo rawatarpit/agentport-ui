@@ -3,13 +3,16 @@
 > **The whole system, top to bottom — dashboard, Supabase backend, runtime — is
 > [`SYSTEM.md`](SYSTEM.md).** Start there. This file is the dashboard only.
 
-The business side of AgentPort: what external AI agents may do to a small
+The business side of AgentPort: what external AI agents may do to a
 business, what they have done, what is waiting on a human, and how to change
 those without writing code.
 
-This is not a marketing site. It is the surface a shop owner uses to decide
-whether to let a stranger's bot spend their money — and the place where they
-say what that bot is allowed to try.
+This is not a marketing site. It is the surface a business uses to decide
+whether to let a stranger's bot touch its money, its catalogue, or its
+customers — and the place where it says what that bot is allowed to try.
+Owners, operators, and the developers who serve them all read the same
+dashboard: the owner checks what happened, the operator clears what is held,
+and the developer wires what is exposed.
 
 **Name is provisional.** The package and directory are still `agentport-console`
 and `agentport-ui`; do not rename them as a side effect of another change.

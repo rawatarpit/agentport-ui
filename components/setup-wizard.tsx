@@ -5,8 +5,8 @@ import { useEffect, useMemo, useState } from 'react'
 /**
  * Setup: four questions, then one line.
  *
- * The person who needs a policy change is a café owner, so the wizard exists to
- * end. Every question is answerable without a technical term, and the output is a
+ * The person who needs a policy change is often a non-technical operator, so
+ * the wizard exists to end. Every question is answerable without a technical term, and the output is a
  * single copyable command rather than a file to edit — a merchant who cannot get
  * from this screen to a running runtime has not been onboarded, however good the
  * rest of the console looks.

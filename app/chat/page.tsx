@@ -3,7 +3,7 @@ import { StorefrontChat } from '@/components/chat'
 export const metadata = {
   title: 'Storefront chat — Agent Port',
   description:
-    'A shopper talks to an assistant that is subject to the same policy as every other agent: reads answer, writes are held for a human, and forbidden actions are refused with a reason.',
+    'A customer talks to an assistant that is subject to the same policy as every other agent: reads answer, writes are held for a human, and forbidden actions are refused with a reason.',
 }
 
 export default function ChatPage() {

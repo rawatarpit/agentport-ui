@@ -62,7 +62,7 @@ export function SignupForm({ onDone }: { onDone: () => void }) {
             className="mt-2 w-full border border-ink-line bg-transparent px-3 py-2 text-[14px] text-bone outline-none focus:border-verdant"
             value={business}
             onChange={(e) => setBusiness(e.target.value)}
-            placeholder="Example Shoes"
+            placeholder="What customers call you"
           />
         </div>
       </div>
