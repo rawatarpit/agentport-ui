@@ -1,9 +1,9 @@
 # TASKS.md 12.4.3 — typecheck + lint + unit tests + build on every push and PR.
 #
-# Node is pinned to match netlify.toml. The SDK is a `file:../agentport-sdk`
-# sibling, so CI needs it checked out next to this repo before `npm ci`.
-# Where the SDK lives (private repo, submodule, vendored tarball) is an owner
-# decision — the step below fails with instructions instead of guessing.
+# Node is pinned to match netlify.toml. The SDK is vendored
+# (`vendor/agentport-sdk`), so no sibling checkout is needed. Refresh the
+# snapshot by re-copying `dist` from the SDK repo after its own verify passes;
+# CI here only proves the snapshot resolves and builds.
 name: ci
 
 on:
@@ -23,8 +23,8 @@ jobs:
           cache-dependency-path: package-lock.json
       - name: Provide the SDK sibling
         run: |
-          if [ ! -f ../agentport-sdk/package.json ]; then
-            echo '::error::Missing ../agentport-sdk. Check out the SDK repo next to this one (it needs a token if private), vendor it, or publish @agentport/sdk — see netlify.toml.'
+          if [ ! -f vendor/agentport-sdk/package.json ]; then
+            echo '::error::Missing vendor/agentport-sdk. Re-copy package.json + dist from the SDK repo (see netlify.toml).'
             exit 1
           fi
       - run: npm ci --no-audit --no-fund

@@ -8,12 +8,11 @@
 #   SUPABASE_URL / SUPABASE_ANON_KEY as needed (anon only; never service-role
 #   or access tokens — see TASKS.md "What to push to GitHub").
 #
-# NOTE on `@agentport/sdk: file:../agentport-sdk`: Netlify clones only this
-# repo, so the sibling path does not exist at build time. Until the SDK is
-# published or vendored, set the SDK as an npm dependency or add a pre-build
-# step that fetches agentport-sdk at the pinned tag. The build below assumes
-# the dependency resolves (publish/submodule); without it `npm ci` fails and
-# that failure is the correct signal, not something to paper over.
+# NOTE on `@agentport/sdk`: it is vendored at `vendor/agentport-sdk`
+# (prebuilt `dist` snapshot of the SDK repo) and consumed as
+# `file:./vendor/agentport-sdk`, so this build is self-contained — no sibling
+# checkout, no publish step. Refresh the snapshot by re-copying `dist` (and
+# `package.json`) from the SDK repo after its own `npm run verify` passes.
 
 [build]
   command = "npm run build"
