@@ -1,5 +1,4 @@
 import { getDraft, getLive, getMerchant, hasAnalytics, hasSync, resolveTenant } from '@/lib/store'
-import { supabasePresence } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,17 +19,8 @@ export async function GET() {
   const caps = getDraft(tenantId, 'capabilities')
   const rules = getDraft(tenantId, 'rules')
   const live = getLive(tenantId)
-  const sb = supabasePresence()
 
   const steps: Step[] = [
-    {
-      n: '0',
-      title: 'Supabase backend',
-      body: sb.readable
-        ? 'Project reachable for merchant-scoped reads. Durable reads land on top of this.'
-        : 'Not wired — set SUPABASE_URL + SUPABASE_ANON_KEY in this deployment. Until then the store is process RAM.',
-      state: sb.readable ? 'done' : 'missing',
-    },
     {
       n: '1',
       title: 'Create your account',
@@ -67,10 +57,10 @@ export async function GET() {
     },
     {
       n: '6',
-      title: 'Go live — typed confirmation',
+      title: 'Go live — publish',
       body: live
-        ? `Live at version ${live.version}, digest ${live.digest.slice(0, 12)}. Republishing needs a fresh read and a fresh confirm.`
-        : 'Review the plain-language summary, type your business name, and the config is signed.',
+        ? `Live at version ${live.version}, digest ${live.digest.slice(0, 12)}. Republishing needs a fresh read first.`
+        : 'Review the plain-language summary and publish — the signature lives in your merge, not in a button.',
       state: live ? 'done' : 'missing',
       href: '/rules',
     },
