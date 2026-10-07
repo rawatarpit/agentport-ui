@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { ThemeToggle } from '@/components/theme-toggle'
 
 /**
  * Sections follow the user flow, in order: start (account → questions →
@@ -114,7 +115,10 @@ export function Sidebar() {
         </nav>
       ))}
 
-      <div className={`${mobile ? '' : 'mt-auto'} border-t border-ink-line pt-4`}>
+      <div className={`${mobile ? '' : 'mt-auto'} space-y-2 border-t border-ink-line pt-4`}>
+        <div className="px-2">
+          <ThemeToggle />
+        </div>
         {email ? (
           <div className="space-y-2 px-2">
             <p className="truncate font-mono text-[11px] text-bone-faint">{email}</p>

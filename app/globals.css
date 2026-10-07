@@ -5,11 +5,36 @@
 :root {
   --font-display: 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
   --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* Light theme: paper, ink text, same semantic hues deepened for contrast. */
+  --ink: 250 247 242;
+  --ink-soft: 255 255 255;
+  --ink-line: 222 214 200;
+  --bone: 24 22 18;
+  --bone-dim: 74 68 58;
+  --bone-faint: 139 130 116;
+  --verdant: 33 122 72;
+  --verdant-soft: 27 100 60;
+  --amber: 158 108 24;
+  --rust: 158 66 44;
+}
+
+.dark {
+  --ink: 15 14 12;
+  --ink-soft: 23 21 15;
+  --ink-line: 38 35 25;
+  --bone: 239 236 230;
+  --bone-dim: 195 186 171;
+  --bone-faint: 143 134 122;
+  --verdant: 47 156 104;
+  --verdant-soft: 30 127 79;
+  --amber: 192 138 46;
+  --rust: 180 85 58;
 }
 html,
 body {
-  background: #0f0e0c;
-  color: #efece6;
+  background: rgb(var(--ink));
+  color: rgb(var(--bone));
   -webkit-font-smoothing: antialiased;
 }
 

@@ -71,7 +71,7 @@ export default async function LedgerPage() {
                 */}
                 <td className="px-4 py-3 font-mono text-[12px] text-bone-dim">
                   <div>{e.agentId}</div>
-                  <div className={e.assurance === 'verified' ? 'text-bone-faint' : 'text-amber-400/90'}>
+                  <div className={e.assurance === 'verified' ? 'text-bone-faint' : 'text-amber'}>
                     {e.assurance}
                   </div>
                 </td>
