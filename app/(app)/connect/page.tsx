@@ -133,6 +133,8 @@ export default function ConnectPage() {
         <WebsiteForm current={websiteUrl} onDone={() => void load()} />
       ) : null}
 
+      <GithubPanel />
+
       {failed ? (
         <p className="text-[13px] text-rust" role="alert">Could not read connection state.</p>
       ) : !steps ? (
@@ -170,8 +172,6 @@ export default function ConnectPage() {
           })}
         </ol>
       )}
-
-      <GithubPanel />
 
       <details className="panel p-5">
         <summary className="cursor-pointer text-[14px] text-bone">
