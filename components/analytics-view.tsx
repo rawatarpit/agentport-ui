@@ -70,6 +70,27 @@ export async function AnalyticsView() {
     byCap.set(r.capability, cur)
   }
 
+  // Direction, not just totals: latest week vs the one before, per
+  // capability. One week of data has no direction — it renders flat, not
+  // zero, because a single point is not a trend.
+  const weeks = [...new Set(rows.map((r) => String(r.window_start)))].sort().reverse()
+  const [latest, previous] = weeks
+  const totalOf = (cap: string, week: string | undefined) =>
+    week === undefined
+      ? null
+      : rows
+          .filter((r) => r.capability === cap && String(r.window_start) === week)
+          .reduce((n, r) => n + (r.asked ?? 0) + (r.denied ?? 0) + (r.held ?? 0) + (r.approved ?? 0) + (r.executed ?? 0), 0)
+  const direction = (cap: string): { arrow: string; tone: string; label: string } => {
+    const now = totalOf(cap, latest)
+    const then = totalOf(cap, previous)
+    if (now === null || then === null) return { arrow: '→', tone: 'text-bone-faint', label: 'first week seen' }
+    if (now === then) return { arrow: '→', tone: 'text-bone-faint', label: 'steady' }
+    return now > then
+      ? { arrow: '↗', tone: 'text-verdant', label: 'busier than last week' }
+      : { arrow: '↘', tone: 'text-amber', label: 'quieter than last week' }
+  }
+
   return (
     <div className="grid gap-3 lg:grid-cols-2">
       <div className="panel p-5">
@@ -77,10 +98,13 @@ export async function AnalyticsView() {
         <ul className="mt-3 space-y-2 text-[13px]">
           {[...byCap.entries()].sort((a, b) => b[1].asked + b[1].executed - (a[1].asked + a[1].executed)).map(([cap, r]) => {
             const c = convByCap.get(cap)
+            const d = direction(cap)
             return (
               <li key={cap} className="border-b border-ink-line/60 py-2 last:border-0">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="font-mono text-[12px] text-bone">{cap}</span>
+                  <span className="font-mono text-[12px] text-bone">
+                    {cap} <span className={`ml-1 ${d.tone}`} title={d.label}>{d.arrow}</span>
+                  </span>
                   <span className="tabular font-mono text-[11px] text-bone-faint">
                     <span className="text-verdant">{r.executed} ok</span>
                     {' · '}

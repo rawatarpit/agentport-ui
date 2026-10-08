@@ -153,24 +153,18 @@ export default async function LedgerPage() {
         ))}
       </ul>
 
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge tone="idle">demonstration data</Badge>
+        <p className="font-mono text-[11px] text-bone-faint">
+          seeded rows, in-memory — your ledger replaces this when connected
+        </p>
+      </div>
+
       <div className="space-y-2">
         <p className="font-mono text-[11px] text-bone-faint">
           Config <span className="text-bone-dim">{configHash}</span> · entries are append-only, and
           there is no edit or delete path, because an audit trail that can be changed
           is not an audit trail.
-        </p>
-        {/*
-          The honest caveat. The DB aborts UPDATE and DELETE, but this console owns
-          the table, so a merchant who drops those triggers degrades the guarantee
-          to "the SDK never issues an UPDATE or a DELETE" — a weaker claim, and one
-          already asserted by a test in the SDK. Do not restate it as the stronger
-          one here.
-        */}
-        <p className="font-mono text-[11px] text-bone-faint/70">
-          Demonstration surface: these rows are seeded fixtures and the ledger is
-          in-memory, so it is capped and does not survive a restart. A real
-          deployment passes a <span className="text-bone-dim">SqlLedger</span> bound
-          to the merchant&rsquo;s own database.
         </p>
       </div>
     </div>

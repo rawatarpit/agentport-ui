@@ -20,12 +20,11 @@ function githubReasonText(reason: string): string {
 }
 
 /**
- * The front door as computed state.
- *
- * Steps come from GET /api/connect, which reports what the store can prove.
- * GitHub steps stay `missing` until real App credentials exist — the screen
- * must not imply otherwise. The signup form completes step 1: an account
- * with us, after which the same list re-renders with step 1 done.
+ * The front door as computed state, split in two: onboarding spine first
+ * (account → website → GitHub → steps), diagnostics last (test event,
+ * delivery status, enforcing state). Diagnostics are honest dev tools, not
+ * merchant onboarding — burying them mid-flow taught owners to skip the
+ * whole screen, and promoting them taught developers the screen was done.
  */
 export default function ConnectPage() {
   const [steps, setSteps] = useState<Step[] | null>(null)
@@ -140,42 +139,61 @@ export default function ConnectPage() {
         <p className="text-[13px] text-bone-faint">Reading connection state…</p>
       ) : (
         <ol className="space-y-3">
-          {steps.map((s) => (
-            <li key={s.n} className="panel flex flex-wrap items-start justify-between gap-3 p-5">
-              <div className="max-w-[60ch]">
-                <p className="font-mono text-[11px] text-bone-faint">Step {s.n}</p>
-                <p className="mt-1 text-[15px] text-bone">{s.title}</p>
-                <p className="mt-1 text-[13px] leading-relaxed text-bone-dim">{s.body}</p>
-                {s.href ? (
-                  <Link href={s.href} className="btn mt-3">Open it</Link>
-                ) : null}
-              </div>
-              <span
-                className={`inline-block rounded border px-2 py-0.5 font-mono text-[11px] ${
-                  s.state === 'done' ? 'border-verdant/40 text-verdant' : 'border-ink-line text-bone-faint'
+          {steps.map((s, i) => {
+            const current = s.state === 'missing' && steps.slice(0, i).every((p) => p.state === 'done')
+            return (
+              <li
+                key={s.n}
+                className={`panel flex flex-wrap items-start justify-between gap-3 p-5 ${
+                  current ? 'border-verdant/40' : ''
                 }`}
               >
-                {s.state}
-              </span>
-            </li>
-          ))}
+                <div className="max-w-[60ch]">
+                  <p className="font-mono text-[11px] text-bone-faint">
+                    Step {s.n}{current ? ' · you are here' : ''}
+                  </p>
+                  <p className="mt-1 text-[15px] text-bone">{s.title}</p>
+                  <p className="mt-1 text-[13px] leading-relaxed text-bone-dim">{s.body}</p>
+                  {s.href ? (
+                    <Link href={s.href} className={current ? 'btn btn-primary mt-3' : 'btn mt-3'}>Open it</Link>
+                  ) : null}
+                </div>
+                <span
+                  className={`inline-block rounded border px-2 py-0.5 font-mono text-[11px] ${
+                    s.state === 'done' ? 'border-verdant/40 text-verdant' : 'border-ink-line text-bone-faint'
+                  }`}
+                >
+                  {s.state}
+                </span>
+              </li>
+            )
+          })}
         </ol>
       )}
 
-      <div className="panel p-5">
-        <p className="label">What never happens here</p>
-        <ul className="mt-3 space-y-2 text-[13px] leading-relaxed text-bone-dim">
-          <li>· This screen never decides, never mints a credential, never approves a held write.</li>
-          <li>· <span className="font-mono text-bone">agent-port token</span> stays in the CLI — a session-derived credential cannot tell an employee from an algorithm.</li>
-          <li>· Approvals stay in your environment: <span className="font-mono text-bone">agent-port approve</span> records who approved against the frozen request.</li>
-        </ul>
-      </div>
-
-      <TestEventButton />
-
       <GithubPanel />
 
-      <WebhookPanel />
+      <details className="panel p-5">
+        <summary className="cursor-pointer text-[14px] text-bone">
+          Diagnostics <span className="ml-2 font-mono text-[11px] text-bone-faint">for developers — not part of setup</span>
+        </summary>
+        <div className="mt-4 space-y-4">
+          <div className="panel p-5">
+            <p className="label">What never happens here</p>
+            <ul className="mt-3 space-y-2 text-[13px] leading-relaxed text-bone-dim">
+              <li>· This screen never decides, never mints a credential, never approves a held write.</li>
+              <li>· <span className="font-mono text-bone">agent-port token</span> stays in the CLI — a session-derived credential cannot tell an employee from an algorithm.</li>
+              <li>· Approvals stay in your environment: <span className="font-mono text-bone">agent-port approve</span> records who approved against the frozen request.</li>
+            </ul>
+          </div>
+
+          <TestEventButton />
+
+          <WebhookPanel />
+
+          <EnforcingPanel draftLabel="no draft open" />
+        </div>
+      </details>
     </div>
   )
 }

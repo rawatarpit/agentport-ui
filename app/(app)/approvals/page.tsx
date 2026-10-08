@@ -66,6 +66,12 @@ export default function ApprovalsPage() {
           these have run. A held request is a request authorised to wait, not one
           that already executed.
         </p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Badge tone="idle">demonstration data</Badge>
+          <p className="font-mono text-[11px] text-bone-faint">
+            sample queue — your held requests appear here when connected
+          </p>
+        </div>
       </div>
 
       {PENDING.length === 0 ? (

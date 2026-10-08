@@ -22,6 +22,11 @@ export default function TeamPage() {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  // Invites the function accepted this visit. The member list only shows
+  // people already in; this shows the ones on their way — invited, waiting
+  // for them to sign in and appear above. Cleared on reload, honestly so:
+  // a session list, not a record.
+  const [invited, setInvited] = useState<Array<{ email: string; role: string }>>([])
 
   const call = useCallback(async (action: string, extra: Record<string, string> = {}) => {
     const supabase = createClient()
@@ -59,8 +64,12 @@ export default function TeamPage() {
     setErr(null)
     try {
       await call(action, extra)
-      if (action === 'invite') setMsg(`Invited ${extra.email} as ${extra.role}. They need an account first — addresses without one stay unadded, and we do not say which.`)
-      else setMsg('Done.')
+      if (action === 'invite') {
+        setMsg(`Invited ${extra.email} as ${extra.role}. They need an account first — addresses without one stay unadded, and we do not say which.`)
+        setInvited((list) =>
+          list.some((i) => i.email === extra.email) ? list : [...list, { email: extra.email ?? '', role: extra.role ?? 'viewer' }],
+        )
+      } else setMsg('Done.')
       setEmail('')
       await load()
     } catch (e) {
@@ -135,6 +144,16 @@ export default function TeamPage() {
         </div>
         {msg ? <p className="text-[13px] text-bone">{msg}</p> : null}
         {err ? <p className="text-[13px] text-rust" role="alert">{err}</p> : null}
+        {invited.length > 0 ? (
+          <ul className="space-y-1.5">
+            {invited.map((i) => (
+              <li key={i.email} className="flex items-center justify-between gap-3 text-[13px]">
+                <span className="font-mono text-[12px] text-bone-dim">{i.email}</span>
+                <span className="font-mono text-[11px] text-amber">invited as {i.role} — waiting for them to sign in</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </div>
     </div>
   )

@@ -90,7 +90,7 @@ export async function DashboardKpis() {
                     <span className="font-mono text-bone">{cap}</span>
                     <span className="tabular font-mono text-[11px] text-bone-faint">{n}</span>
                   </div>
-                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-ink">
+                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-ink-line/50">
                     <div className="h-full rounded-full bg-verdant/70" style={{ width: `${Math.max(6, Math.round((n / max) * 100))}%` }} />
                   </div>
                 </li>
@@ -137,14 +137,13 @@ function Kpi({ label, value, sub, tone, link }: { label: string; value: number; 
 }
 
 /**
- * Getting started, computed — never a static list. Each row checks real
- * state and links to the screen that finishes it. The account row reads the
- * signed-in session first (real users) and the demo record second; drafts
- * and publishes read the store. When everything is done the whole card
- * returns null — a finished onboarding disappears instead of nagging. An
- * owner opening the dashboard on day one sees exactly what is left, in order.
+ * Onboarding in one voice: progress, checklist, and the GitHub explanation
+ * where it belongs — under the GitHub row, when that row is the next thing
+ * to do. Replaces the three separate cards (nudge, checklist, how-to) that
+ * told the same journey in three voices. Returns null when finished: a
+ * completed onboarding disappears instead of nagging.
  */
-export async function GettingStarted() {
+export async function OnboardingCard() {
   const tenantId = resolveTenant()
   const merchant = getMerchant(tenantId)
   const setup = getDraft(tenantId, 'setup')
@@ -169,34 +168,58 @@ export async function GettingStarted() {
   }
 
   const items = [
-    { done: account.done, label: 'Create your account', body: account.body, href: '/connect' },
-    { done: !!setup, label: 'Answer four questions', body: 'Plain language in, typed policy out, saved as a draft.', href: '/setup' },
-    { done: !!rules, label: 'Set capabilities and limits', body: 'What agents see, what waits for you, what is always no.', href: '/rules' },
-    { done: github, label: 'Connect GitHub', body: github ? 'App installed — open the connect screen to pick the repo.' : 'Install the App on the website repo so the runtime can move in.', href: '/connect' },
-    { done: !!live, label: 'Publish your first version', body: 'Review the summary, publish, watch your site pick it up.', href: '/rules' },
+    { done: account.done, label: 'Create your account', body: account.body, href: '/connect', key: 'account' },
+    { done: !!setup, label: 'Answer four questions', body: 'Plain language in, typed policy out, saved as a draft.', href: '/setup', key: 'setup' },
+    { done: !!rules, label: 'Set capabilities and limits', body: 'What agents see, what waits for you, what is always no.', href: '/rules', key: 'rules' },
+    { done: github, label: 'Connect GitHub', body: github ? 'App installed — open the connect screen to pick the repo.' : 'Install the App on the website repo so the runtime can move in.', href: '/connect', key: 'github' },
+    { done: !!live, label: 'Publish your first version', body: 'Review the summary, publish, watch your site pick it up.', href: '/rules', key: 'live' },
   ]
   const done = items.filter((i) => i.done).length
   if (done === items.length) return null
+  // The single most important un-done thing gets the amber frame, not an
+  // error: an account with no GitHub connection governs nothing yet, and
+  // that fact should be felt before it is read.
+  const urgent = account.done && !github
+  const nextUndone = items.find((i) => !i.done)
+
   return (
-    <div className="panel p-5">
+    <div className={`panel p-5 ${urgent ? 'border-amber/40' : ''}`}>
       <div className="flex items-baseline justify-between">
-        <p className="label">Getting started — {done} of {items.length}</p>
-        <div className="h-1.5 w-32 overflow-hidden rounded-full bg-ink">
+        <p className="label">
+          {urgent ? 'One step left — connect GitHub' : `Getting started — ${done} of ${items.length}`}
+        </p>
+        <div className="h-1.5 w-32 overflow-hidden rounded-full bg-ink-line/50">
           <div className="h-full rounded-full bg-verdant/70" style={{ width: `${Math.round((done / items.length) * 100)}%` }} />
         </div>
       </div>
+      {urgent ? (
+        <p className="mt-3 max-w-[62ch] text-[14px] leading-relaxed text-bone-dim">
+          Your account is ready, but nothing is governed yet — no code of yours
+          is touched until you install the App. Two clicks, you pick the repo,
+          and your merge is what turns everything on.
+        </p>
+      ) : null}
       <ol className="mt-4 space-y-2">
         {items.map((it) => (
-          <li key={it.label} className="flex items-center justify-between gap-3 text-[14px]">
-            <span>
-              <span className={it.done ? 'text-bone-faint line-through' : 'text-bone'}>{it.label}</span>
-              <span className="block text-[12px] text-bone-faint">{it.body}</span>
-            </span>
-            {it.done ? (
-              <span className="font-mono text-[11px] text-verdant">done</span>
-            ) : (
-              <Link href={it.href} className="btn shrink-0">Do it</Link>
-            )}
+          <li key={it.key}>
+            <div className="flex items-center justify-between gap-3 text-[14px]">
+              <span>
+                <span className={it.done ? 'text-bone-faint line-through' : 'text-bone'}>{it.label}</span>
+                <span className="block text-[12px] text-bone-faint">{it.body}</span>
+              </span>
+              {it.done ? (
+                <span className="font-mono text-[11px] text-verdant">done</span>
+              ) : (
+                <Link href={it.href} className="btn shrink-0">Do it</Link>
+              )}
+            </div>
+            {it.key === 'github' && !it.done && nextUndone?.key === 'github' ? (
+              <ol className="ml-1 mt-2 space-y-1 border-l border-ink-line pl-3 text-[13px] text-bone-dim">
+                <li><span className="font-mono text-bone">1.</span> You install our App on your website&apos;s repo — we never see your password.</li>
+                <li><span className="font-mono text-bone">2.</span> We open a pull request your team reviews like any other change.</li>
+                <li><span className="font-mono text-bone">3.</span> You merge — that merge is your signature.</li>
+              </ol>
+            ) : null}
           </li>
         ))}
       </ol>
@@ -205,53 +228,36 @@ export async function GettingStarted() {
 }
 
 /**
- * GitHub in the owner's language. No OAuth jargon, no scopes lecture: three
- * steps, each saying who acts and what it produces. Shown on the overview
- * until the App is connected — the front door belongs where the owner lands,
- * not buried three clicks deep.
+ * The emergency stop as an overview row: visible without hunting, quiet
+ * unless engaged. Full control lives on Limits; this row only reports and
+ * links. Nothing published yet renders nothing at all — a stop button with
+ * nothing to stop would be decoration.
  */
-export function GithubHowto() {
-  if (githubConnected()) return null
-  return (
-    <div className="panel space-y-3 p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="label">Connect GitHub — how it works</p>
-        <Link href="/connect" className="btn btn-primary">Start connecting</Link>
+export async function KillSwitchRow() {
+  const live = getLive(resolveTenant())
+  if (!live) return null
+  if (!live.emergencyKillSwitch) {
+    return (
+      <div className="panel flex flex-wrap items-center justify-between gap-3 p-4">
+        <p className="text-[13px] text-bone-dim">
+          Running normally under published version {live.version}.
+        </p>
+        <Link href="/policies" className="font-mono text-[11px] text-bone-faint hover:text-bone">
+          emergency stop →
+        </Link>
       </div>
-      <ol className="space-y-2 text-[14px] text-bone-dim">
-        <li><span className="font-mono text-bone">1. You install our App</span> on your website&apos;s repo — two clicks, you pick the repo, we never see your password.</li>
-        <li><span className="font-mono text-bone">2. We open a pull request</span> that adds the governed runtime to your site. Your team reviews it like any other change.</li>
-        <li><span className="font-mono text-bone">3. You merge.</span> That merge is your signature — nothing goes live without it, and we can never merge for you.</li>
-      </ol>
-    </div>
-  )
-}
-
-/**
- * The nudge for everybody signed up but not connected.
- *
- * You have an account, the App is not installed, so nothing can reach your
- * site yet — this banner says exactly that and points at the one button
- * that fixes it. Amber-tinted because it is the single most important
- * un-done thing, not because anything is wrong. Disappears the moment the
- * App connects; nagging a connected business would be the boy who cried.
- */
-export function GithubNudge() {
-  if (githubConnected()) return null
+    )
+  }
   return (
-    <div className="panel space-y-3 border-amber/40 bg-amber/5 p-5">
-      <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-amber">
-        One step left — connect GitHub
+    <div className="panel space-y-2 border-rust/50 bg-rust/10 p-5" role="alert">
+      <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-rust">
+        Stopped — nothing new runs
       </p>
-      <p className="max-w-[62ch] text-[14px] leading-relaxed text-bone-dim">
-        Your account is ready, but nothing is governed yet — no code of yours
-        is touched until you install the App on your website&apos;s repo. It
-        takes two clicks, you pick the repo, and your merge is what turns
-        everything on.
-      </p>
-      <div className="flex flex-wrap gap-2">
-        <Link href="/connect" className="btn btn-primary">Connect GitHub now</Link>
-        <Link href="/setup" className="btn">Answer questions first</Link>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-[13px] text-bone-dim">
+          You stopped everything. Looking still works; running does not.
+        </p>
+        <Link href="/policies" className="btn btn-danger">Review the stop</Link>
       </div>
     </div>
   )
