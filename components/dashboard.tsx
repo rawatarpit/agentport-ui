@@ -169,18 +169,22 @@ export async function OnboardingCard() {
 
   const items = [
     { done: account.done, label: 'Create your account', body: account.body, href: '/connect', key: 'account' },
+    { done: github, label: 'Connect GitHub', body: github ? 'App installed — your site is next.' : 'Install the App first, so every screen after this one reads live data.', href: '/connect', key: 'github' },
     { done: !!setup, label: 'Answer four questions', body: 'Plain language in, typed policy out, saved as a draft.', href: '/setup', key: 'setup' },
     { done: !!rules, label: 'Set capabilities and limits', body: 'What agents see, what waits for you, what is always no.', href: '/rules', key: 'rules' },
-    { done: github, label: 'Connect GitHub', body: github ? 'App installed — open the connect screen to pick the repo.' : 'Install the App on the website repo so the runtime can move in.', href: '/connect', key: 'github' },
     { done: !!live, label: 'Publish your first version', body: 'Review the summary, publish, watch your site pick it up.', href: '/rules', key: 'live' },
   ]
   const done = items.filter((i) => i.done).length
   if (done === items.length) return null
+  // First run gets one door, not five: the single next action as the
+  // primary button, the rest as the list below. A wall of equal choices
+  // is how onboarding stalls on step zero.
+  const firstUndone = items.find((i) => !i.done)
   // The single most important un-done thing gets the amber frame, not an
   // error: an account with no GitHub connection governs nothing yet, and
   // that fact should be felt before it is read.
   const urgent = account.done && !github
-  const nextUndone = items.find((i) => !i.done)
+  const nextUndone = firstUndone
 
   return (
     <div className={`panel p-5 ${urgent ? 'border-amber/40' : ''}`}>
@@ -198,6 +202,13 @@ export async function OnboardingCard() {
           is touched until you install the App. Two clicks, you pick the repo,
           and your merge is what turns everything on.
         </p>
+      ) : null}
+      {done === 0 && firstUndone ? (
+        <div className="mt-4">
+          <Link href={firstUndone.href} className="btn btn-primary px-5 py-2.5">
+            Start: {firstUndone.label.toLowerCase()} →
+          </Link>
+        </div>
       ) : null}
       <ol className="mt-4 space-y-2">
         {items.map((it) => (

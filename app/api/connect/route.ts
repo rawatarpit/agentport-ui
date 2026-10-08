@@ -7,10 +7,12 @@ type Step = { n: string; title: string; body: string; state: 'missing' | 'done';
 /**
  * GET /api/connect — the front door as computed state, not constants.
  *
- * Every step reports what the store can prove. GitHub steps stay `missing`
- * until real App credentials exist — code was never the blocker there, and
- * this endpoint must not imply otherwise. The day the App lands, only the
- * github/review steps change; the shape stays the same.
+ * Order is the product decision: GitHub comes second, right after the
+ * account, because every screen after connection reads live data — while
+ * configuring blind means answering questions about a business the
+ * dashboard cannot see yet. Every step reports what the store can prove.
+ * GitHub steps stay `missing` until real App credentials exist — code was
+ * never the blocker there, and this endpoint must not imply otherwise.
  */
 export async function GET() {
   const tenantId = resolveTenant()
@@ -47,53 +49,53 @@ export async function GET() {
     },
     {
       n: '2',
+      title: 'Install the App on your website repo',
+      body: 'Two clicks, you pick the repo — we never see your password. Everything after this reads live data from your site.',
+      state: 'missing',
+    },
+    {
+      n: '3',
+      title: 'Review the pull request — the signature',
+      body: 'We open a branch that adds the governed runtime. You merge. We cannot merge into a protected branch.',
+      state: 'missing',
+    },
+    {
+      n: '4',
       title: 'Answer four questions',
-      body: 'Done here. Four answers become a typed policy you can review.',
+      body: 'Done here, in plain words. Four answers become a typed policy you can review — against your real site, not a blank slate.',
       state: setup ? 'done' : 'missing',
       href: '/setup',
     },
     {
-      n: '3',
+      n: '5',
       title: 'Pick capabilities and set rules',
-      body: 'What agents may see, what waits for you, what is always no. Drafts until go-live.',
+      body: 'What agents may see, what waits for you, what is always no. Drafts until you publish.',
       state: caps && rules ? 'done' : 'missing',
       href: '/rules',
-    },
-    {
-      n: '4',
-      title: 'Install the App on your website repo',
-      body: 'Analysis runs in your workflow — names and types only. Never your rows, never your database credentials.',
-      state: 'missing',
-    },
-    {
-      n: '5',
-      title: 'Review the pull request — the signature',
-      body: 'We open a branch with the snippet, CLI and runtime wiring. You merge. We cannot merge into a protected branch.',
-      state: 'missing',
     },
     {
       n: '6',
       title: 'Go live — publish',
       body: live
-        ? `Live at version ${live.version}, digest ${live.digest.slice(0, 12)}. Republishing needs a fresh read first.`
+        ? `Published as version ${live.version}. Your site picks it up from here.`
         : 'Review the plain-language summary and publish — the signature lives in your merge, not in a button.',
       state: live ? 'done' : 'missing',
       href: '/rules',
     },
     {
       n: '7',
-      title: 'Sync and heartbeat',
+      title: 'Watch it work',
       body: hasSync(tenantId)
-        ? 'Signed pushes landing; the enforcing panel reads the runtime heartbeat.'
-        : 'Signed payload, distinct credential, replay protection. Until the first heartbeat, the panel says unknown.',
+        ? 'Your site is checking in — the overview shows what it enforces right now.'
+        : 'Until your site first checks in, live screens honestly say unknown.',
       state: hasSync(tenantId) ? 'done' : 'missing',
     },
     {
       n: '8',
-      title: 'Come back for analytics',
+      title: 'Come back for the numbers',
       body: hasAnalytics(tenantId)
-        ? 'Counts flowing — by capability and by rule, never rows.'
-        : 'Counts by capability and rule land here once the runtime pushes them.',
+        ? 'Counts flowing — by capability and by rule, never amounts, never rows.'
+        : 'Counts by capability and rule land here once your site reports them.',
       state: hasAnalytics(tenantId) ? 'done' : 'missing',
       href: '/analytics',
     },

@@ -6,12 +6,12 @@ export const dynamic = 'force-dynamic'
 /**
  * Post-login router: tenant first, then GitHub, then configuration.
  *
- * `v_tenant_home` returns one row for a member, nothing for a stranger —
- * no tenant means setup started nowhere, so `/setup`. A tenant whose
- * GitHub App is not connected goes to `/connect`: onboarding IS connect
- * GitHub → pull request shown here → they merge. Only a connected tenant
- * lands on `/capabilities`. Never a dashboard with an empty tenant — that
- * reads as broken.
+ * Order is the product decision: connect comes BEFORE configure, because
+ * every screen after connection reads live data — heartbeat, denials,
+ * analytics — while configuring blind means answering questions about a
+ * business the dashboard cannot see yet. `v_tenant_home` returns one row
+ * for a member, nothing for a stranger. Never a dashboard with an empty
+ * tenant — that reads as broken.
  */
 export default async function OnboardingPage() {
   const supabase = createClient()
