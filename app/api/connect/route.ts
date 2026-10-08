@@ -50,7 +50,7 @@ export async function GET() {
     {
       n: '2',
       title: 'Connect your website',
-      body: 'Your website’s code lives on GitHub, so connecting happens there: install our App on your repo and it delivers the governed runtime to your site. We never see your password. Everything after this reads live data.',
+      body: 'Your website’s code lives on GitHub, so connecting happens there: connect your repo and we deliver the governed runtime to your site. We never see your password. Everything after this reads live data.',
       state: 'missing',
     },
     {

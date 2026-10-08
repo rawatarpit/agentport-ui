@@ -106,12 +106,12 @@ export function GithubPanel() {
         <>
           <p className="text-[13px] leading-relaxed text-bone-dim">
             Your website&apos;s code lives on GitHub, so this happens there:
-            install our App on your repo — two clicks, you pick the repo, we
+            connect your GitHub repo — you pick the repo, we
             never see your password. Until then there is nothing to show, and
             this screen will not pretend otherwise.
           </p>
           <a href={INSTALL_URL} target="_blank" rel="noreferrer" className="btn btn-primary">
-            Install the GitHub App
+            Connect a GitHub repo
           </a>
           <p className="font-mono text-[11px] text-bone-faint">
             after installing you land back here — press check again

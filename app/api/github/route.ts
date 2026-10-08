@@ -28,7 +28,7 @@ export async function GET() {
     configured: missing.length === 0,
     missing,
     flow: [
-      'Install the App on the website repo (selected repositories, minimum scopes)',
+      'Connect a repo (selected repositories, minimum scopes)',
       'We open branch agentport/install with the snippet, CLI and runtime wiring',
       'Their CI runs; they review; they merge — the merge is the signature',
       'Sync status and heartbeat land on this screen',

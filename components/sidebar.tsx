@@ -57,7 +57,7 @@ export function Sidebar() {
   const setupLinks = (
     <ul className="mt-1 space-y-0.5">
       <li>{item('/setup', 'Get started')}</li>
-      <li>{item('/connect', 'Connect GitHub')}</li>
+      <li>{item('/connect', 'Connect repo')}</li>
       <li>{item('/capabilities', 'Capabilities')}</li>
       <li>{item('/rules', 'Rules')}</li>
     </ul>

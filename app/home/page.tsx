@@ -65,7 +65,7 @@ export default function HomePage() {
       <section>
         <p className="label">How it works</p>
         <ol className="mt-4 grid gap-3 lg:grid-cols-3">
-          <Step n="1" title="Connect your website" body="Your code lives on GitHub, so it happens there: install our App, we open a pull request that adds the governed runtime — your team reviews it, you merge. The merge is your signature." />
+          <Step n="1" title="Connect your repo" body="You connect your GitHub repo, we open a pull request that adds the governed runtime — your team reviews it, you merge. The merge is your signature." />
           <Step n="2" title="Say what agents may do" body="Four questions in plain language become typed policy: what they see, what waits for you, what is always no. Drafts until you publish." />
           <Step n="3" title="Watch it work" body="Every call lands on your ledger — allowed, held, refused with the reason. Analytics counts what happened, never amounts, never rows." />
         </ol>

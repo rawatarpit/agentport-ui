@@ -14,7 +14,7 @@ export async function GET(req: Request) {
   const installationId = Number(new URL(req.url).searchParams.get('installation') ?? '')
   const known = getInstallations(tenantId).some((i) => i.installationId === installationId)
   if (!known) {
-    return Response.json({ status: 'error', reason: 'Unknown installation — install the App first.' }, { status: 404 })
+    return Response.json({ status: 'error', reason: 'No connected repo found — connect one first.' }, { status: 404 })
   }
   const minted = await mintInstallationTokenFor(installationId)
   if (!minted.ok) {

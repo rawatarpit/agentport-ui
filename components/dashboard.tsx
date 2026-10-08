@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Badge } from '@/components/stat'
-import { getCounts, getDraft, getLive, getMerchant, resolveTenant } from '@/lib/store'
+import { mintInstallationTokenFor, readPrState } from '@/lib/github'
+import { getCounts, getLive, getMerchant, getPullRequests, resolveTenant } from '@/lib/store'
 
 /** True when the GitHub App credentials exist — the only thing code cannot invent. */
 export function githubConnected(): boolean {
@@ -146,10 +147,27 @@ function Kpi({ label, value, sub, tone, link }: { label: string; value: number; 
 export async function OnboardingCard() {
   const tenantId = resolveTenant()
   const merchant = getMerchant(tenantId)
-  const setup = getDraft(tenantId, 'setup')
-  const rules = getDraft(tenantId, 'rules') ?? getDraft(tenantId, 'capabilities')
   const live = getLive(tenantId)
   const github = githubConnected()
+
+  // Has any recorded pull request actually merged? Read live through a
+  // fresh installation token — the record only says one was opened.
+  // Anything failing here means "not proven merged", never an error on
+  // screen: the checklist answers what is done, and unproven is not done.
+  let merged = false
+  try {
+    for (const pr of getPullRequests(tenantId)) {
+      const minted = await mintInstallationTokenFor(pr.installationId)
+      if (!minted.ok) continue
+      const state = await readPrState({ installationToken: minted.token, repoFullName: pr.repo, prNumber: pr.number })
+      if (state.ok && state.merged) {
+        merged = true
+        break
+      }
+    }
+  } catch {
+    merged = false
+  }
 
   let account: { done: boolean; body: string } = {
     done: !!merchant,
@@ -169,10 +187,9 @@ export async function OnboardingCard() {
 
   const items = [
     { done: account.done, label: 'Create your account', body: account.body, href: '/connect', key: 'account' },
-    { done: github, label: 'Connect your website', body: github ? 'Connected — your site is next.' : 'Happens on GitHub, where your code lives: install our App and it delivers the runtime to your site.', href: '/connect', key: 'github' },
-    { done: !!setup, label: 'Answer four questions', body: 'Plain language in, typed policy out, saved as a draft.', href: '/setup', key: 'setup' },
-    { done: !!rules, label: 'Set capabilities and limits', body: 'What agents see, what waits for you, what is always no.', href: '/rules', key: 'rules' },
-    { done: !!live, label: 'Publish your first version', body: 'Review the summary, publish, watch your site pick it up.', href: '/rules', key: 'live' },
+    { done: github, label: 'Connect your repo', body: github ? 'Connected — the runtime can move in.' : 'You pick the repo, we open the pull request.', href: '/connect', key: 'github' },
+    { done: merged, label: 'Merge the pull request', body: merged ? 'Merged — your signature is on it.' : 'Review it like any other change. Merging is what turns everything on.', href: '/connect', key: 'merge' },
+    { done: !!live, label: 'Publish your rules', body: 'Review the summary, publish, watch your site pick it up.', href: '/rules', key: 'live' },
   ]
   const done = items.filter((i) => i.done).length
   if (done === items.length) return null
@@ -200,8 +217,7 @@ export async function OnboardingCard() {
         <p className="mt-3 max-w-[62ch] text-[14px] leading-relaxed text-bone-dim">
           Your account is ready, but nothing is governed yet — your
           website&apos;s code lives on GitHub, so connecting happens there:
-          install our App on your repo and it delivers the runtime to your
-          site. Two clicks, you pick the repo, and your merge is what turns
+          connect your repo and we deliver the runtime to your site. You pick the repo, and your merge is what turns
           everything on.
         </p>
       ) : null}
@@ -228,9 +244,9 @@ export async function OnboardingCard() {
             </div>
             {it.key === 'github' && !it.done && nextUndone?.key === 'github' ? (
               <ol className="ml-1 mt-2 space-y-1 border-l border-ink-line pl-3 text-[13px] text-bone-dim">
-                <li><span className="font-mono text-bone">1.</span> On GitHub, install our App on your website&apos;s repo — we never see your password.</li>
+                <li><span className="font-mono text-bone">1.</span> On GitHub, connect your website&apos;s repo — we never see your password.</li>
                 <li><span className="font-mono text-bone">2.</span> We open a pull request your team reviews like any other change.</li>
-                <li><span className="font-mono text-bone">3.</span> You merge — that merge is your signature.</li>
+                <li><span className="font-mono text-bone">3.</span> You merge — that merge turns everything on.</li>
               </ol>
             ) : null}
           </li>

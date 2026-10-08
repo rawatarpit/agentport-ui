@@ -25,7 +25,7 @@ export async function POST(req: Request) {
   const installationId = Number(body.installationId)
   const repo = typeof body.repo === 'string' ? body.repo.trim() : ''
   if (!getInstallations(tenantId).some((i) => i.installationId === installationId)) {
-    return Response.json({ status: 'error', reason: 'Unknown installation — install the App first.' }, { status: 404 })
+    return Response.json({ status: 'error', reason: 'No connected repo found — connect one first.' }, { status: 404 })
   }
   if (!repo || !repo.includes('/')) {
     return Response.json({ status: 'error', reason: 'Pick one of the repositories the installation can touch.' }, { status: 400 })
