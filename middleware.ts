@@ -7,7 +7,7 @@ import { NextResponse, type NextRequest } from 'next/server'
  * of pages. Data is protected by RLS, which lives in the database and cannot
  * be skipped by a client.
  */
-const PUBLIC = ['/login', '/signup', '/reset-password', '/auth/callback', '/home', '/.well-known/agent.json']
+const PUBLIC = ['/login', '/signup', '/reset-password', '/auth/callback', '/home', '/icon.svg', '/favicon.ico', '/.well-known/agent.json']
 
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
