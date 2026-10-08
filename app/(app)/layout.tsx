@@ -1,4 +1,5 @@
 import { Sidebar } from '@/components/sidebar'
+import { Topbar } from '@/components/topbar'
 
 /**
  * The product shell: sidebar + content + footer. Only for signed-in
@@ -9,6 +10,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="mx-auto flex min-h-screen max-w-[1280px]">
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col px-5 sm:px-8">
+        <Topbar />
         <main className="flex-1 py-8 sm:py-10">{children}</main>
         <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-ink-line py-6">
           <p className="font-mono text-[11px] text-bone-faint">

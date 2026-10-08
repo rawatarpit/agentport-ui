@@ -1,67 +1,34 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import { ThemeToggle } from '@/components/theme-toggle'
+
+type SetupState = { done: boolean; total: number } | null
 
 /**
- * Sections follow the user flow, in order: start (account → questions →
- * connect the repo), configure (what agents may do and under what
- * conditions), operate (what happened and what waits). A sidebar ordered by
- * the journey onboards; one ordered by the data model merely navigates.
+ * Wayfinding ordered by the journey: Home, then Setup (which finishes and
+ * folds away), then Run, then Try. The Setup group reads /api/connect and
+ * collapses to a single checked row once its steps are done — navigation
+ * that completes instead of nagging. Auth pages never see this shell;
+ * route groups keep them out by folder, not by memory.
  */
-const SECTIONS: Array<{ title: string; links: Array<{ href: string; label: string }> }> = [
-  {
-    title: 'Start',
-    links: [
-      { href: '/setup', label: 'Get started' },
-      { href: '/connect', label: 'Connect GitHub' },
-    ],
-  },
-  {
-    title: 'Configure',
-    links: [
-      { href: '/capabilities', label: 'Capabilities' },
-      { href: '/rules', label: 'Rules' },
-      { href: '/policies', label: 'Limits' },
-      { href: '/team', label: 'Team' },
-    ],
-  },
-  {
-    title: 'Operate',
-    links: [
-      { href: '/', label: 'Overview' },
-      { href: '/ledger', label: 'Ledger' },
-      { href: '/approvals', label: 'Approvals' },
-      { href: '/analytics', label: 'Analytics' },
-    ],
-  },
-  {
-    title: 'Try',
-    links: [{ href: '/chat', label: 'Storefront chat' }],
-  },
-]
+const SETUP_HREFS = ['/setup', '/connect', '/capabilities', '/rules']
 
-/**
- * The product shell: sidebar on desktop, disclosure on mobile.
- *
- * Sections follow the user's day, not the data model — operate what is
- * running, configure what it may do, build how it connects. The footer shows
- * who is signed in (from the session, never a guess) and the way out.
- */
 export function Sidebar() {
   const path = usePathname()
-  const router = useRouter()
-  const [email, setEmail] = useState<string | null>(null)
+  const [setup, setSetup] = useState<SetupState>(null)
 
   useEffect(() => {
     let live = true
-    createClient()
-      .auth.getSession()
-      .then(({ data }) => {
-        if (live) setEmail(data.session?.user.email ?? null)
+    fetch('/api/connect')
+      .then((r) => r.json())
+      .then((body: { status: string; steps?: Array<{ n: string; state: string }> }) => {
+        if (!live || body.status !== 'ok' || !body.steps) return
+        const wanted = new Set(['2', '3', '4', '6'])
+        const mine = body.steps.filter((s) => wanted.has(s.n))
+        const done = mine.filter((s) => s.state === 'done').length
+        setSetup({ done: done === mine.length && mine.length > 0, total: mine.length })
       })
       .catch(() => {})
     return () => {
@@ -69,11 +36,32 @@ export function Sidebar() {
     }
   }, [])
 
-  const signOut = async () => {
-    await createClient().auth.signOut()
-    router.push('/login')
-    router.refresh()
+  const item = (href: string, label: string) => {
+    const active = path === href
+    return (
+      <Link
+        key={href}
+        href={href}
+        aria-current={active ? 'page' : undefined}
+        className={`block rounded-md px-2 py-2 font-mono text-[12.5px] transition-colors ${
+          active
+            ? 'border-l-2 border-verdant bg-verdant/10 text-bone'
+            : 'border-l-2 border-transparent text-bone-dim hover:bg-ink-soft hover:text-bone'
+        }`}
+      >
+        {label}
+      </Link>
+    )
   }
+
+  const setupLinks = (
+    <ul className="mt-1 space-y-0.5">
+      <li>{item('/setup', 'Get started')}</li>
+      <li>{item('/connect', 'Connect GitHub')}</li>
+      <li>{item('/capabilities', 'Capabilities')}</li>
+      <li>{item('/rules', 'Rules')}</li>
+    </ul>
+  )
 
   const body = (mobile: boolean) => (
     <div className={`flex ${mobile ? '' : 'min-h-0 flex-1 flex-col gap-6 overflow-y-auto'} flex-col gap-6`}>
@@ -89,51 +77,44 @@ export function Sidebar() {
         </span>
       </Link>
 
-      {SECTIONS.map((s) => (
-        <nav key={s.title} aria-label={s.title}>
-          <p className="label px-2">{s.title}</p>
-          <ul className="mt-1 space-y-0.5">
-            {s.links.map((l) => {
-              const active = path === l.href
-              return (
-                <li key={l.href}>
-                  <Link
-                    href={l.href}
-                    aria-current={active ? 'page' : undefined}
-                    className={`block rounded-md px-2 py-2 font-mono text-[12.5px] transition-colors ${
-                      active
-                        ? 'border-l-2 border-verdant bg-verdant/10 text-bone'
-                        : 'border-l-2 border-transparent text-bone-dim hover:bg-ink-soft hover:text-bone'
-                    }`}
-                  >
-                    {l.label}
-                  </Link>
-                </li>
-              )
-            })}
-          </ul>
-        </nav>
-      ))}
+      <nav aria-label="Primary">
+        <p className="label px-2">Home</p>
+        <ul className="mt-1 space-y-0.5">
+          <li>{item('/', 'Overview')}</li>
+        </ul>
+      </nav>
 
-      <div className={`${mobile ? '' : 'mt-auto'} space-y-2 border-t border-ink-line pt-4`}>
-        <div className="px-2">
-          <ThemeToggle />
-        </div>
-        {email ? (
-          <div className="space-y-2 px-2">
-            <p className="truncate font-mono text-[11px] text-bone-faint">{email}</p>
-            <button type="button" className="btn w-full justify-center" onClick={signOut}>
-              Sign out
-            </button>
-          </div>
+      <nav aria-label="Setup">
+        {setup?.done ? (
+          <Link href="/connect" className="flex items-center justify-between rounded-md px-2 py-2">
+            <span className="label">Setup</span>
+            <span className="font-mono text-[11px] text-verdant">done ✓</span>
+          </Link>
         ) : (
-          <div className="space-y-2 px-2">
-            <Link href="/login" className="btn btn-primary w-full justify-center">
-              Sign in
-            </Link>
-          </div>
+          <>
+            <p className="label px-2">Setup</p>
+            {setupLinks}
+          </>
         )}
-      </div>
+      </nav>
+
+      <nav aria-label="Run">
+        <p className="label px-2">Run</p>
+        <ul className="mt-1 space-y-0.5">
+          <li>{item('/ledger', 'Ledger')}</li>
+          <li>{item('/approvals', 'Approvals')}</li>
+          <li>{item('/analytics', 'Analytics')}</li>
+          <li>{item('/policies', 'Limits')}</li>
+          <li>{item('/team', 'Team')}</li>
+        </ul>
+      </nav>
+
+      <nav aria-label="Try">
+        <p className="label px-2">Try</p>
+        <ul className="mt-1 space-y-0.5">
+          <li>{item('/chat', 'Storefront demo')}</li>
+        </ul>
+      </nav>
     </div>
   )
 
