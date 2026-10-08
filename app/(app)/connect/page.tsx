@@ -190,8 +190,6 @@ export default function ConnectPage() {
           <TestEventButton />
 
           <WebhookPanel />
-
-          <EnforcingPanel draftLabel="no draft open" />
         </div>
       </details>
     </div>

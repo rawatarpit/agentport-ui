@@ -99,7 +99,7 @@ export function Sidebar() {
       </nav>
 
       <details>
-        <summary className="cursor-pointer px-2 font-mono text-[11px] uppercase tracking-[0.14em] text-bone-faint">
+        <summary className="cursor-pointer rounded-md px-2 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-bone-faint hover:text-bone">
           More
         </summary>
         <ul className="mt-1 space-y-0.5">
