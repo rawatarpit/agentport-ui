@@ -76,7 +76,7 @@ export default function HomePage() {
         <ul className="mt-4 grid gap-3 text-[14px] leading-relaxed text-bone-dim sm:grid-cols-3">
           <li><span className="font-mono text-bone">Draft is never live.</span><br />Nothing you type is in force until it is merged and your runtime enforces it.</li>
           <li><span className="font-mono text-bone">Held is never executed.</span><br />Approvals queue for a human; granting happens where the request froze, never in a browser.</li>
-          <li><span className="font-mono text-bone">Unknown is never healthy.</span><br />No heartbeat, no claim. A silent runtime renders as unknown, not green.</li>
+          <li><span className="font-mono text-bone">Unknown is never healthy.</span><br />No signal, no claim. A silent site renders as unknown, not green.</li>
         </ul>
         <div className="mt-6">
           <Link href="/signup" className="btn btn-primary px-5 py-2.5">Create your account</Link>

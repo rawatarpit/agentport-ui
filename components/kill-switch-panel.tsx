@@ -96,7 +96,7 @@ export function KillSwitchPanel() {
             <div className="mt-2 flex flex-wrap items-center gap-3">
               <input
                 id="kill-confirm"
-                className="w-64 border border-ink-line bg-transparent px-3 py-2 font-mono text-[13px] text-bone outline-none focus:border-rust"
+                className="w-64 border border-ink-line bg-transparent px-3 py-2 font-mono text-[13px] text-bone outline-none focus:border-rust focus-visible:ring-2 focus-visible:ring-rust/60"
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 placeholder={businessName}
@@ -118,7 +118,7 @@ export function KillSwitchPanel() {
       {err ? (
         <p className="text-[13px] text-rust" role="alert">{err}</p>
       ) : null}
-      <p className="font-mono text-[11px] text-bone-faint">merchant state, not policy — no sync payload can carry it</p>
+      <p className="font-mono text-[11px] text-bone-faint">only you control this — publishing never changes it</p>
     </div>
   )
 }

@@ -5,11 +5,10 @@ import { getPush, resolveTenant } from '@/lib/store'
 /**
  * The anti-blur control for the entire product.
  *
- * Shows what the site is actually enforcing right now — version plus when
- * it last checked in — separately from whatever draft is open in the
- * editor. Plain words only: no digests, no heartbeats, no config hashes.
- * A draft that has not been published reads `not deployed`. Silence reads
- * `unknown`, never a green lie.
+ * Shows what the site is actually enforcing right now — the published
+ * version plus when it last checked in — separately from whatever draft is
+ * open in the editor. A draft that has not been published reads
+ * `not published yet`. Silence reads `unknown`, never a green lie.
  */
 export function EnforcingPanel({ draftLabel }: { draftLabel: string }) {
   const push = getPush(resolveTenant())

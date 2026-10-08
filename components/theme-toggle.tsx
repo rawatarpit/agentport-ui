@@ -9,14 +9,17 @@ import { useEffect, useState } from 'react'
  * so there is no flash — this control only changes the stored value.
  */
 export function ThemeToggle() {
-  const [dark, setDark] = useState(true)
+  // Read the applied class lazily so the announced value matches first
+  // paint (SSR has no document; the layout script sets the class pre-paint).
+  const [dark, setDark] = useState<boolean | null>(null)
+  const resolved = dark ?? true
 
   useEffect(() => {
     setDark(document.documentElement.classList.contains('dark'))
   }, [])
 
   const flip = () => {
-    const next = !dark
+    const next = !resolved
     setDark(next)
     document.documentElement.classList.toggle('dark', next)
     try {
@@ -28,18 +31,18 @@ export function ThemeToggle() {
     <button
       type="button"
       role="switch"
-      aria-checked={dark}
-      aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'}
-      title={dark ? 'Switch to light theme' : 'Switch to dark theme'}
+      aria-checked={resolved}
+      aria-label={resolved ? 'Switch to light theme' : 'Switch to dark theme'}
+      title={resolved ? 'Switch to light theme' : 'Switch to dark theme'}
       onClick={flip}
       className="flex w-full items-center justify-between gap-2 rounded-md border border-ink-line px-3 py-2 outline-none transition-colors hover:border-verdant focus-visible:ring-2 focus-visible:ring-verdant/60"
     >
       <span className="flex items-center gap-1.5" aria-hidden="true">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={dark ? 'text-bone-faint' : 'text-amber'}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={resolved ? 'text-bone-faint' : 'text-amber'}>
           <circle cx="12" cy="12" r="4" />
           <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
         </svg>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={dark ? 'text-verdant' : 'text-bone-faint'}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={resolved ? 'text-verdant' : 'text-bone-faint'}>
           <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
         </svg>
       </span>

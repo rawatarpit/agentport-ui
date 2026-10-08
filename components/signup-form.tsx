@@ -37,18 +37,22 @@ export function SignupForm({ onDone }: { onDone: () => void }) {
   return (
     <div className="panel space-y-4 p-6">
       <div>
-        <p className="label">Step 1 — your account</p>
+        <p className="label">Step 1 — try without an account</p>
         <p className="mt-2 text-[13px] leading-relaxed text-bone-dim">
-          An account with us, not with GitHub. Sign-in links arrive by email; GitHub
-          comes later, for your website repo only.
+          Exploring first is fine: this demo account lives in this browser
+          session only. For the real thing — saved drafts, team, live data —
+          create a proper account instead.
         </p>
+        <a href="/signup" className="mt-2 inline-block font-mono text-[12px] text-bone underline underline-offset-4">
+          Create a real account →
+        </a>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className="block text-[13px] text-bone" htmlFor="signup-email">Email</label>
           <input
             id="signup-email"
-            className="mt-2 w-full border border-ink-line bg-transparent px-3 py-2 text-[14px] text-bone outline-none focus:border-verdant"
+            className="mt-2 w-full border border-ink-line bg-transparent px-3 py-2 text-[14px] text-bone outline-none focus:border-verdant focus-visible:ring-2 focus-visible:ring-verdant/60"
             value={email}
             inputMode="email"
             onChange={(e) => setEmail(e.target.value)}
@@ -59,7 +63,7 @@ export function SignupForm({ onDone }: { onDone: () => void }) {
           <label className="block text-[13px] text-bone" htmlFor="signup-business">Business name</label>
           <input
             id="signup-business"
-            className="mt-2 w-full border border-ink-line bg-transparent px-3 py-2 text-[14px] text-bone outline-none focus:border-verdant"
+            className="mt-2 w-full border border-ink-line bg-transparent px-3 py-2 text-[14px] text-bone outline-none focus:border-verdant focus-visible:ring-2 focus-visible:ring-verdant/60"
             value={business}
             onChange={(e) => setBusiness(e.target.value)}
             placeholder="What customers call you"

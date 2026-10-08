@@ -1,4 +1,4 @@
-import { getDraft, getLive, getMerchant, hasAnalytics, hasSync, resolveTenant } from '@/lib/store'
+import { getDraft, getInstallations, getLive, getMerchant, getPullRequests, hasAnalytics, hasSync, resolveTenant } from '@/lib/store'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,6 +21,8 @@ export async function GET() {
   const caps = getDraft(tenantId, 'capabilities')
   const rules = getDraft(tenantId, 'rules')
   const live = getLive(tenantId)
+  const installed = getInstallations(tenantId).length > 0
+  const prs = getPullRequests(tenantId)
 
   // Real users sign in with Supabase Auth; the demo record is the fallback.
   // Step 1 is done for whoever actually has an account, not whoever has a row.
@@ -50,14 +52,18 @@ export async function GET() {
     {
       n: '2',
       title: 'Connect your website',
-      body: 'Your website’s code lives on GitHub, so connecting happens there: connect your repo and we deliver the governed runtime to your site. We never see your password. Everything after this reads live data.',
-      state: 'missing',
+      body: installed
+        ? 'App installed — pick repositories and open the pull request below.'
+        : 'Your website’s code lives on GitHub, so connecting happens there: connect your repo and we deliver the governed runtime to your site. We never see your password. Everything after this reads live data.',
+      state: installed ? 'done' : 'missing',
     },
     {
       n: '3',
       title: 'Review the pull request — the signature',
-      body: 'We open a branch that adds the governed runtime. You merge. We cannot merge into a protected branch.',
-      state: 'missing',
+      body: prs.length > 0
+        ? `${prs.length} pull request${prs.length === 1 ? '' : 's'} opened — review on GitHub. You merge. We cannot merge into a protected branch.`
+        : 'We open a branch that adds the governed runtime. You merge. We cannot merge into a protected branch.',
+      state: prs.length > 0 ? 'done' : 'missing',
     },
     {
       n: '4',

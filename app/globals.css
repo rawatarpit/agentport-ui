@@ -76,7 +76,7 @@ body {
   .input {
     @apply w-full rounded-md border border-ink-line bg-ink/60 px-3 py-2.5 text-[14px]
       text-bone placeholder:text-bone-faint/60 outline-none transition-colors
-      focus:border-verdant focus:bg-ink-soft;
+      focus:border-verdant focus:bg-ink-soft focus-visible:ring-2 focus-visible:ring-verdant/60;
   }
   /* Auth shell: one centered column, generous air, brand on top. */
   .auth-card {

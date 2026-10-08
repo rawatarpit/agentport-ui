@@ -86,7 +86,7 @@ export default function PoliciesPage() {
     <div className="space-y-6">
       <div>
         <p className="label">AUTHORIZE</p>
-        <h2 className="mt-2 font-display text-3xl text-bone">Business-controlled policy</h2>
+        <h1 className="mt-2 font-display text-3xl text-bone">Business-controlled policy</h1>
         <p className="prose-bone mt-3 max-w-[68ch]">
           The merchant owns this. An agent is never trusted because it is an AI
           agent; it is trusted because the business issued it a credential with

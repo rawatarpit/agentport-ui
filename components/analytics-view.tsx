@@ -37,16 +37,27 @@ export async function AnalyticsView() {
     supabase.from('v_conversion').select('*').order('window_start', { ascending: false }).limit(200),
   ])
 
-  if (aErr || cErr || !activity || activity.length === 0) {
+  if (aErr || cErr) {
+    return (
+      <div className="panel space-y-2 p-6">
+        <p className="label">By capability — counts, not money</p>
+        <p className="text-[14px] leading-relaxed text-bone-dim" role="alert">
+          Your numbers could not be loaded. Nothing is lost — try reloading.
+        </p>
+      </div>
+    )
+  }
+
+  if (!activity || activity.length === 0) {
     return (
       <div className="panel space-y-2 p-6">
         <p className="label">By capability — counts, not money</p>
         <p className="text-[14px] leading-relaxed text-bone-dim">
-          No pushes received yet. This screen shows <span className="text-bone">unknown</span>,
-          not zero — zero would claim a healthy runtime that may not exist.
+          Your site has not sent any summaries yet. This screen shows <span className="text-bone">unknown</span>,
+          not zero — zero would claim a healthy site that may not exist.
         </p>
         <p className="font-mono text-[11px] text-bone-faint">
-          wire the webhook on the connect screen; counts land here per ISO week
+          connect your site on the connect screen; counts land here per week
         </p>
       </div>
     )

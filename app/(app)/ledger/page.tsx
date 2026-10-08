@@ -23,14 +23,20 @@ function evaluated(e: LedgerEntry): string {
 }
 
 export default async function LedgerPage() {
-  await ensureSeeded()
-  const entries = await ledger.list({ limit: 200 })
+  let entries: LedgerEntry[] = []
+  let failed = false
+  try {
+    await ensureSeeded()
+    entries = await ledger.list({ limit: 200 })
+  } catch {
+    failed = true
+  }
 
   return (
     <div className="space-y-6">
       <div>
         <p className="label">PROVE</p>
-        <h2 className="mt-2 font-display text-3xl text-bone">Agent Activity Ledger</h2>
+        <h1 className="mt-2 font-display text-3xl text-bone">Agent Activity Ledger</h1>
         <p className="prose-bone mt-3 max-w-[68ch]">
           Every call an agent has made, including the ones that were refused. A
           refusal you cannot explain is a control the agent will route around, so
@@ -39,6 +45,17 @@ export default async function LedgerPage() {
         </p>
       </div>
 
+      {failed ? (
+        <p className="text-[13px] text-rust" role="alert">
+          The ledger could not be read. Nothing is lost — try reloading.
+        </p>
+      ) : entries.length === 0 ? (
+        <div className="panel p-8 text-center">
+          <p className="text-bone-dim">No calls recorded yet.</p>
+          <p className="mt-1 font-mono text-[11px] text-bone-faint">unknown — not zero, not healthy</p>
+        </div>
+      ) : (
+      <>
       {/*
         FRONTEND.md §5 — below 768px each row becomes a stacked card with
         labelled pairs. Horizontal-scrolling a nine-column table on a phone
@@ -47,10 +64,11 @@ export default async function LedgerPage() {
       */}
       <div className="panel hidden overflow-x-auto md:block">
         <table className="w-full min-w-[1100px] text-left text-[13px]">
+          <caption className="sr-only">Agent calls with decisions, rules, and config versions</caption>
           <thead>
             <tr className="border-b border-ink-line">
               {['Request', 'Agent', 'Capability', 'Decision', 'Rule', 'Measured', 'Approval', 'Result', 'Config'].map((h) => (
-                <th key={h} className="label px-4 py-3 font-normal">{h}</th>
+                <th key={h} scope="col" className="label px-4 py-3 font-normal">{h}</th>
               ))}
             </tr>
           </thead>
@@ -59,7 +77,9 @@ export default async function LedgerPage() {
               <tr key={`${e.tenantId}:${e.requestId}`} className="border-b border-ink-line/60 last:border-0">
                 <td className="px-4 py-3 font-mono text-[11px] text-bone-faint">
                   <div>{e.requestId}</div>
-                  <div className="text-bone-faint/70">{new Date(e.at).toLocaleTimeString()}</div>
+                  <div className="text-bone-faint/70">
+                    <time dateTime={e.at}>{new Date(e.at).toLocaleString()}</time>
+                  </div>
                 </td>
 
                 {/*
@@ -156,7 +176,7 @@ export default async function LedgerPage() {
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone="idle">demonstration data</Badge>
         <p className="font-mono text-[11px] text-bone-faint">
-          seeded rows, in-memory — your ledger replaces this when connected
+          sample rows, kept in memory — your ledger replaces this when connected
         </p>
       </div>
 
@@ -167,6 +187,8 @@ export default async function LedgerPage() {
           is not an audit trail.
         </p>
       </div>
+      </>
+      )}
     </div>
   )
 }

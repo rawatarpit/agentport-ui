@@ -209,7 +209,7 @@ export async function OnboardingCard() {
         <p className="label">
           {urgent ? 'One step left — connect your website' : `Getting started — ${done} of ${items.length}`}
         </p>
-        <div className="h-1.5 w-32 overflow-hidden rounded-full bg-ink-line/50">
+        <div className="h-1.5 w-32 overflow-hidden rounded-full bg-ink-line/50" role="progressbar" aria-valuenow={Math.round((done / items.length) * 100)} aria-valuemin={0} aria-valuemax={100} aria-label={`Setup progress: ${done} of ${items.length} steps done`}>
           <div className="h-full rounded-full bg-verdant/70" style={{ width: `${Math.round((done / items.length) * 100)}%` }} />
         </div>
       </div>

@@ -15,6 +15,7 @@ export function PullRequestCard() {
   const [pr, setPr] = useState<
     | { state: 'none' }
     | { state: 'open' | 'merged' | 'closed'; url: string; repo: string; number: number; checks: string }
+    | { state: 'error'; reason: string }
     | null
   >(null)
 
@@ -22,21 +23,39 @@ export function PullRequestCard() {
     let live = true
     fetch('/api/github/pr')
       .then((r) => r.json())
-      .then((body: { status: string; pr?: { state: string; url?: string; repo?: string; number?: number; checks?: string } }) => {
+      .then((body: { status: string; reason?: string; pr?: { state: string; url?: string; repo?: string; number?: number; checks?: string } }) => {
         if (!live) return
-        if (body.status !== 'ok' || !body.pr || body.pr.state === 'none') {
+        if (body.status !== 'ok') {
+          setPr({ state: 'error', reason: body.reason ?? 'GitHub could not be reached.' })
+          return
+        }
+        if (!body.pr || body.pr.state === 'none') {
           setPr({ state: 'none' })
           return
         }
         setPr(body.pr as { state: 'open' | 'merged' | 'closed'; url: string; repo: string; number: number; checks: string })
       })
       .catch(() => {
-        if (live) setPr({ state: 'none' })
+        if (live) setPr({ state: 'error', reason: 'GitHub could not be reached.' })
       })
     return () => {
       live = false
     }
   }, [])
+
+  if (pr && pr.state === 'error') {
+    return (
+      <div className="panel flex flex-wrap items-center justify-between gap-3 p-5">
+        <div>
+          <p className="label">Pull request</p>
+          <p className="mt-1 text-[14px] text-bone-dim">
+            Could not check pull requests: {pr.reason}
+          </p>
+        </div>
+        <Link href="/connect" className="btn">Check connection</Link>
+      </div>
+    )
+  }
 
   if (pr && pr.state !== 'none') {
     return (

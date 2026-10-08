@@ -132,6 +132,9 @@ export function RulesEditor() {
               ? 'Draft saved. Nothing changed for your visitors yet.'
               : 'Unsaved draft. Nothing here affects your visitors.'}
           </p>
+          <p className="mt-1 font-mono text-[11px] text-bone-faint">
+            same policy as the setup answers — saving here replaces those
+          </p>
           {loadError ? (
             <p className="mt-1 text-[12px] text-rust" role="alert">
               Could not load your saved draft — editing from defaults. Saving still works.
@@ -169,8 +172,8 @@ export function RulesEditor() {
               </label>
               <p className="mt-1 text-[12px] text-bone-faint">Anything below this runs on its own. Above it, nothing happens until you approve it.</p>
               <div className="mt-2 flex items-center gap-2">
-                <span className="font-display text-xl text-bone-faint">₹</span>
-                <input id="rules-ask" className="w-36 border border-ink-line bg-transparent px-3 py-2 font-display text-xl text-bone outline-none focus:border-verdant" value={d.askAbove} inputMode="decimal" onChange={(e) => { setD({ ...d, askAbove: e.target.value }); setSavedAt(null) }} />
+                <span aria-hidden="true" className="font-display text-xl text-bone-faint">₹</span>
+                <input id="rules-ask" className="w-36 border border-ink-line bg-transparent px-3 py-2 font-display text-xl text-bone outline-none focus:border-verdant focus-visible:ring-2 focus-visible:ring-verdant/60" value={d.askAbove} inputMode="decimal" onChange={(e) => { setD({ ...d, askAbove: e.target.value }); setSavedAt(null) }} />
               </div>
             </div>
 
@@ -180,8 +183,8 @@ export function RulesEditor() {
               </label>
               <p className="mt-1 text-[12px] text-bone-faint">Never held, never queued — simply refused with the reason the agent can read.</p>
               <div className="mt-2 flex items-center gap-2">
-                <span className="font-display text-xl text-bone-faint">₹</span>
-                <input id="rules-never" className="w-36 border border-ink-line bg-transparent px-3 py-2 font-display text-xl text-bone outline-none focus:border-verdant" value={d.neverAbove} inputMode="decimal" onChange={(e) => { setD({ ...d, neverAbove: e.target.value }); setSavedAt(null) }} />
+                <span aria-hidden="true" className="font-display text-xl text-bone-faint">₹</span>
+                <input id="rules-never" className="w-36 border border-ink-line bg-transparent px-3 py-2 font-display text-xl text-bone outline-none focus:border-verdant focus-visible:ring-2 focus-visible:ring-verdant/60" value={d.neverAbove} inputMode="decimal" onChange={(e) => { setD({ ...d, neverAbove: e.target.value }); setSavedAt(null) }} />
               </div>
             </div>
 
@@ -190,7 +193,7 @@ export function RulesEditor() {
                 How many items in one basket should always wait for you?
               </label>
               <p className="mt-1 text-[12px] text-bone-faint">Volume control, independent of value — a cheap basket of many units still gets looked at.</p>
-              <input id="rules-bulk" className="mt-2 w-36 border border-ink-line bg-transparent px-3 py-2 font-display text-xl text-bone outline-none focus:border-verdant" value={d.bulkUnits} inputMode="numeric" onChange={(e) => { setD({ ...d, bulkUnits: e.target.value }); setSavedAt(null) }} />
+              <input id="rules-bulk" className="mt-2 w-36 border border-ink-line bg-transparent px-3 py-2 font-display text-xl text-bone outline-none focus:border-verdant focus-visible:ring-2 focus-visible:ring-verdant/60" value={d.bulkUnits} inputMode="numeric" onChange={(e) => { setD({ ...d, bulkUnits: e.target.value }); setSavedAt(null) }} />
             </div>
           </div>
         </details>
@@ -207,7 +210,7 @@ export function RulesEditor() {
 
       <div className="panel p-6">
         <p className="label">Generated code — reviewable</p>
-        <pre className="mt-3 overflow-x-auto border border-ink-line bg-ink/40 p-4 font-mono text-[12px] leading-relaxed text-bone-dim">
+        <pre tabIndex={0} aria-label="Generated configuration preview" className="mt-3 overflow-x-auto border border-ink-line bg-ink/40 p-4 font-mono text-[12px] leading-relaxed text-bone-dim">
           {generated ?? 'Fix the problems above to see the output.'}
         </pre>
         <div className="mt-4 flex flex-wrap items-center gap-3">

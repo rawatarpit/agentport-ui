@@ -11,7 +11,7 @@ export default function ChatPage() {
     <div className="space-y-6">
       <div>
         <p className="label">Governed conversion</p>
-        <h2 className="mt-2 font-display text-3xl text-bone">The conversation a brand controls</h2>
+        <h1 className="mt-2 font-display text-3xl text-bone">The conversation a brand controls</h1>
         <p className="prose-bone mt-3 max-w-[68ch]">
           Discovery may happen on someone else&rsquo;s surface. The conversation and
           the customer record happen here. That only works if the assistant on this

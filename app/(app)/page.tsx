@@ -27,7 +27,7 @@ export default async function Overview() {
     <div className="space-y-6">
       <div>
         <p className="label">Overview</p>
-        <h2 className="mt-2 font-display text-3xl text-bone">What agents are doing</h2>
+        <h1 className="mt-2 font-display text-3xl text-bone">What agents are doing</h1>
         <p className="prose-bone mt-3 max-w-[68ch]">
           Whether this is a corner shop, a D2C brand, a travel desk, or a SaaS
           platform — the same three questions: is it working, does anything

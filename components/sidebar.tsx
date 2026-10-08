@@ -62,10 +62,12 @@ export function Sidebar() {
         }`}
       >
         <span>{label}</span>
-        {done ? <span className="text-[11px] text-verdant">✓</span> : null}
+        {done ? <span aria-hidden="true" className="text-[11px] text-verdant">✓</span> : null}
       </Link>
     )
   }
+
+  const onMoreRoute = ['/setup', '/capabilities', '/policies', '/chat'].includes(path)
 
   const body = (mobile: boolean) => (
     <div className={`flex ${mobile ? '' : 'min-h-0 flex-1 flex-col gap-5 overflow-y-auto'} flex-col gap-5`}>
@@ -89,7 +91,7 @@ export function Sidebar() {
         </ul>
       </nav>
 
-      <nav aria-label="Run">
+      <nav aria-label="Manage">
         <p className="label px-2">Run</p>
         <ul className="mt-1 space-y-0.5">
           {PRIMARY.slice(2).map((l) => (
@@ -98,8 +100,8 @@ export function Sidebar() {
         </ul>
       </nav>
 
-      <details>
-        <summary className="cursor-pointer rounded-md px-2 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-bone-faint hover:text-bone">
+      <details open={onMoreRoute || undefined}>
+        <summary className="cursor-pointer rounded-md px-2 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-bone-faint hover:text-bone" aria-label="More pages">
           More
         </summary>
         <ul className="mt-1 space-y-0.5">

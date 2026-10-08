@@ -10,7 +10,7 @@ export default function RulesPage() {
     <div className="space-y-6">
       <div>
         <p className="label">Limits</p>
-        <h2 className="mt-2 font-display text-3xl text-bone">What needs a human, and what is always no</h2>
+        <h1 className="mt-2 font-display text-3xl text-bone">What needs a human, and what is always no</h1>
         <p className="prose-bone mt-3 max-w-[68ch]">
           Refused, held, capped — in words you would use with staff. Saving here
           writes a draft you can review. Nothing is live until it is merged and

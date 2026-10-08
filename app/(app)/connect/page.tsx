@@ -76,7 +76,7 @@ export default function ConnectPage() {
     <div className="space-y-6">
       <div>
         <p className="label">Front door</p>
-        <h2 className="mt-2 font-display text-3xl text-bone">Connect your business</h2>
+        <h1 className="mt-2 font-display text-3xl text-bone">Connect your business</h1>
         <p className="prose-bone mt-3 max-w-[68ch]">
           Two doors, one artifact. The dashboard is the front door;{' '}
           <span className="font-mono text-bone">agent-port init</span> stays as the
@@ -157,7 +157,7 @@ export default function ConnectPage() {
                   <p className="mt-1 text-[15px] text-bone">{s.title}</p>
                   <p className="mt-1 text-[13px] leading-relaxed text-bone-dim">{s.body}</p>
                   {s.href ? (
-                    <Link href={s.href} className={current ? 'btn btn-primary mt-3' : 'btn mt-3'}>Open it</Link>
+                    <Link href={s.href} className={current ? 'btn btn-primary mt-3' : 'btn mt-3'} aria-label={`Open ${s.title}`}>Open it</Link>
                   ) : null}
                 </div>
                 <span

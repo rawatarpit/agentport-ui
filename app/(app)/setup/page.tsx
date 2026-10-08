@@ -14,7 +14,7 @@ export default function SetupPage() {
     <div className="space-y-6">
       <div>
         <p className="label">Get started</p>
-          <h2 className="mt-2 font-display text-3xl text-bone">Four questions</h2>
+          <h1 className="mt-2 font-display text-3xl text-bone">Four questions</h1>
           <p className="prose-bone mt-3 max-w-[68ch]">
             These answers become your first safety rules: what agents may do on
             their own, what waits for your approval, and what is always

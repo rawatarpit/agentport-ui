@@ -65,6 +65,7 @@ export function CapabilitiesEditor() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [loadError, setLoadError] = useState(false)
+  const [loaded, setLoaded] = useState(false)
 
   // The form edits a copy; the API holds truth. Unknown capabilities in a
   // saved draft are ignored rather than rendered — the known list is the UI.
@@ -85,6 +86,9 @@ export function CapabilitiesEditor() {
       })
       .catch(() => {
         if (live) setLoadError(true)
+      })
+      .finally(() => {
+        if (live) setLoaded(true)
       })
     return () => {
       live = false
@@ -124,11 +128,13 @@ export function CapabilitiesEditor() {
         <div>
           <p className="label">Draft</p>
           <p className="mt-1 text-[13px] text-bone-dim">
-            {savedAt
-              ? 'Draft saved. Nothing changed for your visitors yet.'
-              : totalHidden === 0
-                ? 'Agents currently see every field.'
-                : `${totalHidden} field${totalHidden === 1 ? '' : 's'} hidden from agents.`}
+            {!loaded
+              ? 'Reading your saved draft…'
+              : savedAt
+                ? 'Draft saved. Nothing changed for your visitors yet.'
+                : totalHidden === 0
+                  ? 'Agents currently see every field.'
+                  : `${totalHidden} field${totalHidden === 1 ? '' : 's'} hidden from agents.`}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -169,7 +175,6 @@ export function CapabilitiesEditor() {
                         type="checkbox"
                         checked={!isHidden}
                         onChange={() => toggle(c.name, f)}
-                        aria-label={`Expose ${f}`}
                       />
                       <span className={isHidden ? 'text-bone-faint line-through' : 'text-bone'}>
                         <span className="font-mono">{f}</span>

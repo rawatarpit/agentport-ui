@@ -190,9 +190,9 @@ export function SetupWizard() {
           <h3 className="font-display text-2xl text-bone">{STEPS[step]!.question}</h3>
           <p className="mt-2 text-[13px] leading-relaxed text-bone-dim">{STEPS[step]!.help}</p>
           <div className="mt-4 flex items-center gap-3">
-            <span className="font-display text-2xl text-bone-faint">₹</span>
+            <span aria-hidden="true" className="font-display text-2xl text-bone-faint">₹</span>
             <input
-              className="w-40 border border-ink-line bg-transparent px-3 py-2 font-display text-2xl text-bone outline-none focus:border-verdant"
+              className="w-40 border border-ink-line bg-transparent px-3 py-2 font-display text-2xl text-bone outline-none focus:border-verdant focus-visible:ring-2 focus-visible:ring-verdant/60"
               value={a[STEPS[step]!.key]}
               inputMode="decimal"
               placeholder={STEPS[step]!.placeholder}
@@ -269,8 +269,11 @@ export function SetupWizard() {
             <p className="mt-2 text-[13px] leading-relaxed text-bone-dim">
               This is everything you told us. It saves as a draft and changes
               nothing until you publish it — a saved answer is not a live one.
+              One thing to know: the rules screen reads the same policy, so
+              saving there replaces these answers. Last save wins, whichever
+              screen it came from.
             </p>
-            <pre className="mt-4 overflow-x-auto border border-ink-line bg-ink/40 p-4 font-mono text-[12px] leading-relaxed text-bone-dim">
+            <pre tabIndex={0} aria-label="Generated configuration preview" className="mt-4 overflow-x-auto border border-ink-line bg-ink/40 p-4 font-mono text-[12px] leading-relaxed text-bone-dim">
               {generated}
             </pre>
             <div className="mt-4 flex flex-wrap items-center gap-3">

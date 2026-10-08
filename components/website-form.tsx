@@ -44,7 +44,7 @@ export function WebsiteForm({ current, onDone }: { current: string | null; onDon
       </p>
       <div className="flex flex-wrap items-center gap-3">
         <input
-          className="min-w-64 flex-1 border border-ink-line bg-transparent px-3 py-2 font-mono text-[13px] text-bone outline-none focus:border-verdant"
+          className="min-w-64 flex-1 border border-ink-line bg-transparent px-3 py-2 font-mono text-[13px] text-bone outline-none focus:border-verdant focus-visible:ring-2 focus-visible:ring-verdant/60"
           value={url}
           inputMode="url"
           placeholder="https://shop.example"

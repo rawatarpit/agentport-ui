@@ -56,7 +56,7 @@ export default function SignupPage() {
     <AuthShell
       eyebrow="Agent Port · create account"
       title="Your shop, governed"
-      lede="One account, one tenant. Four questions later, agents answer to your policy."
+      lede="One account, one business. Four questions later, agents answer to your policy."
       footer={
         <>Have an account? <Link className="text-bone underline underline-offset-4" href="/login">Sign in</Link></>
       }

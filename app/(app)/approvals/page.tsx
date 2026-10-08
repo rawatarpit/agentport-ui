@@ -60,7 +60,7 @@ export default function ApprovalsPage() {
     <div className="space-y-6">
       <div>
         <p className="label">The human gate</p>
-        <h2 className="mt-2 font-display text-3xl text-bone">Waiting on you</h2>
+        <h1 className="mt-2 font-display text-3xl text-bone">Waiting on you</h1>
         <p className="prose-bone mt-3 max-w-[68ch]">
           Writes an agent wanted but policy would not authorise unattended. None of
           these have run. A held request is a request authorised to wait, not one

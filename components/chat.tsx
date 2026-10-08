@@ -115,7 +115,7 @@ export function StorefrontChat() {
           {
             id: seq++,
             role: 'assistant',
-            text: `I cannot do that. The shop has forbidden agents from calling ${step.capability}, so I am refusing rather than guessing. You will need to email a human.`,
+            text: `I cannot do that. This business does not allow agents to call ${step.capability}, so I am refusing rather than guessing. You will need to email a human.`,
             tone: 'denied',
             wire: {
               capability: step.capability!,
@@ -141,7 +141,7 @@ export function StorefrontChat() {
       <div className="panel flex min-h-[460px] flex-col p-5">
         <p className="label">Governed demo — storefront</p>
 
-        <div className="mt-4 flex-1 space-y-4">
+        <div className="mt-4 flex-1 space-y-4" role="log" aria-live="polite" aria-label="Conversation">
           {turns.map((t) => (
             <div key={t.id} className="space-y-1">
               <p
@@ -161,9 +161,7 @@ export function StorefrontChat() {
               </p>
               {t.wire ? (
                 <p className="font-mono text-[11px] text-bone-faint">
-                  POST {t.wire.capability} → {t.wire.status}
-                  {t.wire.reason ? ` · ${t.wire.reason}` : ''}
-                  {t.wire.rule ? ` · ${t.wire.rule}` : ''}
+                  {t.wire.status === 200 ? 'answered' : t.wire.status === 202 ? 'waiting on a human' : 'refused with a reason'}
                 </p>
               ) : null}
             </div>
@@ -172,16 +170,19 @@ export function StorefrontChat() {
         </div>
 
         <div className="mt-5 flex gap-2 border-t border-ink-line pt-4">
+          <label htmlFor="chat-input" className="sr-only">Ask the store assistant</label>
           <input
+            id="chat-input"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') void send()
             }}
             placeholder="Do you have the Chelsea Boot in stock?"
-            className="min-w-0 flex-1 rounded-md border border-ink-line bg-ink px-3 py-2 text-[14px] text-bone outline-none placeholder:text-bone-faint focus:border-verdant"
+            aria-busy={busy}
+            className="input min-w-0 flex-1"
           />
-          <button className="btn btn-primary" onClick={() => void send()} disabled={busy} type="button">
+          <button className="btn btn-primary" onClick={() => void send()} disabled={busy} aria-disabled={busy} type="button">
             Send
           </button>
         </div>

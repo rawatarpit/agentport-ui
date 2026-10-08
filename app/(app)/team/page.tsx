@@ -84,7 +84,7 @@ export default function TeamPage() {
     <div className="space-y-6">
       <div>
         <p className="label">Team</p>
-        <h2 className="mt-2 font-display text-3xl text-bone">Who else can do this</h2>
+        <h1 className="mt-2 font-display text-3xl text-bone">Who else can do this</h1>
         <p className="prose-bone mt-3 max-w-[68ch]">
           Owners manage everything; admins can invite people; viewers can only
           look. Nobody can give themselves a bigger role, and the last owner
@@ -103,11 +103,11 @@ export default function TeamPage() {
           <ul className="mt-3 space-y-2 text-[13px]">
             {members.map((m) => (
               <li key={m.user_id} className="flex flex-wrap items-center justify-between gap-3 border-b border-ink-line/60 py-2 last:border-0">
-                <span className="font-mono text-[12px] text-bone">{m.user_id.slice(0, 8)}…</span>
+                <span className="font-mono text-[12px] text-bone" title={m.user_id}>{m.user_id.slice(0, 8)}…</span>
                 <span className="flex items-center gap-2">
                   <span className="font-mono text-[11px] text-bone-faint">{m.role}</span>
                   {m.role !== 'owner' ? (
-                    <button type="button" className="btn" disabled={busy} onClick={() => act('remove', { userId: m.user_id })}>
+                    <button type="button" className="btn" disabled={busy} onClick={() => act('remove', { userId: m.user_id })} aria-label={`Remove member ${m.user_id.slice(0, 8)}`}>
                       Remove
                     </button>
                   ) : null}
@@ -129,20 +129,21 @@ export default function TeamPage() {
             onChange={(e) => setEmail(e.target.value)}
             aria-label="Email to invite"
           />
+          <label className="field-label" htmlFor="team-role">Role</label>
           <select
-            className="border border-ink-line bg-transparent px-3 py-2 font-mono text-[12px] text-bone outline-none"
+            id="team-role"
+            className="input w-auto"
             value={role}
             onChange={(e) => setRole(e.target.value)}
-            aria-label="Role"
           >
-            <option value="viewer">viewer</option>
-            <option value="admin">admin</option>
+            <option value="viewer">Viewer — can only look</option>
+            <option value="admin">Admin — can invite people</option>
           </select>
           <button type="button" className="btn btn-primary" disabled={busy || !email} onClick={() => act('invite', { email, role })}>
             {busy ? 'Working…' : 'Invite'}
           </button>
         </div>
-        {msg ? <p className="text-[13px] text-bone">{msg}</p> : null}
+        {msg ? <p className="text-[13px] text-bone" role="status">{msg}</p> : null}
         {err ? <p className="text-[13px] text-rust" role="alert">{err}</p> : null}
         {invited.length > 0 ? (
           <ul className="space-y-1.5">

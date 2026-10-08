@@ -7,7 +7,7 @@ export default function CapabilitiesPage() {
     <div className="space-y-6">
       <div>
         <p className="label">DISCOVER</p>
-        <h2 className="mt-2 font-display text-3xl text-bone">What agents can see</h2>
+        <h1 className="mt-2 font-display text-3xl text-bone">What agents can see</h1>
         <p className="prose-bone mt-3 max-w-[68ch]">
           Everything your runtime exposes, and which fields an agent is told about. Kept
           separate from limits on purpose: deciding what an agent may know is a different

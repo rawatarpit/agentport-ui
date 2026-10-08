@@ -45,16 +45,16 @@ export default function LoginPage() {
     >
       <div>
         <label className="field-label" htmlFor="login-email">Email</label>
-        <input id="login-email" className="input" value={email} inputMode="email" autoComplete="email" placeholder="you@yourshop.in" onChange={(e) => setEmail(e.target.value)} />
+        <input id="login-email" className="input" value={email} inputMode="email" autoComplete="email" placeholder="you@yourshop.in" aria-invalid={!!err} aria-describedby={err ? 'login-error' : undefined} onChange={(e) => setEmail(e.target.value)} />
       </div>
       <div>
         <label className="field-label" htmlFor="login-password">Password</label>
-        <input id="login-password" type="password" className="input" value={password} autoComplete="current-password" onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void submit() }} />
+        <input id="login-password" type="password" className="input" value={password} autoComplete="current-password" aria-invalid={!!err} aria-describedby={err ? 'login-error' : undefined} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void submit() }} />
       </div>
       <button type="button" className="btn btn-primary w-full py-2.5" disabled={busy || !email || !password} onClick={submit}>
         {busy ? 'Signing in…' : 'Sign in'}
       </button>
-      {err ? <FieldError>{err}</FieldError> : null}
+      {err ? <span id="login-error"><FieldError>{err}</FieldError></span> : null}
     </AuthShell>
   )
 }

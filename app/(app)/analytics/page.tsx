@@ -14,7 +14,7 @@ export default function AnalyticsPage() {
     <div className="space-y-6">
       <div>
         <p className="label">Evidence</p>
-        <h2 className="mt-2 font-display text-3xl text-bone">A week later</h2>
+        <h1 className="mt-2 font-display text-3xl text-bone">A week later</h1>
         <p className="prose-bone mt-3 max-w-[68ch]">
           Are refusals falling, are approvals piling up, which capability is being
           called — and which config decided all of it. To read a single row, open
