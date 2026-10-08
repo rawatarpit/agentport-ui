@@ -4,8 +4,6 @@ import { useCallback, useEffect, useState } from 'react'
 
 type Installation = { installationId: number; accountLogin: string; receivedAt: string }
 type Repo = { id: number; fullName: string; defaultBranch: string; private: boolean }
-type PrLive = { state: 'open' | 'merged' | 'closed'; merged: boolean; checks: string; url: string; repo: string; number: number } | null
-
 const INSTALL_URL = 'https://github.com/apps/agentport-installer/installations/new'
 
 /**
@@ -20,8 +18,8 @@ export function GithubPanel() {
   const [installations, setInstallations] = useState<Installation[] | null>(null)
   const [installationId, setInstallationId] = useState<number | null>(null)
   const [repos, setRepos] = useState<Repo[] | null>(null)
-  const [repo, setRepo] = useState('')
-  const [pr, setPr] = useState<PrLive | 'missing' | null>(null)
+  const [picked, setPicked] = useState<string[]>([])
+  const [opened, setOpened] = useState<Array<{ repo: string; url: string; number: number }>>([])
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
@@ -39,53 +37,49 @@ export function GithubPanel() {
 
   const loadRepos = useCallback(async (id: number) => {
     setRepos(null)
+    setPicked([])
     try {
       const res = await fetch(`/api/github/repos?installation=${id}`)
       const body = await res.json()
       if (body.status !== 'ok') throw new Error(body.reason ?? 'Could not list repositories.')
       setRepos(body.repos)
-      if (body.repos.length === 1) setRepo(body.repos[0].fullName)
+      if (body.repos.length === 1) setPicked([body.repos[0].fullName])
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Could not list repositories.')
     }
   }, [])
 
-  const loadPr = useCallback(async (name?: string) => {
-    try {
-      const res = await fetch(`/api/github/pr${name ? `?repo=${encodeURIComponent(name)}` : ''}`)
-      const body = await res.json()
-      if (body.status !== 'ok' || !body.pr || body.pr.state === 'none') {
-        setPr('missing')
-        return
-      }
-      setPr(body.pr)
-    } catch {
-      setPr('missing')
-    }
-  }, [])
+
 
   useEffect(() => {
     void loadInstallations()
-    void loadPr()
-  }, [loadInstallations, loadPr])
+  }, [loadInstallations])
 
   useEffect(() => {
     if (installationId !== null) void loadRepos(installationId)
   }, [installationId, loadRepos])
 
-  const openPr = async () => {
-    if (installationId === null || !repo) return
+  const toggle = (fullName: string) =>
+    setPicked((p) => (p.includes(fullName) ? p.filter((r) => r !== fullName) : [...p, fullName]))
+
+  const openPrs = async () => {
+    if (installationId === null || picked.length === 0) return
     setBusy(true)
     setErr(null)
+    setOpened([])
     try {
-      const res = await fetch('/api/github/pr', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ installationId, repo }),
-      })
-      const body = await res.json()
-      if (body.status !== 'ok') throw new Error(body.reason ?? 'Could not open the pull request.')
-      await loadPr(repo)
+      const done: Array<{ repo: string; url: string; number: number }> = []
+      for (const repo of picked) {
+        const res = await fetch('/api/github/pr', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ installationId, repo }),
+        })
+        const body = await res.json()
+        if (body.status !== 'ok') throw new Error(`${repo}: ${body.reason ?? 'could not open the pull request.'}`)
+        done.push({ repo, url: body.pr.url, number: body.pr.number })
+        setOpened([...done])
+      }
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Could not open the pull request.')
     } finally {
@@ -97,10 +91,10 @@ export function GithubPanel() {
     <div className="panel space-y-4 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="label">GitHub — website repo delivery</p>
-        {pr && pr !== 'missing' ? (
-          <a href={pr.url} target="_blank" rel="noreferrer" className="font-mono text-[11px] text-verdant underline underline-offset-4">
-            PR #{pr.number} · {pr.state}{pr.state === 'open' ? ` · checks ${pr.checks}` : ''}
-          </a>
+        {opened.length > 0 ? (
+          <span className="font-mono text-[11px] text-verdant">
+            {opened.length} pull request{opened.length === 1 ? '' : 's'} opened
+          </span>
         ) : (
           <span className="font-mono text-[11px] text-bone-faint">no pull request yet</span>
         )}
@@ -127,9 +121,9 @@ export function GithubPanel() {
         </>
       ) : (
         <>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-4">
             <div>
-              <label className="field-label" htmlFor="gh-install">Installation</label>
+              <label className="field-label" htmlFor="gh-install">Installed on</label>
               <select
                 id="gh-install"
                 className="input"
@@ -145,29 +139,56 @@ export function GithubPanel() {
               </select>
             </div>
             <div>
-              <label className="field-label" htmlFor="gh-repo">Repository</label>
-              <select
-                id="gh-repo"
-                className="input"
-                value={repo}
-                disabled={!repos}
-                onChange={(e) => setRepo(e.target.value)}
-              >
-                <option value="" disabled>{repos ? 'Choose…' : 'Pick an installation first'}</option>
-                {(repos ?? []).map((r) => (
-                  <option key={r.id} value={r.fullName}>
-                    {r.fullName}{r.private ? ' (private)' : ''}
-                  </option>
-                ))}
-              </select>
+              <p className="field-label">Repositories</p>
+              {!repos ? (
+                <p className="text-[13px] text-bone-faint">Pick an installation first.</p>
+              ) : repos.length === 0 ? (
+                <p className="text-[13px] text-bone-dim">No repositories on this installation — add some in the App settings, then check again.</p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {repos.map((r) => (
+                    <li key={r.id}>
+                      <label className="flex cursor-pointer items-center gap-3 text-[13px]">
+                        <input
+                          type="checkbox"
+                          checked={picked.includes(r.fullName)}
+                          onChange={() => toggle(r.fullName)}
+                          aria-label={`Select ${r.fullName}`}
+                        />
+                        <span className="font-mono text-bone">{r.fullName}</span>
+                        <span className="text-[12px] text-bone-faint">
+                          {r.private ? 'private' : 'public'} · {r.defaultBranch}
+                        </span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <button type="button" className="btn btn-primary" disabled={busy || installationId === null || !repo} onClick={openPr}>
-              {busy ? 'Opening…' : pr && pr !== 'missing' ? 'Update the pull request' : 'Open the pull request'}
+            <button type="button" className="btn btn-primary" disabled={busy || installationId === null || picked.length === 0} onClick={openPrs}>
+              {busy ? 'Opening…' : `Open install PR${picked.length > 1 ? `s (${picked.length})` : ''}`}
             </button>
-            <span className="font-mono text-[11px] text-bone-faint">branch agentport/install — re-running updates, never duplicates</span>
+            {picked.length === 0 && (repos?.length ?? 0) > 0 ? (
+              <span className="font-mono text-[11px] text-bone-faint">pick at least one repo — the button stays off until then</span>
+            ) : (
+              <span className="font-mono text-[11px] text-bone-faint">one PR per repo · re-running updates, never duplicates</span>
+            )}
           </div>
+          {opened.length > 0 ? (
+            <ul className="space-y-1.5">
+              {opened.map((o) => (
+                <li key={o.repo} className="text-[13px]">
+                  <span className="font-mono text-[12px] text-bone">{o.repo}</span>
+                  {' → '}
+                  <a href={o.url} target="_blank" rel="noreferrer" className="font-mono text-[12px] text-verdant underline underline-offset-4">
+                    PR #{o.number}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </>
       )}
 

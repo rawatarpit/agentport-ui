@@ -11,6 +11,14 @@ import { WebhookPanel } from '@/components/webhook-panel'
 
 type Step = { n: string; title: string; body: string; state: 'missing' | 'done'; href?: string }
 
+/** Callback reasons are machine strings; the banner speaks merchant. */
+function githubReasonText(reason: string): string {
+  if (reason.startsWith('oauth-')) return `The sign-in step failed (${reason.slice('oauth-'.length)}). Nothing was linked.`
+  if (reason === 'missing-installation') return 'GitHub did not report an installation. It may have been cancelled halfway.'
+  if (reason === 'oauth-unconfigured') return 'Our side is not ready to receive the sign-in yet.'
+  return `Something interrupted the install (${reason}). Nothing was linked.`
+}
+
 /**
  * The front door as computed state.
  *
@@ -24,6 +32,21 @@ export default function ConnectPage() {
   const [failed, setFailed] = useState(false)
   const [showSignup, setShowSignup] = useState(false)
   const [websiteUrl, setWebsiteUrl] = useState<string | null | undefined>(undefined)
+  const [githubNotice, setGithubNotice] = useState<string | null>(null)
+
+  // The callback lands back here with ?github=<reason>: installed,
+  // oauth-<cause>, or missing-installation. Read once on mount (client-only,
+  // so no SSR/Suspense ceremony) and render it as a banner, never a dead end.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get('github')
+    if (!q) return
+    if (q === 'installed') {
+      setGithubNotice('__installed__')
+    } else {
+      setGithubNotice(q)
+    }
+    window.history.replaceState(null, '', window.location.pathname)
+  }, [])
 
   const load = useCallback(async () => {
     try {
@@ -64,6 +87,31 @@ export default function ConnectPage() {
       </div>
 
       <EnforcingPanel draftLabel="no draft open" />
+
+      {githubNotice === '__installed__' ? (
+        <div className="panel border-verdant/40 p-5" role="status">
+          <p className="font-mono text-[11px] uppercase tracking-widest text-verdant">GitHub connected</p>
+          <p className="mt-2 text-[13px] leading-relaxed text-bone-dim">
+            The App is installed. Pick the repositories below and open the install pull request.
+          </p>
+        </div>
+      ) : githubNotice ? (
+        <div className="panel border-amber/40 p-5" role="alert">
+          <p className="font-mono text-[11px] uppercase tracking-widest text-amber">GitHub needs attention</p>
+          <p className="mt-2 text-[13px] leading-relaxed text-bone-dim">
+            {githubReasonText(githubNotice)}{' '}
+            <a
+              href="https://github.com/apps/agentport-installer/installations/new"
+              target="_blank"
+              rel="noreferrer"
+              className="text-bone underline underline-offset-4"
+            >
+              Try installing again
+            </a>
+            .
+          </p>
+        </div>
+      ) : null}
 
       {step1 && step1.state === 'missing' && !showSignup ? (
         <button type="button" className="btn btn-primary" onClick={() => setShowSignup(true)}>

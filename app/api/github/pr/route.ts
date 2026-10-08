@@ -44,11 +44,11 @@ export async function POST(req: Request) {
     repoFullName: repo,
     filePath: file.path,
     fileContent: file.content,
-    prTitle: 'Govern agent access with AgentPort',
+    prTitle: 'Install AgentPort runtime',
     prBody:
       'This pull request adds the governed runtime wiring for this site.\n\n' +
-      'Review it like any other change: what merges is what enforces.\n' +
-      'Merging is your signature — nothing here can merge for you.',
+      'What it asks for: read/write on contents and pull requests (to open this branch), read-only on checks.\n\n' +
+      'Review it like any other change. Merge = live: what merges is what enforces, and nothing here can merge for you.',
   })
   if (!opened.ok) {
     return Response.json({ status: 'error', reason: opened.reason }, { status: 502 })
