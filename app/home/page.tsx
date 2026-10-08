@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ThemeToggle } from '@/components/theme-toggle'
 
 export const metadata = {
   title: 'AgentPort — governed agent access for your business',
@@ -15,7 +16,20 @@ export const metadata = {
  */
 export default function HomePage() {
   return (
-    <div className="mx-auto w-full max-w-[1080px] space-y-16 px-5 py-14 sm:px-8">
+    <div className="mx-auto w-full max-w-[1080px] space-y-16 px-5 py-8 sm:px-8">
+      <div className="flex items-center justify-between">
+        <span className="flex items-center gap-2">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-verdant/40 bg-verdant/10 font-display text-base text-verdant">
+            A
+          </span>
+          <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-bone-dim">
+            Agent Port
+          </span>
+        </span>
+        <div className="w-28">
+          <ThemeToggle />
+        </div>
+      </div>
       <section className="flex flex-col items-start gap-6">
         <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-verdant/40 bg-verdant/10 font-display text-2xl text-verdant">
           A

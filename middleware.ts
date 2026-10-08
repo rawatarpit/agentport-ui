@@ -35,6 +35,11 @@ export async function middleware(req: NextRequest) {
     path.startsWith('/api/') ||
     path.startsWith('/_next/') ||
     path === '/favicon.ico'
+  // The root is the landing page for visitors and the dashboard for
+  // members: unauthenticated `/` becomes `/home`, signed-in users keep `/`.
+  if (!session && path === '/') {
+    return NextResponse.redirect(new URL('/home', req.url))
+  }
   // The agent invoke path stays reachable without a dashboard session — the
   // credential it verifies is the agent's, not the merchant's.
   if (!session && !open && !path.startsWith('/.well-known/agent/invoke')) {
