@@ -49,8 +49,8 @@ export async function GET() {
     },
     {
       n: '2',
-      title: 'Install the App on your website repo',
-      body: 'Two clicks, you pick the repo — we never see your password. Everything after this reads live data from your site.',
+      title: 'Connect your website',
+      body: 'Your website’s code lives on GitHub, so connecting happens there: install our App on your repo and it delivers the governed runtime to your site. We never see your password. Everything after this reads live data.',
       state: 'missing',
     },
     {

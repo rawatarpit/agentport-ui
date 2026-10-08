@@ -14,12 +14,13 @@ export default function SetupPage() {
     <div className="space-y-6">
       <div>
         <p className="label">Get started</p>
-        <h2 className="mt-2 font-display text-3xl text-bone">Four questions</h2>
-        <p className="prose-bone mt-3 max-w-[68ch]">
-          No jargon, and no file to edit. Answer these and you have a policy you can
-          paste into your project and run. Nothing here takes effect until you merge
-          it and start your runtime.
-        </p>
+          <h2 className="mt-2 font-display text-3xl text-bone">Four questions</h2>
+          <p className="prose-bone mt-3 max-w-[68ch]">
+            These answers become your first safety rules: what agents may do on
+            their own, what waits for your approval, and what is always
+            refused. Two minutes, plain words, no jargon — and everything can
+            be changed later. Nothing here takes effect until you publish it.
+          </p>
       </div>
 
       <SetupWizard />

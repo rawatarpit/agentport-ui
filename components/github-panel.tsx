@@ -90,7 +90,7 @@ export function GithubPanel() {
   return (
     <div className="panel space-y-4 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="label">GitHub — website repo delivery</p>
+        <p className="label">Connect your website</p>
         {opened.length > 0 ? (
           <span className="font-mono text-[11px] text-verdant">
             {opened.length} pull request{opened.length === 1 ? '' : 's'} opened
@@ -105,8 +105,9 @@ export function GithubPanel() {
       ) : installations.length === 0 ? (
         <>
           <p className="text-[13px] leading-relaxed text-bone-dim">
-            Install the App on the website repo — two clicks, you pick the repo,
-            we never see your password. Until then there is nothing to show, and
+            Your website&apos;s code lives on GitHub, so this happens there:
+            install our App on your repo — two clicks, you pick the repo, we
+            never see your password. Until then there is nothing to show, and
             this screen will not pretend otherwise.
           </p>
           <a href={INSTALL_URL} target="_blank" rel="noreferrer" className="btn btn-primary">

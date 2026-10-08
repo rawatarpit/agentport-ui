@@ -169,7 +169,7 @@ export async function OnboardingCard() {
 
   const items = [
     { done: account.done, label: 'Create your account', body: account.body, href: '/connect', key: 'account' },
-    { done: github, label: 'Connect GitHub', body: github ? 'App installed — your site is next.' : 'Install the App first, so every screen after this one reads live data.', href: '/connect', key: 'github' },
+    { done: github, label: 'Connect your website', body: github ? 'Connected — your site is next.' : 'Happens on GitHub, where your code lives: install our App and it delivers the runtime to your site.', href: '/connect', key: 'github' },
     { done: !!setup, label: 'Answer four questions', body: 'Plain language in, typed policy out, saved as a draft.', href: '/setup', key: 'setup' },
     { done: !!rules, label: 'Set capabilities and limits', body: 'What agents see, what waits for you, what is always no.', href: '/rules', key: 'rules' },
     { done: !!live, label: 'Publish your first version', body: 'Review the summary, publish, watch your site pick it up.', href: '/rules', key: 'live' },
@@ -181,7 +181,7 @@ export async function OnboardingCard() {
   // is how onboarding stalls on step zero.
   const firstUndone = items.find((i) => !i.done)
   // The single most important un-done thing gets the amber frame, not an
-  // error: an account with no GitHub connection governs nothing yet, and
+  // error: an account with no website connection governs nothing yet, and
   // that fact should be felt before it is read.
   const urgent = account.done && !github
   const nextUndone = firstUndone
@@ -190,7 +190,7 @@ export async function OnboardingCard() {
     <div className={`panel p-5 ${urgent ? 'border-amber/40' : ''}`}>
       <div className="flex items-baseline justify-between">
         <p className="label">
-          {urgent ? 'One step left — connect GitHub' : `Getting started — ${done} of ${items.length}`}
+          {urgent ? 'One step left — connect your website' : `Getting started — ${done} of ${items.length}`}
         </p>
         <div className="h-1.5 w-32 overflow-hidden rounded-full bg-ink-line/50">
           <div className="h-full rounded-full bg-verdant/70" style={{ width: `${Math.round((done / items.length) * 100)}%` }} />
@@ -198,9 +198,11 @@ export async function OnboardingCard() {
       </div>
       {urgent ? (
         <p className="mt-3 max-w-[62ch] text-[14px] leading-relaxed text-bone-dim">
-          Your account is ready, but nothing is governed yet — no code of yours
-          is touched until you install the App. Two clicks, you pick the repo,
-          and your merge is what turns everything on.
+          Your account is ready, but nothing is governed yet — your
+          website&apos;s code lives on GitHub, so connecting happens there:
+          install our App on your repo and it delivers the runtime to your
+          site. Two clicks, you pick the repo, and your merge is what turns
+          everything on.
         </p>
       ) : null}
       {done === 0 && firstUndone ? (
@@ -226,7 +228,7 @@ export async function OnboardingCard() {
             </div>
             {it.key === 'github' && !it.done && nextUndone?.key === 'github' ? (
               <ol className="ml-1 mt-2 space-y-1 border-l border-ink-line pl-3 text-[13px] text-bone-dim">
-                <li><span className="font-mono text-bone">1.</span> You install our App on your website&apos;s repo — we never see your password.</li>
+                <li><span className="font-mono text-bone">1.</span> On GitHub, install our App on your website&apos;s repo — we never see your password.</li>
                 <li><span className="font-mono text-bone">2.</span> We open a pull request your team reviews like any other change.</li>
                 <li><span className="font-mono text-bone">3.</span> You merge — that merge is your signature.</li>
               </ol>

@@ -172,6 +172,19 @@ export function SetupWizard() {
         )}
       </ol>
 
+      {step === 0 && (
+        <div className="panel border-verdant/30 p-5">
+          <p className="text-[13px] leading-relaxed text-bone-dim">
+            Two money questions, two permission questions. Your answers become
+            the rules agents follow on your site — <span className="text-bone">ask me first above ₹X</span>,{' '}
+            <span className="text-bone">always refuse above ₹Y</span>,{' '}
+            <span className="text-bone">always wait on orders</span>,{' '}
+            <span className="text-bone">never refund</span>. Change any of it
+            later; nothing is final.
+          </p>
+        </div>
+      )}
+
       {step < STEPS.length && (
         <div className="panel p-6">
           <h3 className="font-display text-2xl text-bone">{STEPS[step]!.question}</h3>
