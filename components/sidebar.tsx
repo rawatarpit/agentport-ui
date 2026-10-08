@@ -4,20 +4,33 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
-type SetupState = { done: boolean; total: number } | null
-
 /**
- * Wayfinding ordered by the journey: Home, then Setup (which finishes and
- * folds away), then Run, then Try. The Setup group reads /api/connect and
- * collapses to a single checked row once its steps are done — navigation
- * that completes instead of nagging. Auth pages never see this shell;
- * route groups keep them out by folder, not by memory.
+ * Wayfinding, kept short on purpose: seven items cover the whole product.
+ * Everything else (setup wizard, capabilities detail, demo chat) stays
+ * routable and linked from where it is used — a sidebar is for going
+ * places daily, not for inventorying routes. Setup progress folds away
+ * when done instead of nagging.
  */
-const SETUP_HREFS = ['/setup', '/connect', '/capabilities', '/rules']
+const PRIMARY = [
+  { href: '/', label: 'Overview' },
+  { href: '/connect', label: 'Connect repo' },
+  { href: '/rules', label: 'Rules' },
+  { href: '/ledger', label: 'Ledger' },
+  { href: '/approvals', label: 'Approvals' },
+  { href: '/analytics', label: 'Analytics' },
+  { href: '/team', label: 'Team' },
+]
+
+const MORE = [
+  { href: '/setup', label: 'Get started' },
+  { href: '/capabilities', label: 'Capabilities' },
+  { href: '/policies', label: 'Limits & stop' },
+  { href: '/chat', label: 'Storefront demo' },
+]
 
 export function Sidebar() {
   const path = usePathname()
-  const [setup, setSetup] = useState<SetupState>(null)
+  const [setupDone, setSetupDone] = useState<boolean | null>(null)
 
   useEffect(() => {
     let live = true
@@ -25,10 +38,9 @@ export function Sidebar() {
       .then((r) => r.json())
       .then((body: { status: string; steps?: Array<{ n: string; state: string }> }) => {
         if (!live || body.status !== 'ok' || !body.steps) return
-        const wanted = new Set(['2', '3', '4', '6'])
+        const wanted = new Set(['1', '2', '3', '4'])
         const mine = body.steps.filter((s) => wanted.has(s.n))
-        const done = mine.filter((s) => s.state === 'done').length
-        setSetup({ done: done === mine.length && mine.length > 0, total: mine.length })
+        setSetupDone(mine.length > 0 && mine.every((s) => s.state === 'done'))
       })
       .catch(() => {})
     return () => {
@@ -36,35 +48,27 @@ export function Sidebar() {
     }
   }, [])
 
-  const item = (href: string, label: string) => {
+  const item = (href: string, label: string, done?: boolean) => {
     const active = path === href
     return (
       <Link
         key={href}
         href={href}
         aria-current={active ? 'page' : undefined}
-        className={`block rounded-md px-2 py-2 font-mono text-[12.5px] transition-colors ${
+        className={`flex items-center justify-between rounded-md px-2 py-2 font-mono text-[12.5px] transition-colors ${
           active
             ? 'border-l-2 border-verdant bg-verdant/10 text-bone'
             : 'border-l-2 border-transparent text-bone-dim hover:bg-ink-soft hover:text-bone'
         }`}
       >
-        {label}
+        <span>{label}</span>
+        {done ? <span className="text-[11px] text-verdant">✓</span> : null}
       </Link>
     )
   }
 
-  const setupLinks = (
-    <ul className="mt-1 space-y-0.5">
-      <li>{item('/setup', 'Get started')}</li>
-      <li>{item('/connect', 'Connect repo')}</li>
-      <li>{item('/capabilities', 'Capabilities')}</li>
-      <li>{item('/rules', 'Rules')}</li>
-    </ul>
-  )
-
   const body = (mobile: boolean) => (
-    <div className={`flex ${mobile ? '' : 'min-h-0 flex-1 flex-col gap-6 overflow-y-auto'} flex-col gap-6`}>
+    <div className={`flex ${mobile ? '' : 'min-h-0 flex-1 flex-col gap-5 overflow-y-auto'} flex-col gap-5`}>
       <Link href="/" className="flex items-center gap-3">
         <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-verdant/40 bg-verdant/10 font-display text-lg text-verdant">
           A
@@ -78,43 +82,32 @@ export function Sidebar() {
       </Link>
 
       <nav aria-label="Primary">
-        <p className="label px-2">Home</p>
-        <ul className="mt-1 space-y-0.5">
-          <li>{item('/', 'Overview')}</li>
+        <ul className="space-y-0.5">
+          {PRIMARY.slice(0, 2).map((l) => (
+            <li key={l.href}>{item(l.href, l.label, l.href === '/connect' && setupDone === true)}</li>
+          ))}
         </ul>
-      </nav>
-
-      <nav aria-label="Setup">
-        {setup?.done ? (
-          <Link href="/connect" className="flex items-center justify-between rounded-md px-2 py-2">
-            <span className="label">Setup</span>
-            <span className="font-mono text-[11px] text-verdant">done ✓</span>
-          </Link>
-        ) : (
-          <>
-            <p className="label px-2">Setup</p>
-            {setupLinks}
-          </>
-        )}
       </nav>
 
       <nav aria-label="Run">
         <p className="label px-2">Run</p>
         <ul className="mt-1 space-y-0.5">
-          <li>{item('/ledger', 'Ledger')}</li>
-          <li>{item('/approvals', 'Approvals')}</li>
-          <li>{item('/analytics', 'Analytics')}</li>
-          <li>{item('/policies', 'Limits')}</li>
-          <li>{item('/team', 'Team')}</li>
+          {PRIMARY.slice(2).map((l) => (
+            <li key={l.href}>{item(l.href, l.label)}</li>
+          ))}
         </ul>
       </nav>
 
-      <nav aria-label="Try">
-        <p className="label px-2">Try</p>
+      <details>
+        <summary className="cursor-pointer px-2 font-mono text-[11px] uppercase tracking-[0.14em] text-bone-faint">
+          More
+        </summary>
         <ul className="mt-1 space-y-0.5">
-          <li>{item('/chat', 'Storefront demo')}</li>
+          {MORE.map((l) => (
+            <li key={l.href}>{item(l.href, l.label)}</li>
+          ))}
         </ul>
-      </nav>
+      </details>
     </div>
   )
 

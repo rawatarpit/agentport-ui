@@ -21,7 +21,7 @@ export default function LoginPage() {
       const supabase = createClient()
       const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
       if (error) throw new Error(error.message)
-      router.push('/onboarding')
+      router.push('/')
       router.refresh()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Sign-in failed.')

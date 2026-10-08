@@ -36,7 +36,7 @@ export default function SignupPage() {
         setSent(true)
         return
       }
-      window.location.href = '/onboarding'
+      window.location.href = '/'
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Signup failed.')
     } finally {
