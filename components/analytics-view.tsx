@@ -30,14 +30,23 @@ type ConversionRow = {
  * Empty is a first-class answer. A tenant with no pushes renders unknown —
  * not zeros dressed as health, and not fixtures dressed as history.
  */
+type DemandRow = {
+  agent_id: string
+  assurance: 'verified' | 'unverified'
+  capability: string
+  decision: 'allow' | 'deny' | 'require_approval'
+}
+
 export async function AnalyticsView() {
   const supabase = createClient()
-  const [{ data: activity, error: aErr }, { data: conversion, error: cErr }] = await Promise.all([
-    supabase.from('v_capability_activity').select('*').order('window_start', { ascending: false }).limit(200),
-    supabase.from('v_conversion').select('*').order('window_start', { ascending: false }).limit(200),
-  ])
+  const [{ data: activity, error: aErr }, { data: conversion, error: cErr }, { data: demand, error: dErr }] =
+    await Promise.all([
+      supabase.from('v_capability_activity').select('*').order('window_start', { ascending: false }).limit(200),
+      supabase.from('v_conversion').select('*').order('window_start', { ascending: false }).limit(200),
+      supabase.from('console_decisions').select('agent_id,assurance,capability,decision').limit(500),
+    ])
 
-  if (aErr || cErr) {
+  if (aErr || cErr || dErr) {
     return (
       <div className="panel space-y-2 p-6">
         <p className="label">By capability — counts, not money</p>
@@ -102,8 +111,70 @@ export async function AnalyticsView() {
       : { arrow: '↘', tone: 'text-amber', label: 'quieter than last week' }
   }
 
+  // Per-agent demand, from the durable decision rows (member-scoped, like
+  // every read here). Conversion stays capability-level and is NOT joined
+  // per agent: the conversion signal carries no agent dimension by design
+  // (dashboard_runtime_integration.md §7), and manufacturing an
+  // agent × conversion join client-side would create attribution the
+  // backend deliberately withholds. Demand answers "who asks for what";
+  // conversion answers "did it work" — side by side, never merged.
+  const byAgent = new Map<string, { assurance: string; caps: Map<string, { allow: number; deny: number; held: number }> }>()
+  for (const r of ((demand ?? []) as DemandRow[])) {
+    let a = byAgent.get(r.agent_id)
+    if (!a) {
+      a = { assurance: r.assurance, caps: new Map() }
+      byAgent.set(r.agent_id, a)
+    }
+    const c = a.caps.get(r.capability) ?? { allow: 0, deny: 0, held: 0 }
+    if (r.decision === 'allow') c.allow += 1
+    else if (r.decision === 'deny') c.deny += 1
+    else c.held += 1
+    a.caps.set(r.capability, c)
+  }
+
   return (
     <div className="grid gap-3 lg:grid-cols-2">
+      <div className="panel p-5">
+        <p className="label">By agent — who asks for what</p>
+        {byAgent.size === 0 ? (
+          <p className="mt-3 text-[13px] text-bone-dim">
+            No agent decisions recorded yet — unknown, not zero. Allowed,
+            refused and held calls appear here with the credentialed identity
+            behind each one.
+          </p>
+        ) : (
+          <ul className="mt-3 space-y-2 text-[13px]">
+            {[...byAgent.entries()]
+              .sort(
+                (a, b) =>
+                  [...b[1].caps.values()].reduce((n, c) => n + c.allow + c.deny + c.held, 0) -
+                  [...a[1].caps.values()].reduce((n, c) => n + c.allow + c.deny + c.held, 0),
+              )
+              .slice(0, 12)
+              .map(([agent, a]) => (
+                <li key={agent} className="border-b border-ink-line/60 py-2 last:border-0">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-mono text-[12px] text-bone">
+                      {agent} <span className="text-bone-faint">· {a.assurance}</span>
+                    </span>
+                  </div>
+                  {[...a.caps.entries()].map(([cap, r]) => (
+                    <p key={cap} className="mt-1 font-mono text-[11px] text-bone-faint">
+                      {cap} — <span className="text-verdant">{r.allow} ok</span>
+                      {' · '}
+                      <span className="text-amber">{r.held} held</span>
+                      {' · '}
+                      <span className="text-rust">{r.deny} refused</span>
+                    </p>
+                  ))}
+                </li>
+              ))}
+          </ul>
+        )}
+        <p className="mt-3 font-mono text-[11px] text-bone-faint">
+          Demand only — conversion lives with its capability above, never joined per agent.
+        </p>
+      </div>
       <div className="panel p-5">
         <p className="label">By capability — counts, not money</p>
         <ul className="mt-3 space-y-2 text-[13px]">

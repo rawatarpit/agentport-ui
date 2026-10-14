@@ -3,6 +3,15 @@
 Create at: `https://github.com/settings/apps/new`
 Guide: [`github-app-manifest.json`](./github-app-manifest.json) (same values, machine-readable)
 
+## Read this first: one setup, not one per merchant
+
+Everything below happens **once, by us, ever**: one App owned by `@rawatarpit`,
+five env vars on Netlify. No merchant ever sees, touches, or needs to
+understand any of it. Merchant onboarding is a separate 3-click flow
+(sign up → install on their repos → done) in which our system matches the
+installer to their tenant automatically — see §9. Do not present this
+sheet, or any part of it, as merchant-facing instructions.
+
 Convention: lines starting with `>` are recommendations. Replace the
 `__BLANKS__` with your values. Nothing here is secret — secrets are generated
 by GitHub during creation and go straight into env vars, never into this file.
@@ -111,7 +120,24 @@ browser JavaScript. That failure is the control working.
 
 ---
 
-## 9. Engineering status
+## 9. Per-merchant onboarding (automatic — nothing to fill here)
+
+No credentials change hands. Ever. The flow, end to end:
+
+1. Merchant signs up → tenant + owner membership exist. We know who they are.
+2. Merchant clicks Install, picks ONLY their repos, approves. GitHub POSTs
+   `installation` (id, account login, repo list) to our webhook — verified,
+   recorded, linked.
+3. Our system matches installer login → tenant automatically (same identity
+   from step 1). Repos join the record via `installation_repositories`.
+4. Done. The `pr`/`repos` routes and the install-PR automation build on the
+   stored installation — never on anything the merchant configures.
+
+If matching ever fails (installed while logged out, email mismatch), the
+callback lands on `/connect?github=…` with the reason, and the install
+waits — visible, retryable, never silently attached to the wrong tenant.
+
+## 10. Engineering status
 
 Built 2026-10-06 against env vars (no credentials needed to merge):
 `lib/github.ts` (webhook HMAC verify, App JWT mint, OAuth exchange,

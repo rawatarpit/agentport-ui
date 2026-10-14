@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { validateCapabilities, validateRules, validateSetup } from '@/lib/golive'
 import { enforcingFromPush, STALE_AFTER_MS } from '@/lib/enforcing'
 
@@ -43,10 +46,41 @@ describe('validateSetup', () => {
 
 describe('validateCapabilities', () => {
   it('accepts hiding a real field', () => {
+    // `extra: []` is part of the shape since mapped capabilities landed:
+    // absence of extras is explicit, not defaulted elsewhere.
     expect(validateCapabilities({ hidden: { createOrder: ['amountMinor'] } })).toEqual({
       ok: true,
-      value: { hidden: { createOrder: ['amountMinor'] } },
+      value: { hidden: { createOrder: ['amountMinor'] }, extra: [] },
     })
+  })
+
+  it('accepts a well-formed mapped extra and compiles it into the live set', () => {
+    const v = validateCapabilities({
+      hidden: {},
+      extra: [{ name: 'getReports', method: 'GET', path: '/reports', kind: 'read' }],
+    })
+    expect(v.ok).toBe(true)
+  })
+
+  it('refuses extras that collide, misname, or misshape', () => {
+    expect(
+      validateCapabilities({ hidden: {}, extra: [{ name: 'createOrder', method: 'GET', path: '/x', kind: 'read' }] }).ok,
+    ).toBe(false)
+    expect(
+      validateCapabilities({ hidden: {}, extra: [{ name: 'x', method: 'GET', path: '/x', kind: 'read' }] }).ok,
+    ).toBe(false)
+    expect(
+      validateCapabilities({
+        hidden: {},
+        extra: [
+          { name: 'getA', method: 'GET', path: '/a', kind: 'read' },
+          { name: 'getA', method: 'POST', path: '/b', kind: 'write' },
+        ],
+      }).ok,
+    ).toBe(false)
+    expect(
+      validateCapabilities({ hidden: {}, extra: [{ name: 'getA', method: 'BREW', path: '/a', kind: 'read' }] }).ok,
+    ).toBe(false)
   })
 
   it('rejects unknown capabilities and unknown fields', () => {
@@ -82,5 +116,33 @@ describe('enforcingFromPush', () => {
 
   it('is unknown on an unreadable timestamp', () => {
     expect(enforcingFromPush({ digest: 'abc123', pushedAt: 'soon', now }).status).toBe('unknown')
+  })
+})
+
+describe('seedDemoPush is never wired into the app', () => {
+  // A seeded "live 4 minutes ago" is the fabricated panel this architecture
+  // exists to prevent. The function stays for tests only; this walks the
+  // real source tree and fails if any non-test file outside lib/store.ts
+  // references it — so a future demo shortcut breaks the build, not a pilot.
+  const here = dirname(fileURLToPath(import.meta.url))
+  const roots = [join(here, '..', 'app'), join(here, '..', 'components'), join(here)]
+  const offenders: string[] = []
+  const walk = (dir: string): void => {
+    for (const e of readdirSync(dir)) {
+      const p = join(dir, e)
+      if (statSync(p).isDirectory()) {
+        if (e === 'node_modules') continue
+        walk(p)
+        continue
+      }
+      if (!/\.(tsx?|mjs|cjs)$/.test(e)) continue
+      if (p.endsWith('lib/store.ts') || /\.test\.(tsx?|mjs|cjs)$/.test(e)) continue
+      const src = readFileSync(p, 'utf8')
+      if (src.includes('seedDemoPush')) offenders.push(p)
+    }
+  }
+  it('no app route or component references seedDemoPush', () => {
+    for (const r of roots) walk(r)
+    expect(offenders).toEqual([])
   })
 })

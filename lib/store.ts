@@ -14,7 +14,11 @@ export const DEMO_TENANT = 'demo-tenant'
 
 /** Single-tenant demo. Supabase Auth sessions replace this — see /connect step 1. */
 export function resolveTenant(): string {
-  return process.env.AGENTPORT_TENANT ?? DEMO_TENANT
+  // Trimmed (N4): a whitespace-padded uuid would write SDK rows under one id
+  // while the door path warns-and-skips on the untrimmed one. One rule, both
+  // readers — lib/agentport.ts inlines the same expression (not an import) to
+  // avoid a module cycle evaluated at construction time.
+  return (process.env.AGENTPORT_TENANT ?? '').trim() || DEMO_TENANT
 }
 
 export type Merchant = {

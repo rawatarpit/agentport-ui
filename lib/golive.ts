@@ -26,7 +26,16 @@ export type RulesDraft = {
   forbidRefunds: boolean
 }
 
-export type CapabilitiesDraft = { hidden: Record<string, string[]> }
+export type CapabilitiesDraft = {
+  hidden: Record<string, string[]>
+  /**
+   * Mapped extras from the Map page (lib/map.ts): capabilities discovered in
+   * the merchant's own routes that are not in KNOWN_CAPABILITIES. Validated
+   * below, compiled into LiveCapability beside the known ones. Additive —
+   * absence changes nothing.
+   */
+  extra?: Array<{ name: string; method: string; path: string; kind: 'read' | 'write' }>
+}
 
 export type SetupDraft = {
   ceilingMinor: number
@@ -72,10 +81,43 @@ export function validateCapabilities(p: unknown): { ok: true; value: Capabilitie
   if (typeof v.hidden !== 'object' || v.hidden === null || Array.isArray(v.hidden)) {
     return { ok: false, errors: ['hidden must be an object of capability name to field list.'] }
   }
+  // Extras are validated first so `hidden` can name them below: a hidden
+  // entry for a mapped capability is legitimate, checked for shape only
+  // (no known-fields table exists for a discovered route).
+  const extraNames = new Set<string>()
+  const extra: Array<{ name: string; method: string; path: string; kind: 'read' | 'write' }> = []
+  const extraRaw = v.extra
+  if (extraRaw !== undefined) {
+    if (!Array.isArray(extraRaw)) {
+      errors.push('extra must be a list of mapped capabilities.')
+    } else {
+      for (const item of extraRaw) {
+        const r = (item ?? {}) as Record<string, unknown>
+        if (
+          typeof r.name !== 'string' ||
+          !/^[A-Za-z][A-Za-z0-9_]{2,63}$/.test(r.name) ||
+          typeof r.method !== 'string' ||
+          !['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(r.method) ||
+          typeof r.path !== 'string' ||
+          !r.path.startsWith('/') ||
+          (r.kind !== 'read' && r.kind !== 'write')
+        ) {
+          errors.push('Each extra needs {name, method, path, kind: read|write} in valid shapes.')
+          continue
+        }
+        if (KNOWN_CAPABILITIES.some((c) => c.name === r.name) || extraNames.has(r.name)) {
+          errors.push(`Extra capability "${r.name}" collides — rename it or drop it.`)
+          continue
+        }
+        extraNames.add(r.name)
+        extra.push({ name: r.name, method: r.method, path: r.path, kind: r.kind })
+      }
+    }
+  }
   const hidden = v.hidden as Record<string, unknown>
   for (const [cap, fields] of Object.entries(hidden)) {
     const known = KNOWN_CAPABILITIES.find((c) => c.name === cap)
-    if (!known) {
+    if (!known && !extraNames.has(cap)) {
       errors.push(`Unknown capability "${cap}".`)
       continue
     }
@@ -83,12 +125,14 @@ export function validateCapabilities(p: unknown): { ok: true; value: Capabilitie
       errors.push(`Hidden fields for "${cap}" must be a list of field names.`)
       continue
     }
-    for (const f of fields as string[]) {
-      if (!(known.fields as readonly string[]).includes(f)) errors.push(`"${cap}" has no field "${f}".`)
+    if (known) {
+      for (const f of fields as string[]) {
+        if (!(known.fields as readonly string[]).includes(f)) errors.push(`"${cap}" has no field "${f}".`)
+      }
     }
   }
   if (errors.length > 0) return { ok: false, errors }
-  return { ok: true, value: { hidden: hidden as Record<string, string[]> } }
+  return { ok: true, value: { hidden: hidden as Record<string, string[]>, extra } }
 }
 
 export function validateSetup(p: unknown): { ok: true; value: SetupDraft } | { ok: false; errors: string[] } {
@@ -153,10 +197,12 @@ export function compileLive(tenantId: string): { ok: true; compiled: Compiled } 
   }
 
   let hidden: Record<string, string[]> = { createOrder: ['amountMinor'] }
+  let extra: Array<{ name: string; method: string; path: string; kind: 'read' | 'write' }> = []
   if (capsRaw) {
     const c = validateCapabilities(capsRaw)
     if (!c.ok) return { ok: false, reason: `Capabilities draft is invalid: ${c.errors[0]}` }
     hidden = { ...hidden, ...c.value.hidden }
+    extra = c.value.extra ?? []
   }
 
   const policy: Policy = {
@@ -168,10 +214,20 @@ export function compileLive(tenantId: string): { ok: true; compiled: Compiled } 
     ceilingExempt: ['searchProducts', 'checkInventory'],
     restrictedDataClasses: ['pii'],
   }
-  const capabilities: LiveCapability[] = KNOWN_CAPABILITIES.map((c) => ({
-    name: c.name,
-    hiddenFields: hidden[c.name] ?? [],
-  }))
+  // Mapped extras join the known set here and nowhere else: one append
+  // point, so a capability the Map page discovered cannot silently vanish
+  // between draft and publish. Validation above guarantees names are unique
+  // and non-colliding, so this concat cannot shadow or duplicate.
+  const capabilities: LiveCapability[] = [
+    ...KNOWN_CAPABILITIES.map((c) => ({
+      name: c.name,
+      hiddenFields: hidden[c.name] ?? [],
+    })),
+    ...extra.map((e) => ({
+      name: e.name,
+      hiddenFields: hidden[e.name] ?? [],
+    })),
+  ]
 
   const summary = [
     `Orders above ${inr(ask)} wait for your approval — nothing moves until you say so.`,

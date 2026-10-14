@@ -29,9 +29,9 @@ architecture exists to prevent.
 | --- | --- | --- |
 | 1.1 | Signup + tenant record | **demo** — `POST /api/signup` writes one merchant to `lib/store.ts` (process RAM). No credential is issued and no session starts; Supabase Auth magic links are **not built** |
 | 1.2 | Website URL onboarding | **done** — `PUT /api/me` stores `websiteUrl` (https only, localhost for dev); the manifest advertises it, with an honest fallback note until set |
-| 1.3 | GitHub App OAuth — selected repositories, minimum scopes | **blocked** — needs merchant-owned App ID, secret, webhook secret |
+| 1.3 | GitHub App OAuth — selected repositories, minimum scopes | **one App, ours** (`agentport-installer`, `@rawatarpit`) — merchants bring zero credentials; installer→tenant auto-match. Blocked only on our one-time setup: create App + 5 server env vars (see `github-app-setup.md`) |
 | 1.4 | Sync payload type that **cannot** express the kill switch | **done** — `SyncPayload` in `lib/enforcing.ts` is `Omit<Policy, 'emergencyKillSwitch'>` |
-| 1.5 | Repository selection → branch `agentport/install` → PR | **not built** |
+| 1.5 | Repository selection → branch `agentport/install` → PR | **built, needs live proof** — `/api/github/repos` picker, `openInstallPr` + `readPrState` in `lib/github.ts`, tenant-scoped per operation; plus `/api/github/tree` file inventory feeding Map. Unit-tested, typecheck/build green. Unproven against a real installation (needs App credentials + test repo install) |
 | 1.6 | Mirror CI checks + deployment status onto the PR | **not built** |
 
 **1.3–1.6 are how the product gets in the door**, not a peripheral integration.
@@ -43,11 +43,11 @@ through branch protection they built for another purpose, which is what makes
 
 | # | Task | State |
 | --- | --- | --- |
-| 2.1 | Replace `InMemoryLedger` with real reads from Supabase | **not built** — `lib/store.ts` is six `new Map()`s in process RAM |
-| 2.2 | `/ledger` reads the durable projection | **not built** — currently fixtures |
+| 2.1 | Replace `InMemoryLedger` with real reads from Supabase | **done 2026-10-09** — `/ledger` + `/approvals` read `console_decisions` member-scoped via session RLS (`lib/console-reads.ts`); `lib/store.ts` RAM maps remain for drafts/pushes only |
+| 2.2 | `/ledger` reads the durable projection | **done 2026-10-09** — durable rows with digests; fixture badge replaced; honestly-labelled empty/error states kept |
 | 2.3 | Declared `policyInput` is authoritative over caller-supplied amounts | **done in SDK** — `lib/agentport.ts` declares `amountMinor`; without it the agent picks its own amount and picks it small |
-| 2.4 | `/approvals` reads the durable queue, server-side | **not built** — `app/approvals/page.tsx` is fixtures, and its own comment says so |
-| 2.5 | Show `rowDigest` so a counted row is verifiable against the merchant's local row | **not built** |
+| 2.4 | `/approvals` reads the durable queue, server-side | **done 2026-10-09** — `require_approval` rows with expired-hold badging; hardcoded const + amounts deleted; commit stays merchant-side CLI by design |
+| 2.5 | Show `rowDigest` so a counted row is verifiable against the merchant's local row | **done 2026-10-09** — database-generated digest rendered per row; absent on pre-digest rows renders as nothing |
 
 **2.1 is the honesty defect.** Every number on `/analytics` and the digest on `/`
 is fabricated after a process restart. `POST /api/analytics` accepts a push and

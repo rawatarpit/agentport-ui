@@ -1,5 +1,6 @@
 import { Badge } from '@/components/stat'
-import { configHash, ensureSeeded, ledger } from '@/lib/agentport'
+import { configHash } from '@/lib/agentport'
+import { listDecisions } from '@/lib/console-reads'
 import type { LedgerEntry } from '@agentport/sdk'
 
 export const dynamic = 'force-dynamic'
@@ -25,9 +26,12 @@ function evaluated(e: LedgerEntry): string {
 export default async function LedgerPage() {
   let entries: LedgerEntry[] = []
   let failed = false
+  // Durable reads (TASKS.md 2.2): member-scoped rows from console_decisions,
+  // newest first. No seed, no fixtures, no fallback to memory — an empty
+  // table renders the empty state below ("unknown — not zero"), which is the
+  // honest answer before the first real request lands.
   try {
-    await ensureSeeded()
-    entries = await ledger.list({ limit: 200 })
+    entries = await listDecisions(200)
   } catch {
     failed = true
   }
@@ -80,6 +84,11 @@ export default async function LedgerPage() {
                   <div className="text-bone-faint/70">
                     <time dateTime={e.at}>{new Date(e.at).toLocaleString()}</time>
                   </div>
+                  {/* TASKS.md 2.5 — the digest that lets a counted row be
+                    verified against the merchant's local row. Absent on rows
+                    written before digests existed; absence renders as nothing,
+                    not as a broken value. */}
+                  {e.rowDigest ? <div className="text-bone-faint/70">{e.rowDigest}</div> : null}
                 </td>
 
                 {/*
@@ -174,9 +183,9 @@ export default async function LedgerPage() {
       </ul>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Badge tone="idle">demonstration data</Badge>
+        <Badge tone="idle">durable rows</Badge>
         <p className="font-mono text-[11px] text-bone-faint">
-          sample rows, kept in memory — your ledger replaces this when connected
+          member-scoped reads — decision rows carry identity, outcome and digest, never amounts or parameters
         </p>
       </div>
 

@@ -122,4 +122,17 @@ describe('repo listing + PR shapes (offline guards)', () => {
     const r = await readPrState({ installationToken: 'x', repoFullName: 'nope', prNumber: 1 })
     assert.equal(r.ok, false)
   })
+
+  it('readRepoTree refuses malformed repo and ref before touching the network', async () => {
+    const { readRepoTree } = await import('./github.js')
+    for (const repoFullName of ['nope', 'a/b/c', '', '../x', 'a/..']) {
+      const r = await readRepoTree({ installationToken: 'x', repoFullName, ref: 'main' })
+      assert.equal(r.ok, false)
+      assert.equal((r as { reason: string }).reason, 'repository name is not owner/name')
+    }
+    for (const ref of ['', 'main branch', 'a'.repeat(129)]) {
+      const r = await readRepoTree({ installationToken: 'x', repoFullName: 'o/r', ref })
+      assert.equal(r.ok, false)
+    }
+  })
 })

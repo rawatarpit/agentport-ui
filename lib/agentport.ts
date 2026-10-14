@@ -68,24 +68,29 @@ export const configHash = 'a1b2c3d4e5f6a1b2'
 export const ledger = new InMemoryLedger()
 
 /**
- * TASKS.md 12.5.2 — demo default only, never the merchant's address, and
- * never from the environment: there is no dashboard-origin variable anymore.
+ * TASKS.md 12.5.2 — a merchant setting first, an honest localhost second.
  *
- * The agent-facing baseUrl is a merchant setting (`websiteUrl`, set via
- * `PUT /api/me`) and the manifest route reads it per request, falling back
- * to the request's own origin with an honest note when unset. This constant
- * exists only because the constructor requires one; the manifest route
- * replaces it on every serve, and nothing else reads it.
+ * `AGENTPORT_BASE_URL` is the operator-set address agents call (server env,
+ * never `NEXT_PUBLIC_` — a client-inlined origin is attacker-influenced
+ * input to every URL the manifest advertises). Unset means local development
+ * and says so: the manifest route still overrides per request from
+ * `websiteUrl`, falling back to the request's own origin with an honest note.
+ * Nothing else reads this constant; it exists because the constructor
+ * requires one.
  */
 export const agent = new AgentPort({
   business: 'Demo business',
-  baseUrl: 'http://localhost:3000',
+  baseUrl: (process.env.AGENTPORT_BASE_URL ?? '').trim() || 'http://localhost:3000',
   policy,
   ledger,
   configHash,
   // Stamped on every row. Required, and never taken from the request — this is
   // what keeps one tenant's ledger separate from another's (TASKS.md 5.7).
-  tenantId: 'demo-tenant',
+  // Same rule as resolveTenant() in lib/store.ts, inlined rather than
+  // imported: store.ts imports configHash from here, so importing back would
+  // be a module cycle evaluated at construction time. One env read duplicated
+  // beats a cycle; the durable door path reads resolveTenant() itself.
+  tenantId: (process.env.AGENTPORT_TENANT ?? '').trim() || 'demo-tenant',
   requestId: () => `req_${Math.random().toString(36).slice(2, 10)}`,
 })
 

@@ -18,15 +18,28 @@ import { getMerchant, resolveTenant } from '@/lib/store'
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
-  const manifest = agent.manifest() as Record<string, unknown> & { baseUrl: string; note?: string }
+  const manifest = agent.manifest() as Record<string, unknown> & {
+    baseUrl: string
+    note?: string
+    endpoints?: { manifest: string; execute: string }
+  }
   const websiteUrl = getMerchant(resolveTenant())?.websiteUrl ?? null
-  if (websiteUrl) {
-    manifest.baseUrl = websiteUrl
-  } else {
+  // The endpoints block is rebuilt from the same origin as baseUrl, always.
+  // It used to keep the SDK default (localhost) while baseUrl was overridden
+  // — so an external agent following endpoints.execute POSTed to itself.
+  // Found by fetching this route as an outsider: baseUrl said the dashboard,
+  // execute said localhost. Both now name the same origin, or the manifest
+  // is lying about where to call.
+  const origin = websiteUrl ?? new URL(req.url).origin
+  manifest.baseUrl = origin
+  manifest.endpoints = {
+    manifest: `${origin}/.well-known/agent.json`,
+    execute: `${origin}/.well-known/agent/invoke`,
+  }
+  if (!websiteUrl) {
     // No dashboard-origin variable exists by design: the fallback is the
     // request's own origin, labelled, so a missing merchant URL can never
     // silently become anything else — and nothing compiled-in can go stale.
-    manifest.baseUrl = new URL(req.url).origin
     manifest.note =
       'Demo manifest: baseUrl is this dashboard because no merchant runtime URL is set yet (PUT /api/me). Agents calling it reach a UI, not an enforcement point.'
   }

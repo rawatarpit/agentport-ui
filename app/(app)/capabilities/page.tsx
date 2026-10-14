@@ -14,6 +14,10 @@ export default function CapabilitiesPage() {
           decision from deciding how far it may go, and they usually happen at different
           times.
         </p>
+        <p className="mt-3 font-mono text-[12px] text-bone-dim">
+          New routes? <a className="underline" href="/map">Map them from discover output</a> —
+          corroborated, shadow, and dead surface reconciled before anything publishes.
+        </p>
       </div>
 
       <CapabilitiesEditor />

@@ -1,4 +1,5 @@
 import { Badge } from '@/components/stat'
+import { listHolds } from '@/lib/console-reads'
 
 export const dynamic = 'force-dynamic'
 
@@ -7,30 +8,17 @@ export const dynamic = 'force-dynamic'
  * whole point of the queue: a held request is a request that was authorised to
  * wait, not a request that ran and is being reported afterwards.
  *
- * Fixtures, not the real approval store. The real queue is durable and
- * server-side; see TASKS.md 2.1.
+ * Durable reads (TASKS.md 2.4): require_approval rows from console_decisions,
+ * member-scoped, newest first. Commits happen merchant-side (`agent-port
+ * approve`), so every row here is pending by construction — a granted flag
+ * this app did not witness would be attestation of nothing.
  *
  * Four columns only — capability, agent, reason for hold, rule that fired.
  * No amounts, no line items, no customer: the boundary (amounts and
- * parameters never reach us) holds for fixtures too, because a column is how
- * an amount ends up in a dashboard query later. See TASKS.md 12.2.5.
+ * parameters never reach us) holds for real rows exactly as it did for the
+ * fixtures this replaced, because a column is how an amount ends up in a
+ * dashboard query later. See TASKS.md 12.2.5.
  */
-const PENDING = [
-  {
-    requestId: 'req_held_9f2',
-    agent: 'gpt-shopping',
-    capability: 'createOrder',
-    reason: 'Order is above the approval threshold. Nothing moves until you decide.',
-    rule: 'max_order_value',
-  },
-  {
-    requestId: 'req_held_4ab',
-    agent: 'perplexity',
-    capability: 'createOrder',
-    reason: 'Basket meets the bulk threshold. Volume waits too, whatever the value.',
-    rule: 'bulk_order_threshold',
-  },
-]
 
 /**
  * Why these buttons are disabled rather than merely absent.
@@ -55,7 +43,14 @@ const PENDING = [
  */
 const INERT = 'Approvals run in the merchant’s environment, where the request was frozen.'
 
-export default function ApprovalsPage() {
+export default async function ApprovalsPage() {
+  let holds: Awaited<ReturnType<typeof listHolds>> = []
+  let failed = false
+  try {
+    holds = await listHolds(200)
+  } catch {
+    failed = true
+  }
   return (
     <div className="space-y-6">
       <div>
@@ -67,20 +62,24 @@ export default function ApprovalsPage() {
           that already executed.
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Badge tone="idle">demonstration data</Badge>
+          <Badge tone="idle">durable queue</Badge>
           <p className="font-mono text-[11px] text-bone-faint">
-            sample queue — your held requests appear here when connected
+            member-scoped holds — commit with agent-port approve, merchant-side
           </p>
         </div>
       </div>
 
-      {PENDING.length === 0 ? (
+      {failed ? (
+        <p className="text-[13px] text-rust" role="alert">
+          The queue could not be read. Nothing is lost — try reloading.
+        </p>
+      ) : holds.length === 0 ? (
         <div className="panel p-8 text-center">
           <p className="text-bone-dim">Nothing is waiting. Every authorised write has been decided.</p>
         </div>
       ) : (
         <ul className="space-y-3">
-          {PENDING.map((p) => (
+          {holds.map((p) => (
             <li key={p.requestId} className="panel p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -88,7 +87,7 @@ export default function ApprovalsPage() {
                     <span className="font-mono text-[12px] text-bone">{p.capability}</span>
                     <Badge tone="held">held, not executed</Badge>
                   </div>
-                  <p className="mt-2 text-[14px] text-bone-dim">{p.reason}</p>
+                  <p className="mt-2 text-[14px] text-bone-dim">Held for approval — awaiting a human decision.</p>
                 </div>
                 <div className="text-right">
                   <p className="font-mono text-[11px] text-bone-faint">{p.requestId}</p>
@@ -98,7 +97,7 @@ export default function ApprovalsPage() {
               <dl className="mt-4 grid gap-x-8 gap-y-1 border-t border-ink-line/60 pt-4 text-[13px] sm:grid-cols-3">
                 <div>
                   <dt className="label">Agent</dt>
-                  <dd className="mt-1 font-mono text-[12px] text-bone-dim">{p.agent}</dd>
+                  <dd className="mt-1 font-mono text-[12px] text-bone-dim">{p.agentId}</dd>
                 </div>
                 <div>
                   <dt className="label">Rule that fired</dt>
@@ -106,7 +105,9 @@ export default function ApprovalsPage() {
                 </div>
                 <div>
                   <dt className="label">State</dt>
-                  <dd className="mt-1 text-bone-dim">held, not executed</dd>
+                  <dd className="mt-1 text-bone-dim">
+                    {p.expiredHold ? 'expired — re-request required' : 'held, not executed'}
+                  </dd>
                 </div>
               </dl>
 

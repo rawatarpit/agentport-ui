@@ -208,6 +208,60 @@ export async function listInstallationRepos(installationToken: string): Promise<
   }
 }
 
+export type RepoTree = { entries: Array<{ path: string; size: number | null }>; truncated: boolean }
+
+const TREE_ENTRY_CAP = 2000
+
+/**
+ * File inventory for mapping: recursive tree of one repo, blobs only.
+ *
+ * Paths + sizes, never contents — content reading is a separate, narrower
+ * decision per file (route tables, manifests, workflows), because a tree
+ * listing is metadata while file bodies are the merchant's source. The Map
+ * flow consumes this as declared routes; live traffic still has to
+ * corroborate them before anything publishes.
+ *
+ * Caps: truncated at 2000 entries with the flag set, so a vendored-deps
+ * repo degrades to a partial inventory instead of a blown response. The
+ * flag is load-bearing, not informational — a silent truncation would
+ * present a partial map as complete.
+ */
+export async function readRepoTree(opts: {
+  installationToken: string
+  repoFullName: string
+  ref: string
+}): Promise<GhResult<RepoTree>> {
+  const parts = opts.repoFullName.split('/')
+  if (parts.length !== 2 || parts.some((p) => p === '' || p === '.' || p === '..')) {
+    return { ok: false, reason: 'repository name is not owner/name' }
+  }
+  const [owner, repo] = parts as [string, string]
+  if (!opts.ref || opts.ref.length > 128 || /[^A-Za-z0-9._\-/]/.test(opts.ref)) {
+    return { ok: false, reason: 'ref is not a plain branch name' }
+  }
+  const r = await gh<{
+    truncated?: boolean
+    tree?: Array<{ path?: unknown; type?: unknown; size?: unknown }>
+  }>(
+    `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/trees/${encodeURIComponent(opts.ref)}?recursive=1`,
+    opts.installationToken,
+  )
+  if (!r.ok) return r
+  if (!Array.isArray(r.value.tree)) return { ok: false, reason: 'github response unreadable' }
+  const entries: RepoTree['entries'] = []
+  for (const item of r.value.tree) {
+    if (item?.type !== 'blob' || typeof item.path !== 'string') continue
+    entries.push({
+      path: item.path,
+      size: typeof item.size === 'number' ? item.size : null,
+    })
+    if (entries.length >= TREE_ENTRY_CAP) {
+      return { ok: true, value: { entries, truncated: true } }
+    }
+  }
+  return { ok: true, value: { entries, truncated: !!r.value.truncated } }
+}
+
 export type OpenPrResult =
   | { ok: true; prUrl: string; prNumber: number; branch: string }
   | { ok: false; reason: string }
