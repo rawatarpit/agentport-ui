@@ -1,25 +1,52 @@
 import { mintInstallationTokenFor, readRepoTree } from '@/lib/github'
-import { getInstallations, resolveTenant } from '@/lib/store'
+import { getInstallations } from '@/lib/store'
+import { resolveCallerTenant } from '@/lib/tenant'
+import { createClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
+
+async function callerTenantId(): Promise<string | null> {
+  try {
+    const supabase = createClient()
+    const { data } = await supabase.auth.getUser()
+    const t = await resolveCallerTenant({
+      getUserId: async () => data.user?.id ?? null,
+      listMemberships: async (userId: string) => {
+        const { data: rows } = await supabase
+          .from('tenant_members')
+          .select('tenant_id,role,created_at')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: true })
+        return (rows ?? []) as Array<{ tenant_id: string; role: string; created_at: string }>
+      },
+    })
+    return t.tenantId
+  } catch {
+    return null
+  }
+}
 
 /**
  * GET /api/github/tree?installation=<id>&repo=<owner/name>[&ref=<branch>] —
  * file inventory for mapping, from the end user's own GitHub authorization.
  *
- * Same trust shape as /repos and /pr: the installation must belong to this
- * tenant (an id from another tenant's install is refused, not listed), the
+ * Same trust shape as /repos and /pr: the installation must be linked to
+ * the caller's tenant (RAM binding until the durable table lands), the
  * token is minted per call from server env and never stored, and the
- * response carries paths + sizes only — file bodies are a separate,
- * narrower decision. Default branch comes from the repos listing; callers
- * pass it explicitly so this route never guesses which tree to read.
+ * response carries paths + sizes only.
  */
 export async function GET(req: Request) {
-  const tenantId = resolveTenant()
+  const tenantId = await callerTenantId()
+  if (!tenantId) {
+    return Response.json({ status: 'error', reason: 'Sign in first — installs belong to your business.' }, { status: 401 })
+  }
   const params = new URL(req.url).searchParams
   const installationId = Number(params.get('installation') ?? '')
   const repo = (params.get('repo') ?? '').trim()
   const ref = (params.get('ref') ?? '').trim()
+  if (!Number.isInteger(installationId) || installationId <= 0) {
+    return Response.json({ status: 'error', reason: 'No connected repo found — connect one first.' }, { status: 404 })
+  }
   const known = getInstallations(tenantId).some((i) => i.installationId === installationId)
   if (!known) {
     return Response.json({ status: 'error', reason: 'No connected repo found — connect one first.' }, { status: 404 })

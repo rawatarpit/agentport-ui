@@ -55,6 +55,21 @@ export function GithubPanel() {
     void loadInstallations()
   }, [loadInstallations])
 
+  // The install callback redirects with ?installation_id=<n>: adopt it only
+  // when the server lists it for this tenant — a URL hint is untrusted and
+  // a valid-but-foreign id must never drive repo reads or PR writes.
+  useEffect(() => {
+    if (!installations) return
+    try {
+      const id = Number(new URLSearchParams(window.location.search).get('installation_id') ?? '')
+      if (Number.isInteger(id) && id > 0 && installations.some((i) => i.installationId === id)) {
+        setInstallationId(id)
+      }
+    } catch {
+      // No usable hint — installations list decides.
+    }
+  }, [installations])
+
   useEffect(() => {
     if (installationId !== null) void loadRepos(installationId)
   }, [installationId, loadRepos])
@@ -102,7 +117,7 @@ export function GithubPanel() {
 
       {!installations ? (
         <p className="text-[13px] text-bone-faint">Reading installations…</p>
-      ) : installations.length === 0 ? (
+      ) : installations.length === 0 && installationId === null ? (
         <>
           <p className="text-[13px] leading-relaxed text-bone-dim">
             Your website&apos;s code lives on GitHub, so this happens there:

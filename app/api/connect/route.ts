@@ -1,45 +1,69 @@
-import { getDraft, getInstallations, getLive, getMerchant, getPullRequests, hasAnalytics, hasSync, resolveTenant } from '@/lib/store'
+import { getDraft, getInstallations, getPullRequests, resolveTenant } from '@/lib/store'
+import { getHome, getLatestPush, getLiveArtifact, hasAnalyticsEvents } from '@/lib/backend-reads'
+import { resolveCallerTenant } from '@/lib/tenant'
+import { createClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
 type Step = { n: string; title: string; body: string; state: 'missing' | 'done'; href?: string }
 
 /**
- * GET /api/connect — the front door as computed state, not constants.
+ * GET /api/connect — the front door as computed state, from the backend.
  *
- * Order is the product decision: GitHub comes second, right after the
- * account, because every screen after connection reads live data — while
- * configuring blind means answering questions about a business the
- * dashboard cannot see yet. Every step reports what the store can prove.
- * GitHub steps stay `missing` until real App credentials exist — code was
- * never the blocker there, and this endpoint must not imply otherwise.
+ * Liveness truth (steps 1, 7, 8, 6-display) comes from Supabase via RLS:
+ * session → tenant_members → v_tenant_home / push_batches /
+ * analytics_events / policy_artifacts. No RAM fallback — an unreadable
+ * backend renders `missing`/unknown, never a green guess.
+ *
+ * Drafts + installs + PR records still read RAM maps (no durable tables
+ * exist yet — SDK repo owns the DB). Liveness steps (1, 7, 8) and the live
+ * version (6) read only the backend: no RAM fallback — an unreadable
+ * backend renders `missing`/unknown, never a green guess. Step 6 stays
+ * `missing` until a durable artifact row exists.
  */
 export async function GET() {
-  const tenantId = resolveTenant()
-  const merchant = getMerchant(tenantId)
-  const setup = getDraft(tenantId, 'setup')
-  const caps = getDraft(tenantId, 'capabilities')
-  const rules = getDraft(tenantId, 'rules')
-  const live = getLive(tenantId)
-  const installed = getInstallations(tenantId).length > 0
-  const prs = getPullRequests(tenantId)
-
-  // Real users sign in with Supabase Auth; the demo record is the fallback.
-  // Step 1 is done for whoever actually has an account, not whoever has a row.
+  const supabase = createClient()
+  let tenantId: string | null = null
   let sessionEmail: string | null = null
   try {
-    const { createClient } = await import('@/lib/supabase/server')
-    const {
-      data: { session },
-    } = await createClient().auth.getSession()
-    sessionEmail = session?.user.email ?? null
+    const { data } = await supabase.auth.getUser()
+    sessionEmail = data.user?.email ?? null
+    const t = await resolveCallerTenant({
+      getUserId: async () => data.user?.id ?? null,
+      listMemberships: async (userId: string) => {
+        const { data: rows } = await supabase
+          .from('tenant_members')
+          .select('tenant_id,role,created_at')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: true })
+        return (rows ?? []) as Array<{ tenant_id: string; role: string; created_at: string }>
+      },
+    })
+    tenantId = t.tenantId
   } catch {
-    // No session available — demo record below decides.
+    tenantId = null
   }
+
+  // RAM key must stay a string: pre-migration call sites key drafts/installs
+  // by the demo constant when no session exists. Nothing here treats it as
+  // proof — backend steps below override it wherever a table exists.
+  const ramKey = tenantId ?? resolveTenant()
+  const home = await getHome()
+  const push = tenantId ? await getLatestPush(tenantId) : await getLatestPush()
+  const analytics = tenantId ? await hasAnalyticsEvents(tenantId) : false
+  const artifact = tenantId ? await getLiveArtifact(tenantId) : null
+
+  const setup = getDraft(ramKey, 'setup')
+  const caps = getDraft(ramKey, 'capabilities')
+  const rules = getDraft(ramKey, 'rules')
+  const liveVersion = artifact?.version ?? null
+  const installed = getInstallations(ramKey).length > 0
+  const prs = getPullRequests(ramKey)
+
   const account = sessionEmail
     ? { done: true as const, body: `Signed in as ${sessionEmail}.` }
-    : merchant
-      ? { done: true as const, body: `Signed up as ${merchant.businessName} (${merchant.email}).` }
+    : home
+      ? { done: true as const, body: `Signed in as ${home.display_name}.` }
       : { done: false as const, body: 'An account with us — email and password. GitHub comes later, for your repo, not your identity.' }
 
   const steps: Step[] = [
@@ -82,27 +106,27 @@ export async function GET() {
     {
       n: '6',
       title: 'Go live — publish',
-      body: live
-        ? `Published as version ${live.version}. Your site picks it up from here.`
+      body: liveVersion !== null
+        ? `Published as version ${liveVersion}. Your site picks it up from here.`
         : 'Review the plain-language summary and publish — the signature lives in your merge, not in a button.',
-      state: live ? 'done' : 'missing',
+      state: liveVersion !== null ? 'done' : 'missing',
       href: '/rules',
     },
     {
       n: '7',
       title: 'Watch it work',
-      body: hasSync(tenantId)
+      body: push
         ? 'Your site is checking in — the overview shows what it enforces right now.'
         : 'Until your site first checks in, live screens honestly say unknown.',
-      state: hasSync(tenantId) ? 'done' : 'missing',
+      state: push ? 'done' : 'missing',
     },
     {
       n: '8',
       title: 'Come back for the numbers',
-      body: hasAnalytics(tenantId)
+      body: analytics
         ? 'Counts flowing — by capability and by rule, never amounts, never rows.'
         : 'Counts by capability and rule land here once your site reports them.',
-      state: hasAnalytics(tenantId) ? 'done' : 'missing',
+      state: analytics ? 'done' : 'missing',
       href: '/analytics',
     },
   ]

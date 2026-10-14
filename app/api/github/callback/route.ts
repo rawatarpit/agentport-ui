@@ -1,5 +1,7 @@
-import { exchangeOAuthCode } from '@/lib/github'
-import { recordInstallation, resolveTenant } from '@/lib/store'
+import { exchangeOAuthCode, mintInstallationTokenFor } from '@/lib/github'
+import { recordInstallation } from '@/lib/store'
+import { resolveCallerTenant } from '@/lib/tenant'
+import { createClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,12 +11,11 @@ const DASHBOARD = 'https://agentport.relayforge.in'
  * GET /api/github/callback — post-install landing for the GitHub App flow.
  *
  * GitHub redirects here with `?code=&installation_id=&setup_action=` after
- * the merchant installs (and authorises, if that box was checked). The code
- * is single-use and short-lived by GitHub's design; the exchange below
- * happens once, server-side, and the user token is used to link the
- * installer to the tenant — then dropped, never stored. A token in a
- * database is a token in a backup; the installation is re-derived from
- * webhook deliveries, not from a stored credential.
+ * the merchant installs (and authorises, if that box was checked). The
+ * installation is verified by minting (GitHub refuses unknown/revoked ids)
+ * and linked to the caller's session tenant — never a constant, never a
+ * URL alone. The OAuth code path additionally labels the installer login
+ * via one `/user` call, then the user token is dropped, never stored.
  *
  * Failures redirect, never render: this URL is opened by GitHub in the
  * merchant's browser, and a JSON error there is a dead end. Every failure
@@ -36,11 +37,42 @@ export async function GET(req: Request) {
     installerUserId: null,
   }
 
+  // Session tenant: installs belong to a signed-in business. Logged-out
+  // arrivals record nothing — the sign-in screen explains the next step.
+  let tenantId: string | null = null
+  try {
+    const supabase = createClient()
+    const { data } = await supabase.auth.getUser()
+    const t = await resolveCallerTenant({
+      getUserId: async () => data.user?.id ?? null,
+      listMemberships: async (userId: string) => {
+        const { data: rows } = await supabase
+          .from('tenant_members')
+          .select('tenant_id,role,created_at')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: true })
+        return (rows ?? []) as Array<{ tenant_id: string; role: string; created_at: string }>
+      },
+    })
+    tenantId = t.tenantId
+  } catch {
+    tenantId = null
+  }
+  if (!tenantId) {
+    return fail('missing-installation')
+  }
+
+  // Verify the installation exists (and is not revoked) before recording:
+  // a crafted URL with an arbitrary id records nothing.
+  const verified = await mintInstallationTokenFor(Number(installationId))
+  if (!verified.ok) {
+    return fail('missing-installation')
+  }
+
   if (!code) {
-    // No code: installed without user-authorisation, or arrived directly.
-    // The webhook's `installation` event already recorded the install —
+    // No code: installed without user-authorisation. Verified above —
     // link by installation id and finish.
-    recordInstallation(resolveTenant(), install)
+    recordInstallation(tenantId, install)
     return Response.redirect(`${DASHBOARD}/connect?github=installed&installation_id=${installationId}`, 302)
   }
 
@@ -65,6 +97,6 @@ export async function GET(req: Request) {
   } catch {
     // Unlabelled is fine — the installation id is the link, not the login.
   }
-  recordInstallation(resolveTenant(), install)
+  recordInstallation(tenantId, install)
   return Response.redirect(`${DASHBOARD}/connect?github=installed&installation_id=${installationId}`, 302)
 }

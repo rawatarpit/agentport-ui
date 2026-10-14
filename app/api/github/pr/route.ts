@@ -1,21 +1,49 @@
 import { mintInstallationTokenFor, openInstallPr, readPrState } from '@/lib/github'
 import { buildInstallFile } from '@/lib/golive'
-import { getInstallations, getPullRequests, recordPullRequest, resolveTenant } from '@/lib/store'
+import { getInstallations, getPullRequests, recordPullRequest } from '@/lib/store'
+import { resolveCallerTenant } from '@/lib/tenant'
+import { createClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
+
+async function callerTenantId(req?: Request): Promise<{ tenantId: string } | { tenantId: null; reason: string }> {
+  try {
+    const supabase = createClient()
+    const { data } = await supabase.auth.getUser()
+    const t = await resolveCallerTenant({
+      getUserId: async () => data.user?.id ?? null,
+      listMemberships: async (userId: string) => {
+        const { data: rows } = await supabase
+          .from('tenant_members')
+          .select('tenant_id,role,created_at')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: true })
+        return (rows ?? []) as Array<{ tenant_id: string; role: string; created_at: string }>
+      },
+    })
+    void req
+    return t
+  } catch {
+    return { tenantId: null, reason: 'Sign in first — installs belong to your business.' }
+  }
+}
 
 /**
  * POST /api/github/pr — open (or update) the install pull request.
  *
- * Body: { installationId, repo }. Compiles the tenant's drafts into the
- * install file, mints a one-hour installation token, and opens the PR on
- * `agentport/install`. Re-running updates the same branch and the same PR —
- * opening duplicates would turn review into archaeology, so the record is
- * replaced, never appended. Nothing here merges: the merge stays the
- * merchant's, in their repo, under their branch protection.
+ * Body: { installationId, repo }. The installation must be linked to the
+ * caller's tenant (RAM binding until the durable installs table lands —
+ * SDK repo owns the DB): another tenant's id is refused, not acted on.
+ * Compiles the caller's drafts into the install file, mints a one-hour
+ * installation token, and opens the PR on `agentport/install`. Re-running
+ * updates the same branch and the same PR. Nothing here merges.
  */
 export async function POST(req: Request) {
-  const tenantId = resolveTenant()
+  const t = await callerTenantId(req)
+  if (t.tenantId === null) {
+    return Response.json({ status: 'error', reason: t.reason }, { status: 401 })
+  }
+  const tenantId = t.tenantId
   let body: { installationId?: unknown; repo?: unknown }
   try {
     body = await req.json()
@@ -24,6 +52,9 @@ export async function POST(req: Request) {
   }
   const installationId = Number(body.installationId)
   const repo = typeof body.repo === 'string' ? body.repo.trim() : ''
+  if (!Number.isInteger(installationId) || installationId <= 0) {
+    return Response.json({ status: 'error', reason: 'No connected repo found — connect one first.' }, { status: 404 })
+  }
   if (!getInstallations(tenantId).some((i) => i.installationId === installationId)) {
     return Response.json({ status: 'error', reason: 'No connected repo found — connect one first.' }, { status: 404 })
   }
@@ -71,7 +102,11 @@ export async function POST(req: Request) {
  * never an empty widget pretending a PR is coming.
  */
 export async function GET(req: Request) {
-  const tenantId = resolveTenant()
+  const t = await callerTenantId(req)
+  if (t.tenantId === null) {
+    return Response.json({ status: 'error', reason: t.reason }, { status: 401 })
+  }
+  const tenantId = t.tenantId
   const repo = new URL(req.url).searchParams.get('repo') ?? ''
   const record = getPullRequests(tenantId).find((r) => (repo ? r.repo === repo : true))
   if (!record) {
