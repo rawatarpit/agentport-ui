@@ -1,5 +1,5 @@
 import { exchangeOAuthCode, mintInstallationTokenFor } from '@/lib/github'
-import { recordInstallation } from '@/lib/store'
+import { recordInstallationDb } from '@/lib/durable-store'
 import { resolveCallerTenant } from '@/lib/tenant'
 import { createClient } from '@/lib/supabase/server'
 
@@ -30,11 +30,10 @@ export async function GET(req: Request) {
   if (!/^[0-9]+$/.test(installationId)) {
     return fail('missing-installation')
   }
-  const install: Parameters<typeof recordInstallation>[1] = {
+  const install = {
     installationId: Number(installationId),
     accountLogin: '',
-    repositories: [],
-    installerUserId: null,
+    installerLogin: null as string | null,
   }
 
   // Session tenant: installs belong to a signed-in business. Logged-out
@@ -72,7 +71,7 @@ export async function GET(req: Request) {
   if (!code) {
     // No code: installed without user-authorisation. Verified above —
     // link by installation id and finish.
-    recordInstallation(tenantId, install)
+    await recordInstallationDb(tenantId, install)
     return Response.redirect(`${DASHBOARD}/connect?github=installed&installation_id=${installationId}`, 302)
   }
 
@@ -93,10 +92,10 @@ export async function GET(req: Request) {
         headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${exchanged.accessToken}` },
       })
     ).json()) as { login?: unknown }
-    if (typeof me.login === 'string') install.installerUserId = me.login
+    if (typeof me.login === 'string') install.installerLogin = me.login
   } catch {
     // Unlabelled is fine — the installation id is the link, not the login.
   }
-  recordInstallation(tenantId, install)
+  await recordInstallationDb(tenantId, install)
   return Response.redirect(`${DASHBOARD}/connect?github=installed&installation_id=${installationId}`, 302)
 }

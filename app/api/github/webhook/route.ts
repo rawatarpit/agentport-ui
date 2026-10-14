@@ -1,4 +1,3 @@
-import { recordInstallation, removeInstallation, resolveTenant } from '@/lib/store'
 import { verifyWebhookSignature } from '@/lib/github'
 
 export const dynamic = 'force-dynamic'
@@ -45,22 +44,17 @@ export async function POST(req: Request) {
   // Recorded fields only: ids, logins, repo names, action. No code, no
   // diffs, no file contents — a webhook body is GitHub's data about the
   // merchant's repo, and the minimum needed to show install state.
+  // Installation lifecycle is recorded by the verified callback
+  // (/api/github/callback), which links the installation to the installer's
+  // session tenant after mint-verifying the id. This webhook has no session
+  // and therefore cannot attribute a delivery to a tenant — writing it
+  // under a shared key once merged every merchant's installs into one
+  // bucket. So deliveries are acknowledged, never stored here. Revocation
+  // still bites immediately: every read mints per call, and a revoked
+  // install mints nothing, so revoked rows hide and revoked ids refuse.
   if (event === 'installation' && typeof body.action === 'string') {
     const id = body.installation?.id
     if (typeof id === 'number') {
-      const tenantId = resolveTenant()
-      if (body.action === 'deleted') {
-        removeInstallation(tenantId, id)
-      } else {
-        recordInstallation(tenantId, {
-          installationId: id,
-          accountLogin: typeof body.installation?.account?.login === 'string' ? body.installation.account.login : '',
-          repositories: Array.isArray(body.repositories)
-            ? body.repositories.filter((r) => typeof r.full_name === 'string').map((r) => r.full_name as string)
-            : [],
-          installerUserId: null,
-        })
-      }
       return Response.json({ status: 'ok', event: 'installation', action: body.action, delivery })
     }
   }

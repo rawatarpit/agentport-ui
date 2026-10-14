@@ -1,5 +1,5 @@
 import { mintInstallationTokenFor, readRepoTree } from '@/lib/github'
-import { getInstallations } from '@/lib/store'
+import { installationKnownDb } from '@/lib/durable-store'
 import { resolveCallerTenant } from '@/lib/tenant'
 import { createClient } from '@/lib/supabase/server'
 
@@ -31,9 +31,9 @@ async function callerTenantId(): Promise<string | null> {
  * file inventory for mapping, from the end user's own GitHub authorization.
  *
  * Same trust shape as /repos and /pr: the installation must be linked to
- * the caller's tenant (RAM binding until the durable table lands), the
- * token is minted per call from server env and never stored, and the
- * response carries paths + sizes only.
+ * the caller's tenant (durable row), the token is minted per call from
+ * server env and never stored, and the response carries paths + sizes
+ * only.
  */
 export async function GET(req: Request) {
   const tenantId = await callerTenantId()
@@ -47,7 +47,7 @@ export async function GET(req: Request) {
   if (!Number.isInteger(installationId) || installationId <= 0) {
     return Response.json({ status: 'error', reason: 'No connected repo found — connect one first.' }, { status: 404 })
   }
-  const known = getInstallations(tenantId).some((i) => i.installationId === installationId)
+  const known = await installationKnownDb(tenantId, installationId)
   if (!known) {
     return Response.json({ status: 'error', reason: 'No connected repo found — connect one first.' }, { status: 404 })
   }

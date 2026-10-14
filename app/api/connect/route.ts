@@ -1,5 +1,5 @@
-import { getDraft, getInstallations, getPullRequests, resolveTenant } from '@/lib/store'
 import { getHome, getLatestPush, getLiveArtifact, hasAnalyticsEvents } from '@/lib/backend-reads'
+import { getInstallationsDb, getPullRequestsDb, listDraftSections } from '@/lib/durable-store'
 import { resolveCallerTenant } from '@/lib/tenant'
 import { createClient } from '@/lib/supabase/server'
 
@@ -12,14 +12,9 @@ type Step = { n: string; title: string; body: string; state: 'missing' | 'done';
  *
  * Liveness truth (steps 1, 7, 8, 6-display) comes from Supabase via RLS:
  * session → tenant_members → v_tenant_home / push_batches /
- * analytics_events / policy_artifacts. No RAM fallback — an unreadable
- * backend renders `missing`/unknown, never a green guess.
- *
- * Drafts + installs + PR records still read RAM maps (no durable tables
- * exist yet — SDK repo owns the DB). Liveness steps (1, 7, 8) and the live
- * version (6) read only the backend: no RAM fallback — an unreadable
- * backend renders `missing`/unknown, never a green guess. Step 6 stays
- * `missing` until a durable artifact row exists.
+ * analytics_events / policy_artifacts. Installs, drafts, and PR hints come
+ * from the durable console tables. No RAM anywhere on this path — an
+ * unreadable backend renders `missing`/unknown, never a green guess.
  */
 export async function GET() {
   const supabase = createClient()
@@ -44,21 +39,20 @@ export async function GET() {
     tenantId = null
   }
 
-  // RAM key must stay a string: pre-migration call sites key drafts/installs
-  // by the demo constant when no session exists. Nothing here treats it as
-  // proof — backend steps below override it wherever a table exists.
-  const ramKey = tenantId ?? resolveTenant()
+  // Logged-out callers get honest missing everywhere: no session means no
+  // tenant, and no demo id is ever reported as theirs.
   const home = await getHome()
   const push = tenantId ? await getLatestPush(tenantId) : await getLatestPush()
   const analytics = tenantId ? await hasAnalyticsEvents(tenantId) : false
   const artifact = tenantId ? await getLiveArtifact(tenantId) : null
 
-  const setup = getDraft(ramKey, 'setup')
-  const caps = getDraft(ramKey, 'capabilities')
-  const rules = getDraft(ramKey, 'rules')
+  const sections = tenantId ? await listDraftSections(tenantId) : new Set<string>()
+  const setup = sections.has('setup')
+  const caps = sections.has('capabilities')
+  const rules = sections.has('rules')
   const liveVersion = artifact?.version ?? null
-  const installed = getInstallations(ramKey).length > 0
-  const prs = getPullRequests(ramKey)
+  const installed = tenantId ? (await getInstallationsDb(tenantId)).length > 0 : false
+  const prs = tenantId ? await getPullRequestsDb(tenantId) : []
 
   const account = sessionEmail
     ? { done: true as const, body: `Signed in as ${sessionEmail}.` }

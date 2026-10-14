@@ -167,9 +167,26 @@ export type Compiled = {
 
 /** Rules draft wins; setup answers fill gaps when no rules draft exists. */
 export function compileLive(tenantId: string): { ok: true; compiled: Compiled } | { ok: false; reason: string } {
-  const rulesRaw = getDraft(tenantId, 'rules')?.payload
-  const setupRaw = getDraft(tenantId, 'setup')?.payload
-  const capsRaw = getDraft(tenantId, 'capabilities')?.payload
+  return compileLiveFrom({
+    rules: getDraft(tenantId, 'rules')?.payload,
+    setup: getDraft(tenantId, 'setup')?.payload,
+    capabilities: getDraft(tenantId, 'capabilities')?.payload,
+  })
+}
+
+/**
+ * Pure compile from explicit draft payloads — the durable path. RAM
+ * (compileLive) and Supabase (dashboard_drafts rows) share this body, so a
+ * draft means the same file whichever process answers.
+ */
+export function compileLiveFrom(drafts: {
+  rules?: unknown
+  setup?: unknown
+  capabilities?: unknown
+}): { ok: true; compiled: Compiled } | { ok: false; reason: string } {
+  const rulesRaw = drafts.rules
+  const setupRaw = drafts.setup
+  const capsRaw = drafts.capabilities
 
   let ask = 25_000
   let never = 100_000
@@ -253,7 +270,20 @@ export function compileLive(tenantId: string): { ok: true; compiled: Compiled } 
 export function buildInstallFile(tenantId: string): { ok: true; path: string; content: string } | { ok: false; reason: string } {
   const compiled = compileLive(tenantId)
   if (!compiled.ok) return compiled
-  const { policy, capabilities, summary } = compiled.compiled
+  return installFileFromCompiled(compiled.compiled)
+}
+
+/** Build from an already-compiled policy — the durable-drafts path. */
+export function buildInstallFileFrom(
+  drafts: { rules?: unknown; setup?: unknown; capabilities?: unknown },
+): { ok: true; path: string; content: string } | { ok: false; reason: string } {
+  const compiled = compileLiveFrom(drafts)
+  if (!compiled.ok) return compiled
+  return installFileFromCompiled(compiled.compiled)
+}
+
+function installFileFromCompiled(compiled: Compiled): { ok: true; path: string; content: string } {
+  const { policy, capabilities, summary } = compiled
   const lines = [
     '// Governed agent access — generated from your answers, reviewable here.',
     '// What you merge is what enforces: nothing here executes until this file',

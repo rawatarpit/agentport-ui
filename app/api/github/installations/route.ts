@@ -1,4 +1,5 @@
-import { getInstallations } from '@/lib/store'
+import { getInstallationsDb } from '@/lib/durable-store'
+import { mintInstallationTokenFor } from '@/lib/github'
 import { resolveCallerTenant } from '@/lib/tenant'
 import { createClient } from '@/lib/supabase/server'
 
@@ -9,9 +10,11 @@ export const dynamic = 'force-dynamic'
  * IDs and account names only: installations are pointers, and the
  * installation token is minted per operation, never stored.
  *
- * RAM until the durable installs table lands (SDK repo owns the DB):
- * a restart loses rows recorded by webhook/callback, and logged-out
- * callers see nothing. Empty is honest-empty, never proof of no install.
+ * Durable rows (github_installations) with live revalidation: an install
+ * revoked on GitHub mints nothing, so revoked rows are hidden here —
+ * revocation reads as missing immediately and silently. Rows that fail for
+ * any other reason (App unconfigured, network) are kept: an outage must
+ * not rewrite history as an uninstall.
  */
 export async function GET() {
   let tenantId: string | null = null
@@ -34,10 +37,17 @@ export async function GET() {
     tenantId = null
   }
   if (!tenantId) return Response.json({ status: 'ok', installations: [] })
-  const installations = getInstallations(tenantId).map((i) => ({
-    installationId: i.installationId,
-    accountLogin: i.accountLogin,
-    receivedAt: i.receivedAt,
-  }))
-  return Response.json({ status: 'ok', installations })
+  const rows = await getInstallationsDb(tenantId)
+  const live: Array<{ installationId: number; accountLogin: string; receivedAt: string }> = []
+  for (const r of rows) {
+    const minted = await mintInstallationTokenFor(r.installationId)
+    if (!minted.ok) {
+      // Revoked installs mint nothing ('unknown installation') — hide the
+      // row so revocation is silent and immediate. Anything else (config,
+      // network) keeps the row: an outage is not an uninstall.
+      if (minted.reason === 'unknown installation') continue
+    }
+    live.push({ installationId: r.installationId, accountLogin: r.accountLogin, receivedAt: r.receivedAt })
+  }
+  return Response.json({ status: 'ok', installations: live })
 }

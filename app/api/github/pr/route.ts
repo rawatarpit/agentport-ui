@@ -1,6 +1,6 @@
 import { mintInstallationTokenFor, openInstallPr, readPrState } from '@/lib/github'
-import { buildInstallFile } from '@/lib/golive'
-import { getInstallations, getPullRequests, recordPullRequest } from '@/lib/store'
+import { buildInstallFileFrom } from '@/lib/golive'
+import { getDraftDb, getPullRequestsDb, installationKnownDb, recordPullRequestDb } from '@/lib/durable-store'
 import { resolveCallerTenant } from '@/lib/tenant'
 import { createClient } from '@/lib/supabase/server'
 
@@ -32,11 +32,10 @@ async function callerTenantId(req?: Request): Promise<{ tenantId: string } | { t
  * POST /api/github/pr — open (or update) the install pull request.
  *
  * Body: { installationId, repo }. The installation must be linked to the
- * caller's tenant (RAM binding until the durable installs table lands —
- * SDK repo owns the DB): another tenant's id is refused, not acted on.
- * Compiles the caller's drafts into the install file, mints a one-hour
- * installation token, and opens the PR on `agentport/install`. Re-running
- * updates the same branch and the same PR. Nothing here merges.
+ * caller's tenant (durable row): another tenant's id is refused, not acted
+ * on. Compiles the caller's durable drafts into the install file, mints a
+ * one-hour installation token, and opens the PR on `agentport/install`.
+ * Re-running updates the same branch and the same PR. Nothing here merges.
  */
 export async function POST(req: Request) {
   const t = await callerTenantId(req)
@@ -55,14 +54,23 @@ export async function POST(req: Request) {
   if (!Number.isInteger(installationId) || installationId <= 0) {
     return Response.json({ status: 'error', reason: 'No connected repo found — connect one first.' }, { status: 404 })
   }
-  if (!getInstallations(tenantId).some((i) => i.installationId === installationId)) {
+  if (!(await installationKnownDb(tenantId, installationId))) {
     return Response.json({ status: 'error', reason: 'No connected repo found — connect one first.' }, { status: 404 })
   }
   if (!repo || !repo.includes('/')) {
     return Response.json({ status: 'error', reason: 'Pick one of the repositories the installation can touch.' }, { status: 400 })
   }
 
-  const file = buildInstallFile(tenantId)
+  const [rules, setup, capabilities] = await Promise.all([
+    getDraftDb(tenantId, 'rules'),
+    getDraftDb(tenantId, 'setup'),
+    getDraftDb(tenantId, 'capabilities'),
+  ])
+  const file = buildInstallFileFrom({
+    rules: rules?.payload,
+    setup: setup?.payload,
+    capabilities: capabilities?.payload,
+  })
   if (!file.ok) {
     return Response.json({ status: 'error', reason: file.reason }, { status: 422 })
   }
@@ -84,7 +92,7 @@ export async function POST(req: Request) {
   if (!opened.ok) {
     return Response.json({ status: 'error', reason: opened.reason }, { status: 502 })
   }
-  recordPullRequest(tenantId, {
+  await recordPullRequestDb(tenantId, {
     repo,
     number: opened.prNumber,
     url: opened.prUrl,
@@ -108,7 +116,7 @@ export async function GET(req: Request) {
   }
   const tenantId = t.tenantId
   const repo = new URL(req.url).searchParams.get('repo') ?? ''
-  const record = getPullRequests(tenantId).find((r) => (repo ? r.repo === repo : true))
+  const record = (await getPullRequestsDb(tenantId)).find((r) => (repo ? r.repo === repo : true))
   if (!record) {
     return Response.json({ status: 'ok', pr: { state: 'none', reason: 'No pull request opened yet.' } })
   }

@@ -1,0 +1,199 @@
+import { createClient } from '@/lib/supabase/server'
+
+/**
+ * Durable console state (installs, drafts, PR records).
+ *
+ * Replaces the lib/store.ts RAM maps for exactly these three areas — the
+ * ones whose loss breaks onboarding ("installed but says connect") and PR
+ * opening ("nothing to publish yet" on a fresh process). Every read/write
+ * goes through the session client, so RLS scopes rows to the caller's own
+ * tenants; every function takes an explicit tenantId AND filters on it, so
+ * a permissive policy can never leak another tenant's row into this one.
+ *
+ * Custody: explicit column lists, ids/names/payloads/timestamps only — no
+ * amounts, no PII, no tokens, no key material. Saving a draft never
+ * deploys; opening a PR never merges.
+ */
+
+export type DbInstallation = {
+  installationId: number
+  accountLogin: string
+  installerLogin: string | null
+  receivedAt: string
+}
+
+export type DbDraft = {
+  section: 'setup' | 'capabilities' | 'rules'
+  payload: unknown
+  updatedAt: string
+}
+
+export type DbPullRequest = {
+  repo: string
+  number: number
+  url: string
+  branch: string
+  installationId: number
+  recordedAt: string
+}
+
+/** Installs linked to one tenant, oldest first. Empty = honest empty. */
+export async function getInstallationsDb(tenantId: string): Promise<DbInstallation[]> {
+  try {
+    const db = createClient()
+    const { data, error } = await db
+      .from('github_installations')
+      .select('installation_id, account_login, installer_login, created_at')
+      .eq('tenant_id', tenantId)
+      .order('created_at', { ascending: true })
+    if (error || !data) return []
+    return (data as Array<{ installation_id: number; account_login: string; installer_login: string | null; created_at: string }>)
+      .filter((r) => Number.isInteger(r.installation_id))
+      .map((r) => ({
+        installationId: r.installation_id,
+        accountLogin: r.account_login ?? '',
+        installerLogin: r.installer_login,
+        receivedAt: r.created_at,
+      }))
+  } catch {
+    return []
+  }
+}
+
+/** Link (or relabel) an installation the caller just verified via mint. */
+export async function recordInstallationDb(
+  tenantId: string,
+  inst: { installationId: number; accountLogin: string; installerLogin: string | null },
+): Promise<boolean> {
+  try {
+    if (!Number.isInteger(inst.installationId) || inst.installationId <= 0) return false
+    const db = createClient()
+    const { error } = await db.from('github_installations').upsert(
+      {
+        tenant_id: tenantId,
+        installation_id: inst.installationId,
+        account_login: inst.accountLogin ?? '',
+        installer_login: inst.installerLogin,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'tenant_id,installation_id' },
+    )
+    return !error
+  } catch {
+    return false
+  }
+}
+
+export async function installationKnownDb(tenantId: string, installationId: number): Promise<boolean> {
+  if (!Number.isInteger(installationId) || installationId <= 0) return false
+  const rows = await getInstallationsDb(tenantId)
+  return rows.some((r) => r.installationId === installationId)
+}
+
+/** One draft section, or null. Null renders as unanswered, never as zero. */
+export async function getDraftDb(tenantId: string, section: DbDraft['section']): Promise<DbDraft | null> {
+  try {
+    const db = createClient()
+    const { data, error } = await db
+      .from('dashboard_drafts')
+      .select('payload, updated_at')
+      .eq('tenant_id', tenantId)
+      .eq('section', section)
+      .maybeSingle()
+    if (error || !data) return null
+    const r = data as { payload: unknown; updated_at: string }
+    return { section, payload: r.payload, updatedAt: r.updated_at }
+  } catch {
+    return null
+  }
+}
+
+/** Sections with a saved draft — drives connect steps 4/5. */
+export async function listDraftSections(tenantId: string): Promise<Set<string>> {
+  try {
+    const db = createClient()
+    const { data, error } = await db.from('dashboard_drafts').select('section').eq('tenant_id', tenantId)
+    if (error || !data) return new Set()
+    return new Set((data as Array<{ section: string }>).map((r) => r.section))
+  } catch {
+    return new Set()
+  }
+}
+
+/** Validated upstream; this writes what it is given. Saving never deploys. */
+export async function putDraftDb(
+  tenantId: string,
+  section: DbDraft['section'],
+  payload: unknown,
+): Promise<{ updatedAt: string } | null> {
+  try {
+    const updatedAt = new Date().toISOString()
+    const db = createClient()
+    const { error } = await db.from('dashboard_drafts').upsert(
+      { tenant_id: tenantId, section, payload, updated_at: updatedAt },
+      { onConflict: 'tenant_id,section' },
+    )
+    if (error) return null
+    return { updatedAt }
+  } catch {
+    return null
+  }
+}
+
+/** Install PR hints for one tenant. Authority stays GitHub (read live). */
+export async function getPullRequestsDb(tenantId: string): Promise<DbPullRequest[]> {
+  try {
+    const db = createClient()
+    const { data, error } = await db
+      .from('install_pull_requests')
+      .select('repo, pr_number, pr_url, branch, installation_id, recorded_at')
+      .eq('tenant_id', tenantId)
+      .order('recorded_at', { ascending: false })
+    if (error || !data) return []
+    return (
+      data as Array<{
+        repo: string
+        pr_number: number
+        pr_url: string
+        branch: string
+        installation_id: number
+        recorded_at: string
+      }>
+    ).map((r) => ({
+      repo: r.repo,
+      number: r.pr_number,
+      url: r.pr_url,
+      branch: r.branch,
+      installationId: r.installation_id,
+      recordedAt: r.recorded_at,
+    }))
+  } catch {
+    return []
+  }
+}
+
+/** Re-running replaces the row (same branch, same PR), never appends. */
+export async function recordPullRequestDb(
+  tenantId: string,
+  pr: { repo: string; number: number; url: string; branch: string; installationId: number },
+): Promise<boolean> {
+  try {
+    if (!pr.repo || !pr.repo.includes('/') || !Number.isInteger(pr.number)) return false
+    const db = createClient()
+    const { error } = await db.from('install_pull_requests').upsert(
+      {
+        tenant_id: tenantId,
+        repo: pr.repo,
+        pr_number: pr.number,
+        pr_url: pr.url,
+        branch: pr.branch,
+        installation_id: pr.installationId,
+        recorded_at: new Date().toISOString(),
+      },
+      { onConflict: 'tenant_id,repo' },
+    )
+    return !error
+  } catch {
+    return false
+  }
+}

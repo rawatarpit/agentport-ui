@@ -1,5 +1,5 @@
 import { listInstallationRepos, mintInstallationTokenFor } from '@/lib/github'
-import { getInstallations } from '@/lib/store'
+import { installationKnownDb } from '@/lib/durable-store'
 import { resolveCallerTenant } from '@/lib/tenant'
 import { createClient } from '@/lib/supabase/server'
 
@@ -28,11 +28,10 @@ async function callerTenantId(): Promise<string | null> {
 
 /**
  * GET /api/github/repos?installation=<id> — repositories the installation
- * can touch. The installation must be linked to the caller's tenant (RAM
- * binding until the durable installs table lands — SDK repo owns the DB):
- * an id from another tenant's install is refused, not listed. GitHub then
- * mints-or-refuses per call, so revoked installs fail closed too. Names
- * and default branches only — the picker needs nothing else.
+ * can touch. The installation must be linked to the caller's tenant
+ * (durable github_installations row): an id from another tenant's install
+ * is refused, not listed. GitHub then mints-or-refuses per call, so revoked
+ * installs fail closed too. Names and default branches only.
  */
 export async function GET(req: Request) {
   const tenantId = await callerTenantId()
@@ -43,7 +42,7 @@ export async function GET(req: Request) {
   if (!Number.isInteger(installationId) || installationId <= 0) {
     return Response.json({ status: 'error', reason: 'No connected repo found — connect one first.' }, { status: 404 })
   }
-  const known = getInstallations(tenantId).some((i) => i.installationId === installationId)
+  const known = await installationKnownDb(tenantId, installationId)
   if (!known) {
     return Response.json({ status: 'error', reason: 'No connected repo found — connect one first.' }, { status: 404 })
   }
