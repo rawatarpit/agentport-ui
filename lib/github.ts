@@ -469,10 +469,56 @@ export async function readPrState(opts: {
  */
 export function normalizeAppPrivateKey(v: unknown): string {
   let k = typeof v === 'string' ? v.trim() : ''
-  if (k.length >= 2 && ((k.startsWith('"') && k.endsWith('"')) || (k.startsWith("'") && k.endsWith("'")))) {
+  // Quote wrapping from shell, JSON, chat, or docs — ASCII and Unicode.
+  // Quote wrapping from shell, JSON, chat, or docs — matched by code
+  // point so no literal Unicode lives in this source file.
+  const isWrapQuote = (ch: string): boolean => {
+    if (ch.length !== 1) return false
+    const c = ch.charCodeAt(0)
+    return (
+      c === 0x22 ||
+      c === 0x27 ||
+      c === 0x60 ||
+      (c >= 0x2018 && c <= 0x201f) ||
+      c === 0x00ab ||
+      c === 0x00bb ||
+      c === 0x2039 ||
+      c === 0x203a
+    )
+  }
+  while (k.length >= 2 && isWrapQuote(k.charAt(0)) && isWrapQuote(k.charAt(k.length - 1))) {
     k = k.slice(1, -1).trim()
   }
+  // Invisible junk from rich-text copies (chat, docs, web UI): zero-width
+  // spaces, BOM, non-breaking spaces. They survive trim and poison base64.
+  k = k.replace(/[\u200B-\u200D\uFEFF\u00A0\u2028\u2029]/g, '')
   return k.replace(/\\n/g, '\n').replace(/\r\n?/g, '\n').trim()
+}
+
+/**
+ * Rebuild a PEM from a copy that rich text damaged: smart quotes/dashes in
+ * the armor lines, stray punctuation or whitespace inside the body. The
+ * body alphabet is fixed ([A-Za-z0-9+/=]), so everything else in it is by
+ * definition damage, not key material — stripping it cannot alter a valid
+ * key, and whatever still fails to sign afterwards is truncated or wrong.
+ */
+export function extractPemArmor(v: unknown): string | null {
+  if (typeof v !== 'string') return null
+  const cleaned = normalizeAppPrivateKey(v).replace(/[\u2010-\u2015\u2212]/g, '-')
+  const lines = cleaned
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0)
+  const beginIx = lines.findIndex((l) => l.startsWith('-----BEGIN') && l.includes('PRIVATE KEY'))
+  const endIx = lines.findIndex((l) => l.startsWith('-----END') && l.includes('PRIVATE KEY'))
+  if (beginIx < 0 || endIx <= beginIx) return null
+  const body = lines
+    .slice(beginIx + 1, endIx)
+    .join('')
+    .replace(/[^A-Za-z0-9+/=]/g, '')
+  if (body.length < 100) return null
+  const wrapped = body.replace(/(.{64})/g, '$1\n').replace(/\n$/, '')
+  return `${lines[beginIx]}\n${wrapped}\n${lines[endIx]}\n`
 }
 
 /**
@@ -484,16 +530,20 @@ export function normalizeAppPrivateKey(v: unknown): string {
  */
 export function candidatePrivateKeys(v: unknown): string[] {
   const direct = normalizeAppPrivateKey(v)
-  if (direct.includes('BEGIN') && direct.includes('PRIVATE KEY')) return [direct]
-  if (typeof v === 'string' && /^[A-Za-z0-9+/=\s]+$/.test(v.trim()) && v.trim().length > 200) {
+  const out = [direct]
+  const armor = extractPemArmor(v)
+  if (armor && armor !== direct) out.push(armor)
+  if (!direct.includes('BEGIN') && typeof v === 'string' && /^[A-Za-z0-9+/=\s]+$/.test(v.trim()) && v.trim().length > 200) {
     try {
       const decoded = normalizeAppPrivateKey(Buffer.from(v.trim(), 'base64').toString('utf8'))
-      if (decoded !== direct) return [direct, decoded]
+      if (decoded !== direct && !out.includes(decoded)) out.push(decoded)
+      const decodedArmor = extractPemArmor(decoded)
+      if (decodedArmor && !out.includes(decodedArmor)) out.push(decodedArmor)
     } catch {
-      // Not decodable — direct stays the only candidate.
+      // Not decodable — direct (+armor) stay the candidates.
     }
   }
-  return [direct]
+  return out
 }
 
 /**

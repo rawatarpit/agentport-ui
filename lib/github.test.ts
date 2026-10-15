@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createHmac, generateKeyPairSync } from 'node:crypto'
 
-import { candidatePrivateKeys, createAppJwt, exchangeOAuthCode, listUserInstallations, normalizeAppPrivateKey, pickOurInstallation, verifyWebhookSignature } from './github.js'
+import { candidatePrivateKeys, createAppJwt, exchangeOAuthCode, extractPemArmor, listUserInstallations, normalizeAppPrivateKey, pickOurInstallation, verifyWebhookSignature } from './github.js'
 
 const assert = {
   deepEqual: (a: unknown, b: unknown) => expect(a).toEqual(b),
@@ -172,11 +172,53 @@ describe('private-key paste normalization', () => {
   it('tries a base64 envelope before giving up, never garbage', () => {
     const b64 = Buffer.from(privateKey, 'utf8').toString('base64')
     const cands = candidatePrivateKeys(b64)
-    assert.equal(cands.length, 2)
-    const jwt = createAppJwt('12345', cands[1] as string, 1791300000000)
-    assert.ok(jwt.split('.').length === 3, 'decoded candidate must mint')
+    assert.ok(cands.length >= 2, 'base64 input yields a decoded candidate')
+    const good = cands.find((c) => {
+      try {
+        createAppJwt('12345', c, 1791300000000)
+        return true
+      } catch {
+        return false
+      }
+    })
+    assert.ok(good, 'one candidate must mint')
     assert.deepEqual(candidatePrivateKeys('short'), ['short'])
-    assert.deepEqual(candidatePrivateKeys(privateKey), [normalizeAppPrivateKey(privateKey)])
+    // A clean PEM yields the direct form first; the 64-col rewrap may add an
+    // equivalent second candidate — every candidate must mint.
+    const clean = candidatePrivateKeys(privateKey)
+    assert.equal(clean[0], normalizeAppPrivateKey(privateKey))
+    for (const c of clean) {
+      const jwt = createAppJwt('12345', c, 1791300000000)
+      assert.ok(jwt.split('.').length === 3, 'every candidate must mint')
+    }
+  })
+
+  it('rebuilds armor damaged by rich-text copies', () => {
+    // Zero-width spaces + smart dashes + NBSP inside the body, smart quotes
+    // around the whole thing (built from code points, never literals): all
+    // damage, no key material.
+    const LQ = String.fromCharCode(0x201c)
+    const RQ = String.fromCharCode(0x201d)
+    const EM = String.fromCharCode(0x2014)
+    const ZWSP = String.fromCharCode(0x200b)
+    const damaged =
+      LQ +
+      privateKey
+        .replace(/-----/g, EM + EM + EM + EM + EM)
+        .split('\n')
+        .join('\n' + ZWSP)
+        .replace(/A/g, 'A ') +
+      RQ
+    const armor = extractPemArmor(damaged)
+    assert.ok(armor, 'armor must be recoverable')
+    const jwt = createAppJwt('12345', armor as string, 1791300000000)
+    assert.ok(jwt.split('.').length === 3, 'rebuilt armor must mint')
+  })
+
+  it('extractPemArmor refuses keyless input', () => {
+    assert.equal(extractPemArmor('hello world'), null)
+    assert.equal(extractPemArmor(null), null)
+    assert.equal(extractPemArmor('-----BEGIN X-----\nAB\n-----END X-----\n'), null)
   })
 })
 
