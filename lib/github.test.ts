@@ -149,6 +149,7 @@ describe('private-key paste normalization', () => {
       `'${privateKey}'`,
       privateKey.replace(/\n/g, '\r\n'),
       `  ${singleLine}  `,
+      `\\"${singleLine}\\"`,
     ]
     for (const v of variants) {
       const jwt = createAppJwt('12345', normalizeAppPrivateKey(v), 1791300000000)

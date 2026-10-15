@@ -471,7 +471,9 @@ export function normalizeAppPrivateKey(v: unknown): string {
   let k = typeof v === 'string' ? v.trim() : ''
   // Quote wrapping from shell, JSON, chat, or docs — ASCII and Unicode.
   // Quote wrapping from shell, JSON, chat, or docs — matched by code
-  // point so no literal Unicode lives in this source file.
+  // point so no literal Unicode lives in this source file. Backslash joins
+  // the set: JSON-escaped pastes (\"...\") are wrapping, never key bytes —
+  // a valid PEM never starts or ends with one.
   const isWrapQuote = (ch: string): boolean => {
     if (ch.length !== 1) return false
     const c = ch.charCodeAt(0)
@@ -479,6 +481,7 @@ export function normalizeAppPrivateKey(v: unknown): string {
       c === 0x22 ||
       c === 0x27 ||
       c === 0x60 ||
+      c === 0x5c ||
       (c >= 0x2018 && c <= 0x201f) ||
       c === 0x00ab ||
       c === 0x00bb ||
