@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createHmac, generateKeyPairSync } from 'node:crypto'
 
-import { createAppJwt, exchangeOAuthCode, listUserInstallations, pickOurInstallation, verifyWebhookSignature } from './github.js'
+import { createAppJwt, exchangeOAuthCode, listUserInstallations, normalizeAppPrivateKey, pickOurInstallation, verifyWebhookSignature } from './github.js'
 
 const assert = {
   deepEqual: (a: unknown, b: unknown) => expect(a).toEqual(b),
@@ -134,6 +134,39 @@ describe('repo listing + PR shapes (offline guards)', () => {
       const r = await readRepoTree({ installationToken: 'x', repoFullName: 'o/r', ref })
       assert.equal(r.ok, false)
     }
+  })
+})
+
+describe('private-key paste normalization', () => {
+  const { privateKey } = rs256Keypair()
+  const singleLine = privateKey.replace(/\n/g, '\\n')
+
+  it('round-trips every paste shape back to a signing key', () => {
+    const variants = [
+      privateKey,
+      singleLine,
+      `"${singleLine}"`,
+      `'${privateKey}'`,
+      privateKey.replace(/\n/g, '\r\n'),
+      `  ${singleLine}  `,
+    ]
+    for (const v of variants) {
+      const jwt = createAppJwt('12345', normalizeAppPrivateKey(v), 1791300000000)
+      assert.ok(jwt.split('.').length === 3, 'variant must mint')
+    }
+  })
+
+  it('refuses non-strings and truncated keys without throwing', () => {
+    assert.equal(normalizeAppPrivateKey(null), '')
+    assert.equal(normalizeAppPrivateKey(42), '')
+    const cut = normalizeAppPrivateKey(privateKey.slice(0, 100))
+    let threw = false
+    try {
+      createAppJwt('12345', cut, 1791300000000)
+    } catch {
+      threw = true
+    }
+    assert.ok(threw, 'a truncated key must still fail closed at sign time')
   })
 })
 

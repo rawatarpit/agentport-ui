@@ -460,6 +460,22 @@ export async function readPrState(opts: {
 }
 
 /**
+ * Normalize a pasted PEM the way dashboards mangle it: surrounding quotes
+ * from shell/JSON copies, literal `\n` from single-line env fields, and
+ * `\r\n` from Windows clipboards. Each variant fails createSign with the
+ * same opaque decoder error, so they are all normalized here — whatever
+ * remains unparseable after this is a truncated or wrong key, not a paste
+ * artifact, and is refused as such.
+ */
+export function normalizeAppPrivateKey(v: unknown): string {
+  let k = typeof v === 'string' ? v.trim() : ''
+  if (k.length >= 2 && ((k.startsWith('"') && k.endsWith('"')) || (k.startsWith("'") && k.endsWith("'")))) {
+    k = k.slice(1, -1).trim()
+  }
+  return k.replace(/\\n/g, '\n').replace(/\r\n?/g, '\n').trim()
+}
+
+/**
  * Mint an installation token from server environment for a known
  * installation. Refuses when the App is unconfigured or the installation
  * id is not a number — both are owner-setup problems with plain reasons,
@@ -470,7 +486,7 @@ export async function mintInstallationTokenFor(installationId: number): Promise<
     return { ok: false, reason: 'unknown installation' }
   }
   const appId = (process.env.GITHUB_APP_ID ?? '').trim()
-  const privateKey = (process.env.GITHUB_APP_PRIVATE_KEY ?? '').replace(/\\n/g, '\n').trim()
+  const privateKey = normalizeAppPrivateKey(process.env.GITHUB_APP_PRIVATE_KEY)
   if (!appId || !privateKey) {
     return { ok: false, reason: 'GitHub App is not configured — install it first' }
   }
