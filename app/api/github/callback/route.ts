@@ -66,9 +66,19 @@ export async function GET(req: Request) {
   }
 
   // Verify the installation exists (and is not revoked) before recording:
-  // a crafted URL with an arbitrary id records nothing.
+  // a crafted URL with an arbitrary id records nothing. The failure reason
+  // is surfaced (these strings name no secret): key problems vs unknown
+  // installations need opposite fixes, and one shared message hid that.
   const verified = await mintInstallationTokenFor(Number(installationId))
   if (!verified.ok) {
+    if (verified.reason === 'unknown installation') return fail('installation-unknown')
+    if (
+      verified.reason === 'GitHub App key does not parse' ||
+      verified.reason === 'app authentication refused' ||
+      verified.reason === 'GitHub App is not configured — install it first'
+    ) {
+      return fail('installation-key')
+    }
     return fail('installation-unverified')
   }
 

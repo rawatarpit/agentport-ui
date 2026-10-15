@@ -19,6 +19,10 @@ function githubReasonText(reason: string): string {
     return 'You were not signed in here when GitHub returned, so nothing was linked. Sign in first, then install again.'
   if (reason === 'installation-unverified')
     return 'GitHub named an installation we could not verify — it may have been removed, or our App key is stale. Nothing was linked.'
+  if (reason === 'installation-unknown')
+    return 'That installation does not exist or was removed — nothing was linked. Install the App on the repo, then return here.'
+  if (reason === 'installation-key')
+    return 'Our GitHub App credential was refused — nothing was linked. This is our side: report it and we will rotate the App key.'
   if (reason === 'oauth-unconfigured') return 'Our side is not ready to receive the sign-in yet.'
   return `Something interrupted the install (${reason}). Nothing was linked.`
 }
