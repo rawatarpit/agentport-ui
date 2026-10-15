@@ -73,13 +73,9 @@ export async function GET(req: Request) {
   const verified = await mintInstallationTokenFor(checked.installationId)
   if (!verified.ok) {
     if (verified.reason === 'unknown installation') return fail('installation-unknown')
-    if (
-      verified.reason === 'GitHub App key does not parse' ||
-      verified.reason === 'app authentication refused' ||
-      verified.reason === 'GitHub App is not configured — install it first'
-    ) {
-      return fail('installation-key')
-    }
+    if (verified.reason === 'GitHub App is not configured — install it first') return fail('installation-key-missing')
+    if (verified.reason === 'GitHub App key does not parse') return fail('installation-key-parse')
+    if (verified.reason === 'app authentication refused') return fail('installation-key-auth')
     return fail('installation-unverified')
   }
 
