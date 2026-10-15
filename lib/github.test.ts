@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createHmac, generateKeyPairSync } from 'node:crypto'
 
-import { createAppJwt, exchangeOAuthCode, listUserInstallations, normalizeAppPrivateKey, pickOurInstallation, verifyWebhookSignature } from './github.js'
+import { candidatePrivateKeys, createAppJwt, exchangeOAuthCode, listUserInstallations, normalizeAppPrivateKey, pickOurInstallation, verifyWebhookSignature } from './github.js'
 
 const assert = {
   deepEqual: (a: unknown, b: unknown) => expect(a).toEqual(b),
@@ -167,6 +167,16 @@ describe('private-key paste normalization', () => {
       threw = true
     }
     assert.ok(threw, 'a truncated key must still fail closed at sign time')
+  })
+
+  it('tries a base64 envelope before giving up, never garbage', () => {
+    const b64 = Buffer.from(privateKey, 'utf8').toString('base64')
+    const cands = candidatePrivateKeys(b64)
+    assert.equal(cands.length, 2)
+    const jwt = createAppJwt('12345', cands[1] as string, 1791300000000)
+    assert.ok(jwt.split('.').length === 3, 'decoded candidate must mint')
+    assert.deepEqual(candidatePrivateKeys('short'), ['short'])
+    assert.deepEqual(candidatePrivateKeys(privateKey), [normalizeAppPrivateKey(privateKey)])
   })
 })
 

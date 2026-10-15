@@ -476,6 +476,27 @@ export function normalizeAppPrivateKey(v: unknown): string {
 }
 
 /**
+ * Paste candidates, most-likely first. Some dashboards store the key
+ * base64-encoded (single-line-safe); if the pasted value is not already a
+ * PEM, one decode attempt runs it through the same normalizer. Each
+ * candidate is tried at sign time and the first that signs wins — a value
+ * none of them rescue is truncated or wrong, not merely encoded.
+ */
+export function candidatePrivateKeys(v: unknown): string[] {
+  const direct = normalizeAppPrivateKey(v)
+  if (direct.includes('BEGIN') && direct.includes('PRIVATE KEY')) return [direct]
+  if (typeof v === 'string' && /^[A-Za-z0-9+/=\s]+$/.test(v.trim()) && v.trim().length > 200) {
+    try {
+      const decoded = normalizeAppPrivateKey(Buffer.from(v.trim(), 'base64').toString('utf8'))
+      if (decoded !== direct) return [direct, decoded]
+    } catch {
+      // Not decodable — direct stays the only candidate.
+    }
+  }
+  return [direct]
+}
+
+/**
  * Mint an installation token from server environment for a known
  * installation. Refuses when the App is unconfigured or the installation
  * id is not a number — both are owner-setup problems with plain reasons,
@@ -490,10 +511,16 @@ export async function mintInstallationTokenFor(installationId: number): Promise<
   if (!appId || !privateKey) {
     return { ok: false, reason: 'GitHub App is not configured — install it first' }
   }
-  let appJwt: string
-  try {
-    appJwt = createAppJwt(appId, privateKey)
-  } catch {
+  let appJwt: string | null = null
+  for (const candidate of candidatePrivateKeys(process.env.GITHUB_APP_PRIVATE_KEY)) {
+    try {
+      appJwt = createAppJwt(appId, candidate)
+      break
+    } catch {
+      // Next candidate; none signing means truncated or wrong key.
+    }
+  }
+  if (!appJwt) {
     return { ok: false, reason: 'GitHub App key does not parse' }
   }
   return createInstallationToken({ appJwt, installationId })
