@@ -62,13 +62,11 @@ export async function GET(req: Request) {
   // unknown ids vs refused App credentials need opposite fixes.
   const mintFailure = (reason: string) => {
     if (reason === 'unknown installation') return fail('installation-unknown')
-    if (
-      reason === 'GitHub App key does not parse' ||
-      reason === 'app authentication refused' ||
-      reason === 'GitHub App is not configured — install it first'
-    ) {
-      return fail('installation-key')
-    }
+    // Key failures split three ways: nothing to read, unreadable paste, or
+    // GitHub rejecting the pair. Each names a different fix on Netlify.
+    if (reason === 'GitHub App is not configured — install it first') return fail('installation-key-missing')
+    if (reason === 'GitHub App key does not parse') return fail('installation-key-parse')
+    if (reason === 'app authentication refused') return fail('installation-key-auth')
     return fail('installation-unverified')
   }
 
