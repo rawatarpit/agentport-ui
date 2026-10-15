@@ -15,6 +15,10 @@ type Step = { n: string; title: string; body: string; state: 'missing' | 'done';
 function githubReasonText(reason: string): string {
   if (reason.startsWith('oauth-')) return `The sign-in step failed (${reason.slice('oauth-'.length)}). Nothing was linked.`
   if (reason === 'missing-installation') return 'GitHub did not report an installation. It may have been cancelled halfway.'
+  if (reason === 'sign-in-required')
+    return 'You were not signed in here when GitHub returned, so nothing was linked. Sign in first, then install again.'
+  if (reason === 'installation-unverified')
+    return 'GitHub named an installation we could not verify — it may have been removed, or our App key is stale. Nothing was linked.'
   if (reason === 'oauth-unconfigured') return 'Our side is not ready to receive the sign-in yet.'
   return `Something interrupted the install (${reason}). Nothing was linked.`
 }

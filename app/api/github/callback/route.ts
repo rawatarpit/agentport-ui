@@ -58,14 +58,18 @@ export async function GET(req: Request) {
     tenantId = null
   }
   if (!tenantId) {
-    return fail('missing-installation')
+    // Signed-out arrival: recording under a shared key once merged every
+    // merchant's installs into one bucket, so this records nothing. The
+    // reason names the fix (sign in, install again) instead of blaming
+    // GitHub for an install it did report.
+    return fail('sign-in-required')
   }
 
   // Verify the installation exists (and is not revoked) before recording:
   // a crafted URL with an arbitrary id records nothing.
   const verified = await mintInstallationTokenFor(Number(installationId))
   if (!verified.ok) {
-    return fail('missing-installation')
+    return fail('installation-unverified')
   }
 
   if (!code) {
