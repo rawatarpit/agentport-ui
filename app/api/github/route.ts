@@ -27,6 +27,9 @@ export async function GET() {
     status: 'ok',
     configured: missing.length === 0,
     missing,
+    // Deploy marker: bumped whenever the GitHub install path changes, so a
+    // remote probe can tell which code is actually serving. Public string.
+    rev: 'install-discovery-3',
     flow: [
       'Connect a repo (selected repositories, minimum scopes)',
       'We open branch agentport/install with the snippet, CLI and runtime wiring',
