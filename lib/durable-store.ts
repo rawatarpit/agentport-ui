@@ -140,8 +140,7 @@ export async function putDraftDb(
   }
 }
 
-/** Install PR hints for one tenant. Authority stays GitHub (read live). */
-export async function getPullRequestsDb(tenantId: string): Promise<DbPullRequest[]> {
+/** Install PR hints for one tenant. Authority stays GitHub (read live). */export async function getPullRequestsDb(tenantId: string): Promise<DbPullRequest[]> {
   try {
     const db = createClient()
     const { data, error } = await db
@@ -193,6 +192,78 @@ export async function recordPullRequestDb(
       { onConflict: 'tenant_id,repo' },
     )
     return !error
+  } catch {
+    return false
+  }
+}
+
+export type ConsumedInstallState = {
+  tenantId: string
+  initiatedBy: string
+  purpose: 'install' | 'oauth'
+}
+
+/** Issue a one-time install state. The raw state is never stored. */
+export async function insertInstallState(args: {
+  stateHash: string
+  tenantId: string
+  initiatedBy: string
+  purpose: 'install' | 'oauth'
+  expiresAt: string
+}): Promise<boolean> {
+  try {
+    const db = createClient()
+    const { error } = await db.from('github_install_states').insert({
+      state_hash: args.stateHash,
+      tenant_id: args.tenantId,
+      initiated_by: args.initiatedBy,
+      purpose: args.purpose,
+      expires_at: args.expiresAt,
+    })
+    return !error
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Atomically consume a state: exactly one UPDATE wins (consumed_at IS NULL
+ * AND expires_at > now()), returning the bound tenant + initiator. Zero
+ * rows back means missing, expired, or already replayed — all refuse the
+ * same way, with no oracle distinguishing them.
+ */
+export async function consumeInstallState(stateHash: string): Promise<ConsumedInstallState | null> {
+  try {
+    if (!/^[0-9a-f]{64}$/.test(stateHash)) return null
+    const db = createClient()
+    const { data, error } = await db
+      .from('github_install_states')
+      .update({ consumed_at: new Date().toISOString() })
+      .eq('state_hash', stateHash)
+      .is('consumed_at', null)
+      .gt('expires_at', new Date().toISOString())
+      .select('tenant_id, initiated_by, purpose')
+    if (error || !data || data.length !== 1) return null
+    const row = data[0] as { tenant_id: string; initiated_by: string; purpose: string }
+    if (row.purpose !== 'install' && row.purpose !== 'oauth') return null
+    return { tenantId: row.tenant_id, initiatedBy: row.initiated_by, purpose: row.purpose }
+  } catch {
+    return null
+  }
+}
+
+/** Disconnect: delete the tenant's own install row. RLS scopes the blast. */
+export async function deleteInstallationDb(tenantId: string, installationId: number): Promise<boolean> {
+  try {
+    if (!Number.isInteger(installationId) || installationId <= 0) return false
+    const db = createClient()
+    const { error, count } = await db
+      .from('github_installations')
+      .delete({ count: 'exact' })
+      .eq('tenant_id', tenantId)
+      .eq('installation_id', installationId)
+    if (error) return false
+    return (count ?? 0) > 0
   } catch {
     return false
   }

@@ -31,6 +31,10 @@ function githubReasonText(reason: string): string {
     return 'GitHub rejected our App credential — the key does not match the App ID, or the key was rotated away. Nothing was linked. This is our side: report it.'
   if (reason === 'install-incomplete')
     return 'GitHub authorized you but named no installation of this App yet — finish the install step on GitHub with the same account, then return here. Nothing was linked.'
+  if (reason === 'install-state-invalid')
+    return 'That install link expired or was already used — start again from Connect a GitHub repo. Nothing was linked.'
+  if (reason === 'installation-attached')
+    return 'That installation is already linked to a different business — nothing was changed. Disconnect it there first if it should move.'
   if (reason === 'oauth-unconfigured') return 'Our side is not ready to receive the sign-in yet.'
   return `Something interrupted the install (${reason}). Nothing was linked.`
 }

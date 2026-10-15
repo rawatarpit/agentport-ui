@@ -48,3 +48,32 @@ export async function resolveCallerTenant(deps: {
   }
   return { tenantId }
 }
+
+export type CallerContext =
+  | { userId: string; tenantId: string; role: string }
+  | { userId: string | null; tenantId: null; role: null }
+
+/**
+ * Session user → tenant + role in one membership read. Integration writes
+ * (install, setup-consume, disconnect) require owner/admin; viewers read.
+ * Role comes from the membership row the tenant pick already chose — no
+ * second query, no second opinion about who the caller acts as.
+ */
+export async function resolveCallerContext(deps: {
+  getUserId: () => Promise<string | null>
+  listMemberships: (userId: string) => Promise<MembershipRow[]>
+}): Promise<CallerContext> {
+  const userId = await deps.getUserId()
+  if (!userId) return { userId: null, tenantId: null, role: null }
+  const rows = await deps.listMemberships(userId)
+  const tenantId = pickTenant(rows)
+  if (!tenantId) return { userId, tenantId: null, role: null }
+  const role = rows.find((r) => r.tenant_id === tenantId)?.role ?? null
+  if (!role) return { userId, tenantId: null, role: null }
+  return { userId, tenantId, role }
+}
+
+/** Integration management is owner/admin. Viewers inspect; they never link. */
+export function canManageIntegrations(role: string | null): boolean {
+  return role === 'owner' || role === 'admin'
+}
