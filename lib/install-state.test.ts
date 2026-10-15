@@ -8,8 +8,7 @@ import {
   installUrlFor,
   newInstallState,
   validateSetupParams,
-} from '@/lib/install-state'
-import { canManageIntegrations, resolveCallerContext } from '@/lib/tenant'
+} from '@/lib/install-state'import { canManageIntegrations, resolveCallerContext } from '@/lib/tenant'
 
 describe('resolveCallerContext', () => {
   const rows = [
@@ -41,6 +40,13 @@ describe('newInstallState', () => {
     expect(a.stateHash).toMatch(/^[0-9a-f]{64}$/)
     expect(Date.parse(a.expiresAt) - 1_000_000).toBe(10 * 60_000)
     expect(a.stateHash).not.toContain(a.state)
+  })
+})
+
+describe('installUrlFor', () => {
+  it('points at the App install page carrying the exact state', () => {
+    const url = installUrlFor('abc123')
+    expect(url).toBe('https://github.com/apps/agentport-installer/installations/new?state=abc123')
   })
 })
 

@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react'
 
 type Installation = { installationId: number; accountLogin: string; receivedAt: string }
 type Repo = { id: number; fullName: string; defaultBranch: string; private: boolean }
-const INSTALL_URL = 'https://github.com/apps/agentport-installer/installations/new'
 
 /**
  * GitHub onboarding, end to end: install → pick repo → open PR → watch it.
@@ -46,6 +45,28 @@ export function GithubPanel() {
       if (body.repos.length === 1) setPicked([body.repos[0].fullName])
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Could not list repositories.')
+    }
+  }, [])
+
+  // Start installation through the server so the return carries a one-time
+  // state: POST issues it (owner/admin only), GitHub sends it back with the
+  // install, the Setup route consumes it exactly once. A bare GitHub link
+  // returns stateless and the server refuses to link it — that refusal is
+  // the control, so this button is the only way to start.
+  const startInstall = useCallback(async () => {
+    setBusy(true)
+    setErr(null)
+    try {
+      const res = await fetch('/api/github/install', { method: 'POST' })
+      const body = (await res.json()) as { status: string; installUrl?: string; reason?: string }
+      if (body.status !== 'ok' || !body.installUrl) {
+        throw new Error(body.reason ?? 'Could not start installation.')
+      }
+      window.location.assign(body.installUrl)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Could not start installation.')
+    } finally {
+      setBusy(false)
     }
   }, [])
 
@@ -125,11 +146,11 @@ export function GithubPanel() {
             never see your password. Until then there is nothing to show, and
             this screen will not pretend otherwise.
           </p>
-          <a href={INSTALL_URL} target="_blank" rel="noreferrer" className="btn btn-primary">
-            Connect a GitHub repo
-          </a>
+          <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void startInstall()}>
+            {busy ? 'Starting…' : 'Connect a GitHub repo'}
+          </button>
           <p className="font-mono text-[11px] text-bone-faint">
-            after installing you land back here — press check again
+            installs through GitHub with a one-time link to your business — after installing you land back here
           </p>
           <button type="button" className="btn" onClick={() => void loadInstallations()}>
             Check again

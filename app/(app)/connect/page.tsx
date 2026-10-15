@@ -35,6 +35,8 @@ function githubReasonText(reason: string): string {
     return 'That install link expired or was already used — start again from Connect a GitHub repo. Nothing was linked.'
   if (reason === 'installation-attached')
     return 'That installation is already linked to a different business — nothing was changed. Disconnect it there first if it should move.'
+  if (reason === 'install-start')
+    return 'Could not start installation — confirm you are signed in as owner or admin, then retry. Nothing was linked.'
   if (reason === 'oauth-unconfigured') return 'Our side is not ready to receive the sign-in yet.'
   return `Something interrupted the install (${reason}). Nothing was linked.`
 }
@@ -119,14 +121,24 @@ export default function ConnectPage() {
           <p className="font-mono text-[11px] uppercase tracking-widest text-amber">GitHub needs attention</p>
           <p className="mt-2 text-[13px] leading-relaxed text-bone-dim">
             {githubReasonText(githubNotice)}{' '}
-            <a
-              href="https://github.com/apps/agentport-installer/installations/new"
-              target="_blank"
-              rel="noreferrer"
+            <button
+              type="button"
               className="text-bone underline underline-offset-4"
+              onClick={() => {
+                void (async () => {
+                  try {
+                    const res = await fetch('/api/github/install', { method: 'POST' })
+                    const body = (await res.json()) as { status: string; installUrl?: string }
+                    if (body.status !== 'ok' || !body.installUrl) throw new Error()
+                    window.location.assign(body.installUrl)
+                  } catch {
+                    setGithubNotice('install-start')
+                  }
+                })()
+              }}
             >
               Try installing again
-            </a>
+            </button>
             .
           </p>
         </div>

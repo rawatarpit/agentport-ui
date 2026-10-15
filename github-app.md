@@ -18,7 +18,7 @@
 | Client ID | `Iv23lieMFkAWHSHsWM3w` |
 | Homepage URL | `https://agentport.relayforge.in` |
 | Callback URL | `https://agentport.relayforge.in/api/github/callback` |
-| Setup URL | _(blank — with OAuth-during-install on, GitHub lands on the callback URL)_ |
+| Setup URL | `https://agentport.relayforge.in/api/github/setup` — one-time install state (see `lib/install-state.ts`); arrivals without a live state are refused, never linked |
 | Webhook URL | `https://agentport.relayforge.in/api/github/webhook` |
 | Webhook | Active, SSL verification on |
 | Visibility | Any account |
