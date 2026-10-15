@@ -162,7 +162,6 @@ const API_HEADERS = { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Versi
 export type InstallationRepo = { id: number; fullName: string; defaultBranch: string; private: boolean }
 
 type GhResult<T> = { ok: true; value: T } | { ok: false; reason: string }
-
 async function gh<T>(path: string, token: string, init?: RequestInit): Promise<GhResult<T>> {
   let res: Response
   try {
@@ -185,6 +184,64 @@ async function gh<T>(path: string, token: string, init?: RequestInit): Promise<G
   } catch {
     return { ok: false, reason: 'github response unreadable' }
   }
+}
+
+export type UserInstallation = {
+  id: number
+  accountLogin: string
+  installedAt: string
+  appId: string
+}
+
+/**
+ * Installations the authorizing GitHub user can access, listed with their
+ * own user token. Used ONLY when the install callback arrives with a code
+ * but no installation_id: GitHub sends the id to the Setup URL, which this
+ * App cannot set alongside its OAuth redirect URI — so the install is
+ * discovered from the user's own authorizations instead of trusted from
+ * the URL. The token is the caller's, used once, never stored.
+ */
+export async function listUserInstallations(userToken: string): Promise<GhResult<UserInstallation[]>> {
+  const r = await gh<{
+    installations?: Array<{
+      id?: unknown
+      account?: { login?: unknown }
+      app_id?: unknown
+      created_at?: unknown
+      updated_at?: unknown
+    }>
+  }>('/user/installations', userToken)
+  if (!r.ok) return r
+  if (!Array.isArray(r.value.installations)) return { ok: false, reason: 'github response unreadable' }
+  const out: UserInstallation[] = []
+  for (const item of r.value.installations ?? []) {
+    if (!item || typeof item.id !== 'number' || !Number.isInteger(item.id) || item.id <= 0) continue
+    const updatedAt = typeof item.updated_at === 'string' ? item.updated_at : ''
+    const createdAt = typeof item.created_at === 'string' ? item.created_at : ''
+    out.push({
+      id: item.id,
+      accountLogin: typeof item.account?.login === 'string' ? item.account.login : '',
+      installedAt: updatedAt || createdAt,
+      appId: item.app_id === undefined || item.app_id === null ? '' : String(item.app_id),
+    })
+  }
+  return { ok: true, value: out }
+}
+
+/**
+ * Pure pick: the caller's latest installation of OUR app. Filters by App
+ * ID first — /user/installations spans every app the user can access, and
+ * linking another app's install would mint-fail later at best and
+ * misattribute at worst. Most-recently-touched wins, so a reinstall
+ * supersedes a stale row instead of resurrecting it.
+ */
+export function pickOurInstallation(installations: UserInstallation[], appId: string): UserInstallation | null {
+  const want = (appId ?? '').trim()
+  if (!want) return null
+  const ours = installations.filter((i) => i.appId === want && Number.isInteger(i.id) && i.id > 0)
+  if (ours.length === 0) return null
+  ours.sort((a, b) => (a.installedAt < b.installedAt ? 1 : a.installedAt > b.installedAt ? -1 : 0))
+  return ours[0] ?? null
 }
 
 /**

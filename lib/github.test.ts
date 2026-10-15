@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createHmac, generateKeyPairSync } from 'node:crypto'
 
-import { createAppJwt, exchangeOAuthCode, verifyWebhookSignature } from './github.js'
+import { createAppJwt, exchangeOAuthCode, listUserInstallations, pickOurInstallation, verifyWebhookSignature } from './github.js'
 
 const assert = {
   deepEqual: (a: unknown, b: unknown) => expect(a).toEqual(b),
@@ -134,5 +134,33 @@ describe('repo listing + PR shapes (offline guards)', () => {
       const r = await readRepoTree({ installationToken: 'x', repoFullName: 'o/r', ref })
       assert.equal(r.ok, false)
     }
+  })
+})
+
+describe('install discovery (code-only callback)', () => {
+  const ours = (id: number, at: string) => ({ id, accountLogin: 'acme', installedAt: at, appId: '5225757' })
+
+  it('picks the latest install of our App only', () => {
+    const rows = [
+      ours(1, '2026-10-14T10:00:00.000Z'),
+      { ...ours(2, '2026-10-15T10:00:00.000Z') },
+      { id: 9, accountLogin: 'other', installedAt: '2026-10-16T10:00:00.000Z', appId: '999' },
+    ]
+    assert.deepEqual(pickOurInstallation(rows, '5225757'), ours(2, '2026-10-15T10:00:00.000Z'))
+  })
+
+  it('refuses foreign apps, non-positive ids, blank App ID, and empties', () => {
+    assert.equal(pickOurInstallation([{ ...ours(1, ''), appId: '999' }], '5225757'), null)
+    assert.equal(pickOurInstallation([{ ...ours(0, ''), appId: '5225757' }], '5225757'), null)
+    assert.equal(pickOurInstallation([ours(1, '')], ''), null)
+    assert.equal(pickOurInstallation([], '5225757'), null)
+  })
+
+  it('listUserInstallations never leaks the user token into its reason', async () => {
+    const token = 'USERTOKEN123'
+    const r = await listUserInstallations(token)
+    const text = JSON.stringify(r)
+    assert.ok(!text.includes(token), 'the user token reached the reason')
+    if (r.ok) assert.ok(Array.isArray(r.value), 'ok carries a list')
   })
 })

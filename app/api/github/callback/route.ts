@@ -1,4 +1,4 @@
-import { exchangeOAuthCode, mintInstallationTokenFor } from '@/lib/github'
+import { exchangeOAuthCode, listUserInstallations, mintInstallationTokenFor, pickOurInstallation } from '@/lib/github'
 import { recordInstallationDb } from '@/lib/durable-store'
 import { resolveCallerTenant } from '@/lib/tenant'
 import { createClient } from '@/lib/supabase/server'
@@ -10,12 +10,18 @@ const DASHBOARD = 'https://agentport.relayforge.in'
 /**
  * GET /api/github/callback — post-install landing for the GitHub App flow.
  *
- * GitHub redirects here with `?code=&installation_id=&setup_action=` after
- * the merchant installs (and authorises, if that box was checked). The
- * installation is verified by minting (GitHub refuses unknown/revoked ids)
- * and linked to the caller's session tenant — never a constant, never a
- * URL alone. The OAuth code path additionally labels the installer login
- * via one `/user` call, then the user token is dropped, never stored.
+ * Two arrivals, one link. With a Setup URL, GitHub delivers
+ * `?installation_id=&setup_action=` (plus `code` when user authorization
+ * was requested). This App cannot set a Setup URL alongside its OAuth
+ * redirect URI, so the usual arrival is code-only: the installation is
+ * then DISCOVERED from the user's own authorizations
+ * (`GET /user/installations`, filtered to our App ID, latest wins) rather
+ * than trusted from the URL.
+ *
+ * Either way the id is verified by minting (GitHub refuses unknown/revoked
+ * ids) and linked to the caller's session tenant — never a constant. The
+ * user token is used for discovery + one `/user` label call, then dropped,
+ * never stored.
  *
  * Failures redirect, never render: this URL is opened by GitHub in the
  * merchant's browser, and a JSON error there is a dead end. Every failure
@@ -24,17 +30,8 @@ const DASHBOARD = 'https://agentport.relayforge.in'
 export async function GET(req: Request) {
   const params = new URL(req.url).searchParams
   const code = params.get('code') ?? ''
-  const installationId = params.get('installation_id') ?? ''
+  const installationIdParam = params.get('installation_id') ?? ''
   const fail = (reason: string) => Response.redirect(`${DASHBOARD}/connect?github=${encodeURIComponent(reason)}`, 302)
-
-  if (!/^[0-9]+$/.test(installationId)) {
-    return fail('missing-installation')
-  }
-  const install = {
-    installationId: Number(installationId),
-    accountLogin: '',
-    installerLogin: null as string | null,
-  }
 
   // Session tenant: installs belong to a signed-in business. Logged-out
   // arrivals record nothing — the sign-in screen explains the next step.
@@ -58,37 +55,49 @@ export async function GET(req: Request) {
     tenantId = null
   }
   if (!tenantId) {
-    // Signed-out arrival: recording under a shared key once merged every
-    // merchant's installs into one bucket, so this records nothing. The
-    // reason names the fix (sign in, install again) instead of blaming
-    // GitHub for an install it did report.
     return fail('sign-in-required')
   }
 
-  // Verify the installation exists (and is not revoked) before recording:
-  // a crafted URL with an arbitrary id records nothing. The failure reason
-  // is surfaced (these strings name no secret): key problems vs unknown
-  // installations need opposite fixes, and one shared message hid that.
-  const verified = await mintInstallationTokenFor(Number(installationId))
-  if (!verified.ok) {
-    if (verified.reason === 'unknown installation') return fail('installation-unknown')
+  // Failure classes, shared by both arrivals (mint reasons name no secret):
+  // unknown ids vs refused App credentials need opposite fixes.
+  const mintFailure = (reason: string) => {
+    if (reason === 'unknown installation') return fail('installation-unknown')
     if (
-      verified.reason === 'GitHub App key does not parse' ||
-      verified.reason === 'app authentication refused' ||
-      verified.reason === 'GitHub App is not configured — install it first'
+      reason === 'GitHub App key does not parse' ||
+      reason === 'app authentication refused' ||
+      reason === 'GitHub App is not configured — install it first'
     ) {
       return fail('installation-key')
     }
     return fail('installation-unverified')
   }
 
-  if (!code) {
-    // No code: installed without user-authorisation. Verified above —
-    // link by installation id and finish.
-    await recordInstallationDb(tenantId, install)
-    return Response.redirect(`${DASHBOARD}/connect?github=installed&installation_id=${installationId}`, 302)
+  const install = {
+    installationId: 0,
+    accountLogin: '',
+    installerLogin: null as string | null,
   }
 
+  if (/^[0-9]+$/.test(installationIdParam)) {
+    // Setup-URL arrival: the id is named, still verified before recording —
+    // a crafted URL with an arbitrary id records nothing.
+    install.installationId = Number(installationIdParam)
+    const verified = await mintInstallationTokenFor(install.installationId)
+    if (!verified.ok) return mintFailure(verified.reason)
+    if (!code) {
+      await recordInstallationDb(tenantId, install)
+      return Response.redirect(
+        `${DASHBOARD}/connect?github=installed&installation_id=${install.installationId}`,
+        302,
+      )
+    }
+  } else if (!code) {
+    // Nothing arrived at all: no id, no code. Not a redirect worth
+    // discovering from — the install was cancelled or never started.
+    return fail('missing-installation')
+  }
+
+  // Code arrival (with or without an id): exchange once, server-side.
   const clientId = (process.env.GITHUB_CLIENT_ID ?? '').trim()
   const clientSecret = (process.env.GITHUB_CLIENT_SECRET ?? '').trim()
   if (!clientId || !clientSecret) {
@@ -98,12 +107,30 @@ export async function GET(req: Request) {
   if (!exchanged.ok) {
     return fail(`oauth-${exchanged.reason}`)
   }
+  const userToken = exchanged.accessToken
+
+  if (!install.installationId) {
+    // No id in the URL: discover the install from the user's own
+    // authorizations. Filtered to OUR App ID and mint-verified below, so a
+    // foreign app's install can neither link nor squat.
+    const appId = (process.env.GITHUB_APP_ID ?? '').trim()
+    if (!appId) return fail('installation-key')
+    const listed = await listUserInstallations(userToken)
+    if (!listed.ok) return fail('installation-unverified')
+    const found = pickOurInstallation(listed.value, appId)
+    if (!found) return fail('install-incomplete')
+    install.installationId = found.id
+    install.accountLogin = found.accountLogin
+    const verified = await mintInstallationTokenFor(install.installationId)
+    if (!verified.ok) return mintFailure(verified.reason)
+  }
+
   // Installer identity: one authenticated call as the user, then the token
   // is dropped. Only the login is kept, and only to label the installation.
   try {
     const me = (await (
       await fetch('https://api.github.com/user', {
-        headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${exchanged.accessToken}` },
+        headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${userToken}` },
       })
     ).json()) as { login?: unknown }
     if (typeof me.login === 'string') install.installerLogin = me.login
@@ -111,5 +138,5 @@ export async function GET(req: Request) {
     // Unlabelled is fine — the installation id is the link, not the login.
   }
   await recordInstallationDb(tenantId, install)
-  return Response.redirect(`${DASHBOARD}/connect?github=installed&installation_id=${installationId}`, 302)
+  return Response.redirect(`${DASHBOARD}/connect?github=installed&installation_id=${install.installationId}`, 302)
 }

@@ -23,6 +23,8 @@ function githubReasonText(reason: string): string {
     return 'That installation does not exist or was removed — nothing was linked. Install the App on the repo, then return here.'
   if (reason === 'installation-key')
     return 'Our GitHub App credential was refused — nothing was linked. This is our side: report it and we will rotate the App key.'
+  if (reason === 'install-incomplete')
+    return 'GitHub authorized you but named no installation of this App yet — finish the install step on GitHub with the same account, then return here. Nothing was linked.'
   if (reason === 'oauth-unconfigured') return 'Our side is not ready to receive the sign-in yet.'
   return `Something interrupted the install (${reason}). Nothing was linked.`
 }
