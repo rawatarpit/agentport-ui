@@ -8,7 +8,8 @@ import {
   installUrlFor,
   newInstallState,
   validateSetupParams,
-} from '@/lib/install-state'import { canManageIntegrations, resolveCallerContext } from '@/lib/tenant'
+} from '@/lib/install-state'
+import { canManageIntegrations, resolveCallerContext } from '@/lib/tenant'
 
 describe('resolveCallerContext', () => {
   const rows = [
