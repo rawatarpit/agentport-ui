@@ -33,6 +33,8 @@ function githubReasonText(reason: string): string {
     return 'GitHub authorized you but named no installation of this App yet — finish the install step on GitHub with the same account, then return here. Nothing was linked.'
   if (reason === 'install-state-invalid')
     return 'That install link expired or was already used — start again from Connect a GitHub repo. Nothing was linked.'
+  if (reason === 'install-state-missing')
+    return 'That arrival carried no install link — installs must start from the Connect a GitHub repo button below (not from GitHub directly), so the return can be tied to your business. Nothing was linked.'
   if (reason === 'installation-attached')
     return 'That installation is already linked to a different business — nothing was changed. Disconnect it there first if it should move.'
   if (reason === 'install-start')

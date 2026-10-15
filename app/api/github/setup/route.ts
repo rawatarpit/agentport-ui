@@ -33,7 +33,15 @@ export async function GET(req: Request) {
     setupAction: params.get('setup_action'),
     state: params.get('state'),
   })
-  if (!checked.ok) return fail('install-state-invalid')
+  // No state at all means the install did not start from the dashboard
+  // button (direct GitHub-side install/configure, or a stripped redirect).
+  // Distinguish it from an expired/used state: the fixes differ — start
+  // over via the button versus just retrying.
+  if (!checked.ok) {
+    const missingState =
+      typeof params.get('state') !== 'string' || (params.get('state') ?? '').length === 0
+    return fail(missingState ? 'install-state-missing' : 'install-state-invalid')
+  }
 
   const consumed = await consumeInstallState(hashInstallState(checked.state))
   if (!consumed || consumed.purpose !== 'install') return fail('install-state-invalid')
