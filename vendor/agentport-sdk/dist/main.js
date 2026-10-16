@@ -486,6 +486,166 @@ async function runKeys(outDir) {
     process.stderr.write(`wrote ${publicPath}\n`);
 }
 /**
+ * `agent-port pull` — apply a published artifact to the local config file.
+ *
+ * The update half of `publish`: fetch (or read) a merchant-signed envelope,
+ * verify it against the merchant PUBLIC key from install, and merge it into
+ * the local file. The merge replaces policy and narrows capabilities to the
+ * artifact's names — descriptors (queries, bindings, handlers) stay local
+ * because the artifact carries names only and a name is not an
+ * implementation. Three things are preserved across every pull, unconditionally:
+ *
+ * - `policy.emergencyKillSwitch`: carried from the current file, never from
+ *   the artifact (which cannot carry it) and never cleared by an update.
+ * - Everything outside policy/capabilities (business, baseUrl, database,
+ *   secrets): untouched. Pull governs; it does not re-provision.
+ * - History: the current file is backed up (keep-N) and the applied
+ *   version+digest recorded beside the config, so replay of an older valid
+ *   artifact is refused and rollback is a restore, not a re-pull.
+ *
+ * Refuses, keeping the old file, on: bad signature, tenant mismatch,
+ * envelope key disagreeing with the install key, version at or below the
+ * recorded one, artifact naming capabilities with no local descriptor
+ * (warned, not invented), and a merged file `doctor` rejects. Errors name
+ * files and versions, never key material or payload bytes.
+ */
+async function runPull(flags, configPath) {
+    const { readFile, writeFile, readdir, unlink } = await import('node:fs/promises');
+    const { statSync } = await import('node:fs');
+    const { loadVerifiedArtifact } = await import('./artifact-load.js');
+    const { doctor } = await import('./config.js');
+    // Trust anchor note: verification uses ONLY the --key file (the install
+    // key). An envelope carrying a different publicKey field is not consulted —
+    // consulting it would let any envelope self-register its own key. Key
+    // rotation is the merchant replacing this file deliberately, after which
+    // new envelopes verify against the new anchor.
+    const file = typeof flags.file === 'string' ? flags.file : '';
+    const url = typeof flags.url === 'string' ? flags.url : '';
+    if ((file === '') === (url === '')) {
+        die('pull needs exactly one of --file <envelope.json> or --url <distributor>: the signed bytes to apply.');
+    }
+    const keyPath = typeof flags.key === 'string' ? flags.key : die('pull requires --key <public-pem>: the merchant public key from install. Verification needs nothing else.');
+    const keepRaw = typeof flags.keep === 'string' ? flags.keep : '5';
+    if (!/^\d+$/.test(keepRaw) || Number(keepRaw) < 1)
+        die('--keep must be a positive whole number of backups to retain.');
+    const keep = Number(keepRaw);
+    const minFlag = typeof flags['min-version'] === 'string' ? flags['min-version'] : '';
+    if (minFlag !== '' && (!/^\d+$/.test(minFlag) || Number(minFlag) < 0))
+        die('--min-version must be a non-negative whole number.');
+    const readText = async (path, what) => {
+        try {
+            return await readFile(path, 'utf8');
+        }
+        catch {
+            die(`cannot read the ${what} at ${path}.`);
+        }
+    };
+    const publicKeyPem = await readText(keyPath, 'merchant public key');
+    // Current file first: pull updates, never creates. A missing file means no
+    // local environment (baseUrl, database, secrets) for governance to attach
+    // to — `init` builds that, pull does not invent it.
+    let current;
+    try {
+        current = JSON.parse(await readText(configPath, 'local config file. Run `init` first.'));
+    }
+    catch {
+        die(`the local config at ${configPath} is not valid JSON — fix it by hand before pulling over it.`);
+    }
+    if (typeof current.tenantId !== 'string' || current.tenantId === '') {
+        die(`the local config at ${configPath} names no tenant — pull cannot bind an artifact to it.`);
+    }
+    const statePath = `${configPath}.version`;
+    let recordedVersion = 0;
+    try {
+        const state = JSON.parse(await readFile(statePath, 'utf8'));
+        if (typeof state.version === 'number' && Number.isInteger(state.version) && state.version > 0) {
+            recordedVersion = state.version;
+        }
+    }
+    catch {
+        // No state yet: first pull records, it does not refuse.
+    }
+    const floor = Math.max(recordedVersion, minFlag === '' ? 0 : Number(minFlag));
+    let loaded;
+    try {
+        loaded = await loadVerifiedArtifact(file !== '' ? { file } : { url }, {
+            expectedTenantId: current.tenantId,
+            publicKeyPem,
+            minVersionExclusive: floor,
+        });
+    }
+    catch (err) {
+        die(`refusing the artifact: ${err.message}`);
+    }
+    const { artifact } = loaded;
+    // Merge, not replace. Names from the artifact select; descriptors stay local.
+    const allowed = new Set(artifact.capabilities.map((c) => c.name));
+    const localCaps = Array.isArray(current.capabilities) ? current.capabilities : [];
+    const missing = artifact.capabilities.map((c) => c.name).filter((n) => !localCaps.some((c) => c?.name === n));
+    const mergedCaps = localCaps.filter((c) => typeof c?.name === 'string' && allowed.has(c.name));
+    const currentPolicy = (typeof current.policy === 'object' && current.policy !== null ? current.policy : {});
+    // Kill-switch preservation is presence-preserving, not value-defaulting:
+    // writing `false` where the file had no key would plant a field
+    // verifyArtifact refuses in ANY artifact-adjacent bytes and break the next
+    // publish. Absent stays absent; engaged stays engaged; nothing else moves.
+    const keepSwitch = Object.hasOwn(currentPolicy, 'emergencyKillSwitch')
+        ? { emergencyKillSwitch: currentPolicy.emergencyKillSwitch }
+        : {};
+    const merged = {
+        ...current,
+        policy: { ...artifact.policy, ...keepSwitch },
+        capabilities: mergedCaps,
+    };
+    for (const n of missing) {
+        process.stderr.write(`warning: artifact names capability '${n}' with no local descriptor — not enforceable until added to the config by hand.\n`);
+    }
+    const report = doctor(merged, process.env);
+    if (report.errors.length > 0) {
+        die(`refusing to write a file doctor rejects (${report.errors.length} control(s) will not work):\n` +
+            report.errors.map((e) => `  - ${e}`).join('\n'));
+    }
+    // Backup before write, prune beyond keep. Backups are full prior files, so
+    // rollback is a copy back, not a re-pull of anything.
+    let mode = 0o600;
+    try {
+        mode = statSync(configPath).mode & 0o777;
+    }
+    catch {
+        // Keep the default when the mode cannot be read; the write below still gates on content.
+    }
+    const stamp = Date.now();
+    await writeFile(`${configPath}.bak.${stamp}`, JSON.stringify(current, null, 2) + '\n', { mode });
+    try {
+        const names = (await readdir(requireDir(configPath))).filter((n) => n.startsWith(requireBase(configPath) + '.bak.')).sort();
+        for (const extra of names.slice(0, Math.max(0, names.length - keep))) {
+            await unlink(requireJoin(configPath, extra));
+        }
+    }
+    catch {
+        // Pruning is hygiene, not correctness: a failed prune never blocks the apply.
+    }
+    const { createHash } = await import('node:crypto');
+    const digest = createHash('sha256').update(JSON.stringify(merged)).digest('hex');
+    await writeFile(configPath, JSON.stringify(merged, null, 2) + '\n', { mode });
+    await writeFile(statePath, JSON.stringify({ version: artifact.version, digest, appliedAt: new Date(stamp).toISOString() }, null, 2) + '\n');
+    process.stdout.write(`pulled v${artifact.version} ${digest.slice(0, 12)} (${mergedCaps.length} capabilities, backup kept)\n`);
+    if (report.notes.length > 0) {
+        for (const n of report.notes)
+            process.stderr.write(`note: ${n}\n`);
+    }
+}
+function requireDir(p) {
+    const i = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
+    return i < 0 ? '.' : p.slice(0, i) || '.';
+}
+function requireBase(p) {
+    const i = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
+    return p.slice(i + 1);
+}
+function requireJoin(dir, base) {
+    return dir === '.' ? base : `${dir}/${base}`;
+}
+/**
  * `agent-port publish` — sign the config's policy into a distributable envelope.
  *
  * Reads the local config, builds the artifact the runtime verifies
@@ -1596,6 +1756,13 @@ async function main() {
         // file's tenant. Publishing what was not loaded is how a stale file signs
         // a policy nobody reviewed.
         await runPublish(flags, configPath);
+        return;
+    }
+    if (command === 'pull') {
+        // After config loading: pull merges into the local file, so the file must
+        // exist and parse. A missing file means `init` has not run; a broken file
+        // is fixed by hand, never overwritten by a pull that cannot see it.
+        await runPull(flags, configPath);
         return;
     }
     if (command === 'doctor') {
