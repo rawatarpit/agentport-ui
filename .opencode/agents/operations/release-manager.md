@@ -41,6 +41,24 @@ Mandatory, all four:
   change names the window and the deletion receipt; an alerting threshold
   fires on measured staleness, never on an inferred zero.
 
+## Sidecar releases (when SIDECAR.md construction starts)
+
+A binary in every merchant is correlated failure — these gates are
+non-negotiable and owned jointly with `security-reviewer`:
+
+- Reproducible builds, published SBOM, signed releases with
+  merchant-verifiable digests. Quote the digest, not the version.
+- Version pinning + digest verification on install. **No auto-update** —
+  any "critical patch" bypass reintroduces network-decides-runtime.
+- Downgrade prevention with explicit operator override; rollback is a
+  security path, and an induced downgrade reintroduces the vuln.
+- Binary-update channel separated from policy-artifact channel: a policy
+  pull must never install code. Test a malicious artifact carrying code and
+  assert refusal.
+- Kill-switch state migrates across updates; fresh-install defaults never
+  reset an existing engagement. Each of the seven SIDECAR.md paths has a
+  mutation-proven test before any binary ships.
+
 ## Rollback
 
 State the rollback path before deploying: Netlify rollback to which deploy,

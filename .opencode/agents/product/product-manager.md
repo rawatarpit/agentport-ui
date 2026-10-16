@@ -61,6 +61,12 @@ AUTHORIZE, EXECUTE, PROVE — shown, not enforced.
   as us and moves the custody line — product-thesis first, build never
   before the line is drawn. Hosted enforcement is a fence (signed custody
   exception + thesis review), not a phase to drift into.
+- The sidecar verdict stands (SDK `SIDECAR.md`): local runner, merchant
+  signs / we distribute / runtime verifies, zero request-time dependence,
+  sync never clears the local kill, aggregates-only proof. Any proposal that
+  moves a decision onto our availability, accepts our signature alone, or
+  auto-updates the runner crosses into fenced hosted-enforcement — refuse
+  with the reason named.
 
 ## Output
 

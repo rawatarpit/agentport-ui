@@ -48,11 +48,17 @@ and signature are structural moats — not features, not copy.
 - Friction log becomes onboarding copy (kept in `PILOT_TERMS.md` §log).
 - Pilot metrics: [`/api/metrics/pilot`](app/api/metrics/pilot/route.ts).
 
-## Phase 2 — Frictionless adoption (scoped, not built)
+## Phase 2 — Frictionless adoption (designed, not built)
 
-- One-click-deploy worker (their account, their boundary). New primitive:
-  needs product-thesis before build — a worker we ship is code running as
-  us, and the custody line must be drawn before it, not after.
+- One-click-deploy worker (their account, their boundary) + universal
+  sidecar runtime. Designed in SDK `SIDECAR.md` (2026-10-16): local runner,
+  not a new primitive — merchant signs, we distribute, runtime verifies;
+  zero request-time dependence; sync never clears the local kill switch;
+  aggregates-only proof. Thesis verdict: scope-cut buildable on those four
+  conditions; impact verdict: direction sound, eight pre-build specs gate
+  construction (trust/signature, kill-switch durability, offline semantics,
+  loopback auth, egress allowlist, supply chain, skew plan, package
+  boundary). No code exists; do not present it as available.
 - State flow default; discovery fallback. — state flow **built**; discovery
   fallback open.
 - Disconnect UI on existing DELETE route. — **built**.
