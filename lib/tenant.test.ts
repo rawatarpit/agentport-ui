@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { pickTenant, resolveCallerTenant } from '@/lib/tenant'
+import { pickTenant, resolveCallerRole, resolveCallerTenant } from '@/lib/tenant'
 import type { MembershipRow } from '@/lib/tenant'
 
 const T = (tenant_id: string, created_at: string): MembershipRow => ({ tenant_id, role: 'owner', created_at })
@@ -35,6 +35,21 @@ describe('resolveCallerTenant', () => {
   })
   it('says no business linked when the user has no membership', async () => {
     const r = await resolveCallerTenant({ getUserId: async () => 'u1', listMemberships: async () => [] })
+    expect(r.tenantId).toBeNull()
+  })
+})
+
+describe('resolveCallerRole', () => {
+  const deps = (role: string | null) => ({
+    getUserId: async () => 'u1',
+    listMemberships: async () => [T('t1', '2026-10-14T00:00:00Z')],
+    getRole: async () => role,
+  })
+  it('returns tenant + role from the session, never a body field', async () => {
+    expect(await resolveCallerRole(deps('owner'))).toEqual({ tenantId: 't1', role: 'owner' })
+  })
+  it('refuses honestly when the membership carries no role', async () => {
+    const r = await resolveCallerRole(deps(null))
     expect(r.tenantId).toBeNull()
   })
 })

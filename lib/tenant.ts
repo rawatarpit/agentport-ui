@@ -49,6 +49,25 @@ export async function resolveCallerTenant(deps: {
   return { tenantId }
 }
 
+/**
+ * Tenant plus role for gated writes. Role comes from the session (never a
+ * body field): a caller who could name their own role could promote
+ * themselves past the ceremony this protects.
+ */
+export async function resolveCallerRole(deps: {
+  getUserId: () => Promise<string | null>
+  listMemberships: (userId: string) => Promise<MembershipRow[]>
+  getRole: (tenantId: string) => Promise<string | null>
+}): Promise<{ tenantId: string; role: string } | { tenantId: null; reason: string }> {
+  const t = await resolveCallerTenant(deps)
+  if (t.tenantId === null) return t
+  const role = await deps.getRole(t.tenantId)
+  if (!role) {
+    return { tenantId: null, reason: 'Signed in, but your membership carries no role. Ask the business owner to re-invite you.' }
+  }
+  return { tenantId: t.tenantId, role }
+}
+
 export type CallerContext =
   | { userId: string; tenantId: string; role: string }
   | { userId: string | null; tenantId: null; role: null }

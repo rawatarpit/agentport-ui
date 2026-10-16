@@ -96,6 +96,54 @@ export function GolivePanel() {
     }
   }
 
+  const [versions, setVersions] = useState<Array<{
+    version: number
+    approverRole: string
+    riskTier: string
+    approvedAt: string
+    artifactStored: boolean
+  }> | null>(null)
+
+  const loadVersions = useCallback(async () => {
+    try {
+      const res = await fetch('/api/publish/versions')
+      const body = (await res.json()) as { status: string; versions?: typeof versions }
+      if (body.status === 'ok' && Array.isArray(body.versions)) setVersions(body.versions)
+    } catch {
+      // Versions are history, not the publish path — a failed read hides the list, never the button.
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadVersions()
+  }, [loadVersions])
+
+  const rollback = async (version: number) => {
+    // Rollback is a new approval of old bytes (append-only friendly), then
+    // the same sign-and-upload as any publish. Narrowing-or-equal content
+    // usually clears light ceremony; anything widening asks typed.
+    const confirm = window.prompt(`Restore version ${version} as a new publish? Type your business name for typed changes, or "yes" for narrowing ones.`)
+    if (confirm === null) return
+    setBusy(true)
+    setErr(null)
+    setMsg(null)
+    try {
+      const res = await fetch('/api/publish/approve', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ fromVersion: version, confirm }),
+      })
+      const body = (await res.json()) as { status: string; reason?: string; version?: number; tier?: string }
+      if (body.status !== 'ok') throw new Error(body.reason ?? 'Rollback refused.')
+      setMsg(`Version ${version} re-approved as v${body.version} (${body.tier}). Sign and upload it like any publish.`)
+      await loadVersions()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Rollback refused.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="panel space-y-4 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -150,6 +198,25 @@ export function GolivePanel() {
         </p>
       ) : null}
       <p className="font-mono text-[11px] text-bone-faint">your site picks up the new version from here</p>
+      {versions && versions.length > 0 ? (
+        <div className="mt-2 border-t border-ink-line pt-3">
+          <p className="label">Published versions</p>
+          <ul className="mt-2 space-y-1.5">
+            {versions.map((v) => (
+              <li key={v.version} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
+                <span className="font-mono text-bone">v{v.version}</span>
+                <span className="font-mono text-[11px] text-bone-faint">{v.riskTier} · {v.approverRole}</span>
+                <span className={`font-mono text-[11px] ${v.artifactStored ? 'text-verdant' : 'text-amber'}`}>
+                  {v.artifactStored ? 'stored' : 'approved, awaiting upload'}
+                </span>
+                <button type="button" className="underline underline-offset-4 text-bone-dim" disabled={busy} onClick={() => void rollback(v.version)}>
+                  restore as new
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   )
 }
