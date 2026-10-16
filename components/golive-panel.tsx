@@ -68,6 +68,34 @@ export function GolivePanel() {
     }
   }
 
+  const downloadFile = async () => {
+    if (!s) return
+    setBusy(true)
+    setErr(null)
+    setMsg(null)
+    try {
+      const res = await fetch('/api/golive/file')
+      const body = (await res.json()) as { status: string; reason?: string; path?: string; content?: string }
+      if (body.status !== 'ok' || typeof body.content !== 'string') {
+        throw new Error(body.reason ?? 'Config not ready — finish your answers first.')
+      }
+      const blob = new Blob([body.content], { type: 'text/plain' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = body.path ?? 'agentport.config.ts'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+      setMsg('Downloaded. Drop it at your repo root and push — your merge adopts it.')
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Download refused.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="panel space-y-4 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -101,8 +129,15 @@ export function GolivePanel() {
             <button type="button" className="btn btn-primary" disabled={busy} onClick={publish}>
               {busy ? 'Publishing…' : s.live ? 'Publish new version' : 'Publish'}
             </button>
+            <button type="button" className="btn" disabled={busy} onClick={downloadFile}>
+              {busy ? 'Preparing…' : 'Download config file'}
+            </button>
             <span className="font-mono text-[11px] text-bone-faint">review above — publishing turns on exactly this</span>
           </div>
+          <p className="font-mono text-[11px] leading-relaxed text-bone-faint">
+            No GitHub App on your repo yet? Download{' '}
+            <span className="text-bone">agentport.config.ts</span>, drop it at the repo root, push — same file the PR would carry, same review.
+          </p>
         </>
       ) : (
         <p className="text-[13px] leading-relaxed text-bone-dim">{s.draftError}</p>
