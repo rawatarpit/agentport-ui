@@ -10,8 +10,14 @@ out/
 # in every clone forever. Server env only, never NEXT_PUBLIC_.
 *.pem
 *.key
-# Local operator tooling — never pushed to GitHub.
-.opencode/
+# Local operator scaffolding inside .opencode — deps and caches only. Agents,
+# workflows, and team protocol ARE shared config (same practice as the SDK
+# repo) and stay tracked; only the junk below is ignored.
+.opencode/node_modules/
+.opencode/package-lock.json
+.opencode/*.log
+.opencode/.temp/
+.opencode/.opencode/
 opencode.json
 # Supabase CLI scratch (link state). Backend lives in the SDK repo.
 supabase/.temp/

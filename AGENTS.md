@@ -15,7 +15,10 @@ three roles is how a dashboard becomes a lie the merchant acts on.
 Companions: [`SYSTEM.md`](SYSTEM.md) (whole system top-down),
 [`FRONTEND.md`](FRONTEND.md) (build order per page),
 [`TASKS.md`](TASKS.md) (task list, the status of record),
-[`github-app.md`](github-app.md) (App registration record).
+[`github-app.md`](github-app.md) (App registration record),
+[`AGENTPORT_PLAN.md`](AGENTPORT_PLAN.md) (thesis, positioning, pricing,
+phases, metrics — the build order this repo follows),
+[`PILOT_TERMS.md`](PILOT_TERMS.md) (pilot + proof-tier terms, friction log).
 
 ## Non-negotiable invariants
 
@@ -56,7 +59,6 @@ Companions: [`SYSTEM.md`](SYSTEM.md) (whole system top-down),
    dropped never stored. Revocation must work immediately and silently.
 
 ## Working rules
-
 - **Every behaviour change needs a test.** Vitest (`npm test`). Honesty
   shapes need tests too: assert `unknown` renders, assert no amount column is
   selected, assert a structural guard (see `lib/gates.test.ts`).
@@ -68,6 +70,20 @@ Companions: [`SYSTEM.md`](SYSTEM.md) (whole system top-down),
 - **Do not add a second trust path.** Reuse the existing session/RLS/GitHub
   shapes rather than inventing parallel auth, parallel push ingestion, or a
   parallel config channel.
+- **One compiler, every delivery.** `agentport.config.ts` is compiled once
+  (`buildInstallFileFrom`) whether it leaves by PR or by download. A second
+  compiler is a fork, and forks drift — the manual path uses the same
+  function, not a copy.
+- **Metrics report rows, never inference.** A metric the stored rows cannot
+  prove renders `unknown` (null), never zero. Zero installs is a fact; zero
+  staleness with no push is a fabrication.
+- **The proof tier sells longer proof, never more data.** Retention, exports,
+  alerting, multi-site — none of them widen which columns exist or who can
+  read them. An export contains the caller's own rows only. A feature that
+  needs a new column needs a custody review first.
+- **Disconnect is a first-class flow.** Uninstall/revoke must read as missing
+  immediately and silently — never as an error, never as a retained row that
+  suggests access persists.
 
 ## Verify before you claim done
 
