@@ -74,6 +74,12 @@ phases, metrics — the build order this repo follows),
   (`buildInstallFileFrom`) whether it leaves by PR or by download. A second
   compiler is a fork, and forks drift — the manual path uses the same
   function, not a copy.
+- **PR on install, publish channel after.** The install PR lands the kit once
+  and the merchant's merge adopts it. Every later change — capabilities
+  added or removed, ceilings moved, rules rewritten — flows through the
+  dashboard publish channel (tiered ceremony, signed artifact, heartbeat
+  proof), never another PR. A new PR for an update is a regression to
+  review-theatre: the ceremony lives in the approval, not the git history.
 - **Metrics report rows, never inference.** A metric the stored rows cannot
   prove renders `unknown` (null), never zero. Zero installs is a fact; zero
   staleness with no push is a fabrication.

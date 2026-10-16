@@ -77,6 +77,18 @@ in-transit, never stored, SDK-owned engine. Until then the invariant stands:
 authorisation is local, and no sync, update, or rollback clears a locally
 engaged kill switch. This phase is a fence, not a roadmap item.
 
+## Delivery rule (decided 2026-10-16)
+
+**The PR happens exactly once: on installation.** It lands the full kit
+(config + manifest + invoke + head snippet + middleware + sync + llms.txt)
+and the merchant's merge adopts it. Every change after that — capabilities
+added or removed, ceilings moved, rules rewritten — flows through the
+dashboard publish channel (tiered ceremony, signed artifact, heartbeat
+proof), never through another PR. No-PR-per-change is the product decision
+that makes adding and deleting features cheap; the install PR is the product
+decision that keeps adoption reviewable. Manual-download path stays for
+repos that can't take the App; same compiler, same file, same review.
+
 ## Metrics (defined; endpoint reports what rows prove)
 
 - Time-to-first-proof (tenant created → first install/PR/push evidence).
