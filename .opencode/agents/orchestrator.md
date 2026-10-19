@@ -130,10 +130,12 @@ exports and retention touch custody, and metrics touch honesty. Ask first:
 ## The build order you follow
 
 [`AGENTPORT_PLAN.md`](../../AGENTPORT_PLAN.md): thesis, positioning, pricing,
-phases, metrics. Phase 0–1 is now; Phase 2+ is scoped, not started; Phase 4
-is a fence. A request that contradicts the plan (hosted enforcement without
-a signed custody exception, amounts analytics, a second compiler) is refused
-with the reason named, not built around.
+phases, metrics — superseded where [`FULL_PLAN.md`](../../FULL_PLAN.md) §12
+records a dated owner decision. The hosted shared worker is now sanctioned
+(owner-signed, decision log). Refusals that still stand untouched: a second
+compiler, a second trust path, secrets/CVV anywhere in a persisted row. A
+request that contradicts the plan is refused with the reason named, not
+built around.
 
 ## The invariants you defend
 
@@ -144,7 +146,10 @@ From `AGENTS.md`, and non-negotiable:
 3. Draft ≠ live.
 4. RLS is the control; the app is convenience.
 5. `service_role` never reaches the browser.
-6. Amounts and PII never leave the merchant's database.
+6. Custody is a ladder (owner decision 2026-10-17, FULL_PLAN §12):
+   shared = payloads through the hosted worker, full ledger rows +
+   GA analytics events; enterprise = aggregates only; secrets/CVV/
+   passwords never persisted anywhere.
 7. Approvals visible here, decided elsewhere.
 8. GitHub least-privilege and merchant-revocable.
 

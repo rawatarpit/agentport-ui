@@ -112,3 +112,88 @@ only, no auto-update, no second compilers, no second trust paths.
    push key.
 4. SentraZero install call → first push → week-1 reads → week-2 held write.
 5. Restart opencode in agentport-ui (tracked roster loads).
+
+## 12. Decision log (dated owner calls)
+
+**2026-10-17 — Shared tier: payloads may flow through us (GA-level analytics).**
+Owner decided: in the shared (hosted-worker) tier, personal data passing the
+execution path — e.g. a customer's phone number typed into the merchant's
+chatbot — is acceptable, because it is already the merchant's data in the
+merchant's API structure and it transit-reaches the merchant backend anyway;
+the worker is a governed hop in an existing path, not a new collector.
+Consequences, accepted:
+
+- Shared tier sells GA-grade analytics (users, sessions, journeys, funnel,
+  conversion, per-capability and per-agent splits) built from what already
+  flows — no pixels, no scripts, no instrumentation.
+- Enterprise tier is unchanged and *becomes the custody answer*: same
+  binary on the merchant's backend, nothing about a call transits us;
+  what we receive stays aggregates-only. The custody ladder is the
+  pricing: free and visible to us → paid and invisible to us.
+- Runtime invariants do NOT change in either tier: append-only ledger,
+  redaction, authorization before execution, local synchronous decisions,
+  kill-switch local/monotonic. What changed is the custody line between
+  tiers, not the runtime's own rules.
+- Still never persisted, in either tier: CVV, passwords, credentials,
+  API keys/secrets. Per-tenant storage; deletable on request; DPDP-aware
+  posture is a build requirement for the analytics store, not docs.
+
+**2026-10-17 — Stack + hosting for the shared worker.**
+
+- **The binary = the same TypeScript core, compiled to a single
+  executable (Node SEA, Node 22).** No Go/Rust rewrite: the worker would
+  re-implement the enforced policy logic in a second language, breaking
+  the "no second compilers / no second trust paths" rule and creating a
+  second enforcement surface that tests can't cover. One codebase ships
+  as the npm package *and* the executable; compile per-arch on CI.
+- **Hosting = the owner's existing fleet of small servers — no new
+  infrastructure decisions.** The binary is a stateless single
+  executable (Caddy + systemd, no Docker on small boxes); the request
+  path never waits on a database. Workers carry thousands→millions of
+  merchant requests and push only GA analytics events to Supabase;
+  Supabase is the memory, not the mouth. This per-request fleet load is
+  the stated cost justification for the shared tier's fee.
+- **Host ladder:** existing fleet for pilot (drop-in, same artifact) →
+  dedicated paid host behind the fleet LB at first paying tenant or >5
+  tenants (=our outage is merchants' chatbot outages; paid service
+  needs a load-balanced target, not one box) → GA = redundant fleet
+  nodes + managed DB. Moves are rsync + restart — no rebuild, same
+  artifact.
+- **Analytics store = Postgres on the same Supabase project, separate
+  schema, tenant-guarded columns, partitioned by window, materialized
+  aggregates for the dashboard.** ClickHouse only when volume demands,
+  not before. §12 never-persisted list (CVV/passwords/secrets),
+  per-tenant deletion, and DPDP posture apply to this schema from day one.
+
+**2026-10-17 — Language boundary, refined: enforcement goes Rust, plumbing
+stays TS.** Owner decided. Keep unchanged: the Supabase project (migrations
++ edge functions), and the dashboard (Next.js). Change to Rust: the SDK
+enforcement core (policy engine, ceilings, redaction, ledger shaping,
+artifact verify) and the worker — so the shared fleet and the enterprise
+sidecar are the same compiled binary, hosted: ours for shared, theirs for
+enterprise. The seam is deliberately data, not code: signed artifact JSON,
+ledger row shapes, canonical digests, and Supabase REST are the whole ABI
+between the Rust world and the TS world. **Full phased plan:
+`../agentport-sdk/RUST_MIGRATION.md`** (X0 pilot TS → X1 contracts → X2
+core port → X3 worker → X4 shadow + flip; invariants there are enforced by
+conformance fixtures, not prose).
+
+Migration gates, in order (none skipped):
+
+1. TS pilot path finishes first — worker API, AgentPort integration,
+   ledger + analytics write-back — and stands as the executable spec.
+2. A conformance suite: same artifact + request corpus → byte-identical
+   decisions, ledger rows, refusal messages; runs against TS now, Rust
+   later. This is the only guard for the known semantic bug classes
+   (fail-open ceilings, redaction traps), which memory safety does not fix.
+3. Canonical JSON (RFC-8785-style) fixed before the first line of Rust:
+   JSON.stringify vs serde disagree on key order, floats, escapes, and
+   configHash/digests/signatures sit on byte-equality of serialization.
+4. New sibling repo `agentport-core`; port order blueprint/expand/secrets
+   → artifact/identity → policy → agent → ledger. TS core feature-frozen
+   at parity; both tiers flip together — one compiler either way.
+
+Interim realities, accepted: two cores exist during migration (TS serves
+the pilot); the current TS npm SDK remains the adoption path until the Rust
+core also ships a WASM front for in-process merchants; the SEA config
+(`sea-config.json`) is scaffolding for the TS interim binary only.

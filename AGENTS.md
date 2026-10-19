@@ -44,11 +44,15 @@ phases, metrics — the build order this repo follows),
    `next.config.mjs` fails the build on secret-like `NEXT_PUBLIC_*` vars.
    That failure is the control working. Server routes hold secrets; client
    components hold none.
-6. **Amounts and PII never leave the merchant's database.** The dashboard
-   shows counts, decisions, digests — never amounts, instruments, emails, or
-   free text. Do not "helpfully" add an amount to a dashboard query; that is
-   the custody boundary (`dashboard_runtime_integration.md` §7), not a missing
-   feature.
+6. **Custody is a ladder, set by the owner decision of 2026-10-17
+   (`FULL_PLAN.md` §12).** Shared tier: requests pass through the hosted
+   worker *by design* — a customer's phone number in the chatbot is already
+   the merchant's data on the merchant's API path; the worker is the
+   governed hop, records full ledger rows, and pushes GA analytics events.
+   Enterprise tier: nothing transits us; what we receive is aggregates
+   only. **Never persisted, in either tier:** CVV, passwords, API keys,
+   raw credentials. The dashboard still reads the tenant's own ledger —
+   widening what exists beyond the ladder needs a custody review first.
 7. **Approvals are visible here, decided elsewhere.** The queue renders with
    full context; the decision lands via `agent-port approve` in the CLI.
    Never add a browser approve button without a security-change review —
@@ -91,13 +95,23 @@ phases, metrics — the build order this repo follows),
   immediately and silently — never as an error, never as a retained row that
   suggests access persists.
 
+## The shared worker (built in the SDK repo — know it, don't build it here)
+
+In the shared tier, enforcement does not run in the merchant's process. The
+SDK repo compiles the same core into a hosted worker fleet that: pulls tenant
+config from Supabase, serves chatbots (discover + authorized call), executes
+the merchant's backend using per-call secret resolution, and writes ledger
+rows + analytics events back *after* proving. Roles still hold: this repo
+never enforces, never executes, never stores a worker credential. Supabase
+receives what the workers push; it is the memory, not the mouth.
+
 ## Verify before you claim done
 
 ```bash
 npm test && npm run typecheck && npm run build
 ```
 
-Tests (51 and growing), `tsc --noEmit`, and the production build — all three
+Tests (114 and growing), `tsc --noEmit`, and the production build — all three
 must be clean. `next lint` is available; the build is what Netlify runs, so
 the build passing locally is what predicts the deploy. "It renders in dev"
 is not verification.

@@ -19,7 +19,7 @@ Release slowly and say what changed.
 | Change | Treatment |
 | --- | --- |
 | A badge, count, status, or label changes meaning | **Major for trust** + note saying what an existing merchant observes differently |
-| A new column selected by any read | **Blocked** unless custody-cleared (amounts/PII never) |
+| A new column selected by any read | **Blocked** unless custody-cleared (secrets/CVV/passwords never; tier-scoped otherwise) |
 | Draft/live labelling or digest display changes | **Major for trust** + note |
 | Approval queue shape changes | **Major for trust** + note |
 | New route or screen | Minor, with its empty state pinned by test |

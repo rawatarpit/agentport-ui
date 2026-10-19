@@ -18,8 +18,11 @@ Before every change, identify:
   even if the query is not.
 - **Draft/live labelling** — does an editor change what the merchant believes
   is deployed? A save that reads as enforcement is a trust change.
-- **Custody boundary** — does any new selection touch amounts, instruments,
-  PII, or free text? Selection is exposure.
+- **Custody ladder (owner decision 2026-10-17)** — which tier does this touch?
+  Shared: payloads flow through the hosted worker; ledger + analytics events
+  may carry what the request carries. Enterprise: aggregates only. Secrets,
+  CVV, passwords never persist in either. Selection is still exposure —
+  name the tier before the columns.
 - **Server/client boundary** — does anything cross from route handler to
   component that did not before?
 - **GitHub surface** — new scope, event, token lifetime, or installation

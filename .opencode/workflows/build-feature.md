@@ -28,7 +28,7 @@ is not.
 ## 3. Impact analysis
 
 `impact-analyzer` checks readers, RLS context, display contract, draft/live
-labelling, custody boundary, server/client boundary, and trust impact.
+labelling, custody ladder (shared vs enterprise tier), server/client boundary, and trust impact.
 
 Two changes are breaking even when no API changes:
 

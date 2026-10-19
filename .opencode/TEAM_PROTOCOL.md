@@ -90,7 +90,9 @@ From `AGENTS.md`. Any change touching these is a security change.
 3. Draft ≠ live.
 4. RLS is the control; the app is convenience.
 5. `service_role` never reaches the browser.
-6. Amounts and PII never leave the merchant's database.
+6. Custody is a ladder (owner decision 2026-10-17, FULL_PLAN §12):
+   shared = payloads through the hosted worker, full ledger + analytics;
+   enterprise = aggregates only; secrets/CVV/passwords never persist.
 7. Approvals visible here, decided elsewhere.
 8. GitHub least-privilege and merchant-revocable.
 

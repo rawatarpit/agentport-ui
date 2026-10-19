@@ -49,23 +49,25 @@ AUTHORIZE, EXECUTE, PROVE — shown, not enforced.
 - Price and pilot terms are stated plainly on the page that asks for
   commitment. No "contact us" where a number belongs.
 
-## Plan positions you defend (AGENTPORT_PLAN.md)
+## Plan positions you defend (AgentPort owner plan)
 
-- Positioning: analytics-for-governance; "can't leak what we never hold";
-  "our outage never ungoverns you"; "the merge is the signature". Copy that
-  contradicts any of these four is a regression, not a rewrite.
-- Pricing: founding pilot free for the friction log + reference; paid proof
-  tier per site for longer proof (retention, exports, alerting, multi-site).
-  Never price amounts analytics — never held. Worker compute stays free.
-- New primitives gate on thesis: a one-click-deploy worker is code running
-  as us and moves the custody line — product-thesis first, build never
-  before the line is drawn. Hosted enforcement is a fence (signed custody
-  exception + thesis review), not a phase to drift into.
-- The sidecar verdict stands (SDK `SIDECAR.md`): local runner, merchant
-  signs / we distribute / runtime verifies, zero request-time dependence,
-  sync never clears the local kill, aggregates-only proof. Any proposal that
-  moves a decision onto our availability, accepts our signature alone, or
-  auto-updates the runner crosses into fenced hosted-enforcement — refuse
+- Positioning: "every agent call flows through one governed binary."
+  GA-level analytics come free in the shared tier *because* the fleet is
+  the path; enterprise answers the custody objection with custody.
+  Copy that contradicts this two-tier story is a regression, not a rewrite.
+- Pricing: the shared tier's fee is justified by real per-request fleet
+  work (thousands→millions of requests; Supabase only receives the
+  analytics events). Enterprise = the same binary on their backend.
+  Never price secrets/CVV access — never held, ever.
+- The custody ladder is owner-decided 2026-10-17 (RTL: `FULL_PLAN.md`
+  §12 in the parent plan): shared tier willingly sees payloads in
+  transit; enterprise sees nothing. Do not re-litigate the decision in
+  copy — state it plainly, exactly like the product page does.
+- The durable runtime promises are unchanged in both tiers: authorisation
+  precedes execution, decisions are local and synchronous to the worker,
+  kill switch local/monotonic, ledger append-only, denials specific.
+  Any proposal that moves a *decision* onto database availability, or
+  accepts a second compiler (Go/Rust re-implementing policy), is refused
   with the reason named.
 
 ## Output

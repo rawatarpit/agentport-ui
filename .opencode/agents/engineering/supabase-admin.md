@@ -52,13 +52,18 @@ project size.
 
 ## Relation to the product
 
-Supabase is **not** on the enforcement path and must not become so. The
-architecture is merchant-local: the agent calls the merchant's loopback server
-and the ledger is a file on the merchant's own disk. `ROADMAP.md` §7 refuses a
-hosted ledger, a hosted write path, and any hosted enforcement, on the grounds
-that our downtime must never become an authorization bypass.
+Supabase is the shared tier's **memory, not its mouth** — the owner decision
+of 2026-10-17 (see `FULL_PLAN.md` §12) sanctioning hosted enforcement: the
+worker fleet executes merchant calls and pushes ledger rows + GA analytics
+events back to Supabase *after* the decision. The database is never in the
+per-request decision path; the worker decides from its locally cached,
+signature-verified artifact and keeps serving when Supabase is dark.
+Before proposing anything that would make a request-time allow/deny read
+Supabase synchronously, name that property and refuse.
 
-Before proposing anything that would proxy an agent's write through Supabase,
-say what it would do to that property. A reasonable use is the *proof file* and
-optional merchant-facing reads, where a Supabase outage costs availability and
-not authorization.
+Your concrete duties in the shared tier: tenant-scoped tables for ledger,
+intents, and analytics events (partitions by window, materialized aggregates
+for reads); the never-persisted list (CVV, passwords, API keys/secrets)
+enforced at schema level where possible; per-tenant deletion working before
+the analytics store takes the first real row (DPDP posture is a build
+requirement, not docs).
