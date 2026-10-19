@@ -10,17 +10,18 @@ out/
 # in every clone forever. Server env only, never NEXT_PUBLIC_.
 *.pem
 *.key
-# Local operator scaffolding inside .opencode — deps and caches only. Agents,
-# workflows, and team protocol ARE shared config (same practice as the SDK
-# repo) and stay tracked; only the junk below is ignored.
-.opencode/node_modules/
-.opencode/package-lock.json
-.opencode/*.log
-.opencode/.temp/
-.opencode/.opencode/
+# Operator scaffolding (agent roster, workflows, local config) is local-only;
+# this repository carries the console code and the README.
+.opencode/
 opencode.json
-# Supabase CLI scratch (link state). Backend lives in the SDK repo.
-supabase/.temp/
+
+# Migrations are applied live and mirrored to the SDK repo; this repository
+# does not carry the database.
+supabase/
+
+# Internal docs (plans, decision log, runbooks) stay on disk, not in git.
+*.md
+!README.md
 
 # Netlify env sheet WITH SECRET VALUES (owner-generated 2026-10-07).
 # Same rule as .pem: never committed, never shared. Mode 0600.
