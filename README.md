@@ -31,9 +31,9 @@ demo. Two routes serve agents, not humans: the discovery manifest at
   `service_role` key never reaches the browser, and the build fails if a
   `NEXT_PUBLIC_` name would inline one
 - Vitest for unit tests
-- The runtime SDK is vendored as a prebuilt package at `vendor/agentport-sdk`
-  and consumed through a `file:` dependency — a clean `npm install` needs
-  nothing else
+- The runtime SDK (`@agentport/sdk`) is consumed as a local `file:`
+  dependency — the prebuilt snapshot must be present at `vendor/agentport-sdk`
+  before running `npm install`
 
 ## Running locally
 
