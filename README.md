@@ -19,10 +19,7 @@ zero.
 | **Supabase** | no | no | the database — RLS is the tenant-isolation control |
 
 Screens: setup, capabilities (drafts), rules, policies, ledger, approvals
-(visible here, decided in the CLI), analytics, connect, and a governed chat
-demo. Two routes serve agents, not humans: the discovery manifest at
-`/.well-known/agent.json` and the invoke endpoint at
-`/.well-known/agent/invoke`.
+(visible here, decided in the CLI), analytics, and connect.
 
 ## Stack
 
@@ -31,9 +28,9 @@ demo. Two routes serve agents, not humans: the discovery manifest at
   `service_role` key never reaches the browser, and the build fails if a
   `NEXT_PUBLIC_` name would inline one
 - Vitest for unit tests
-- The runtime SDK (`@agentport/sdk`) is consumed as a local `file:`
-  dependency — the prebuilt snapshot must be present at `vendor/agentport-sdk`
-  before running `npm install`
+- No runtime SDK dependency: the console carries data-contract types
+  (`lib/contracts.ts`) and a local config compiler (`lib/golive.ts`), never
+  the enforcement engine
 
 ## Running locally
 

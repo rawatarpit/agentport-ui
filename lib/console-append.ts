@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
-import type { AgentIdentity, ExecuteOutcome } from '@agentport/sdk'
+import type { AgentIdentity, ExecuteOutcome } from '@/lib/contracts'
 
 /**
  * Durable decision rows for the console's own agent surface (TASKS.md 12.2).

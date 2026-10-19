@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { AgentIdentity } from '@agentport/sdk'
+import type { AgentIdentity } from '@/lib/contracts'
 
 import {
   appendDecision,
@@ -86,7 +86,7 @@ describe('buildDecisionRow', () => {
       },
       { status: 'error', message: 'charge declined for card 4111', requestId: 'req_5' },
     ]
-    for (const outcome of outcomes as import('@agentport/sdk').ExecuteOutcome[]) {
+    for (const outcome of outcomes as import('@/lib/contracts').ExecuteOutcome[]) {
       const r = buildDecisionRow({
         tenantId: TENANT,
         identity,
@@ -197,7 +197,7 @@ describe('unknown outcome statuses skip loudly (S2)', () => {
       tenantId: TENANT,
       identity,
       capability: 'c',
-      outcome: { status: 'future_variant', requestId: 'req_x' } as unknown as import('@agentport/sdk').ExecuteOutcome,
+      outcome: { status: 'future_variant', requestId: 'req_x' } as unknown as import('@/lib/contracts').ExecuteOutcome,
       configHash: 'sha256:ab',
       durationMs: 7,
     })

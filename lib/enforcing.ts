@@ -1,4 +1,4 @@
-import type { Policy } from '@agentport/sdk'
+import type { Policy } from '@/lib/contracts'
 import { configHash } from '@/lib/agentport'
 
 /**

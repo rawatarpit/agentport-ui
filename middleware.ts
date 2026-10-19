@@ -7,7 +7,7 @@ import { NextResponse, type NextRequest } from 'next/server'
  * of pages. Data is protected by RLS, which lives in the database and cannot
  * be skipped by a client.
  */
-const PUBLIC = ['/login', '/signup', '/reset-password', '/auth/callback', '/home', '/icon.svg', '/favicon.ico', '/.well-known/agent.json']
+const PUBLIC = ['/login', '/signup', '/reset-password', '/auth/callback', '/home', '/icon.svg', '/favicon.ico']
 
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
@@ -40,9 +40,7 @@ export async function middleware(req: NextRequest) {
   if (!session && path === '/') {
     return NextResponse.redirect(new URL('/home', req.url))
   }
-  // The agent invoke path stays reachable without a dashboard session — the
-  // credential it verifies is the agent's, not the merchant's.
-  if (!session && !open && !path.startsWith('/.well-known/agent/invoke')) {
+  if (!session && !open) {
     return NextResponse.redirect(new URL('/login', req.url))
   }
   return res

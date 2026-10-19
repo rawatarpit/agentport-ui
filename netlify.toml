@@ -8,11 +8,10 @@
 #   NEXT_PUBLIC_SUPABASE_URL + NEXT_PUBLIC_SUPABASE_ANON_KEY — public project
 #   identifiers (anon only; never service-role or access tokens).
 #
-# NOTE on `@agentport/sdk`: it is vendored at `vendor/agentport-sdk`
-# (prebuilt `dist` snapshot of the SDK repo) and consumed as
-# `file:./vendor/agentport-sdk`, so this build is self-contained — no sibling
-# checkout, no publish step. Refresh the snapshot by re-copying `dist` (and
-# `package.json`) from the SDK repo after its own `npm run verify` passes.
+# NOTE: the console carries no runtime SDK dependency — enforcement lives in
+# the merchant's own process, never here. Reads go to Supabase (RLS-scoped);
+# the config compiler is local (lib/golive.ts). Builds are self-contained
+# with npm dependencies only.
 #
 # Netlify runs NO backend here: no ingest, no sync, no sessions, no reads.
 # Every edge/server function it bundles (`server-handler`, middleware) is the

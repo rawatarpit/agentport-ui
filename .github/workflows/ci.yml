@@ -1,9 +1,7 @@
 # TASKS.md 12.4.3 — typecheck + lint + unit tests + build on every push and PR.
 #
-# Node is pinned to match netlify.toml. The SDK is vendored
-# (`vendor/agentport-sdk`), so no sibling checkout is needed. Refresh the
-# snapshot by re-copying `dist` from the SDK repo after its own verify passes;
-# CI here only proves the snapshot resolves and builds.
+# Node is pinned to match netlify.toml. Builds are self-contained: the console
+# has no runtime SDK dependency (see README).
 name: ci
 
 on:
@@ -21,12 +19,6 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: package-lock.json
-      - name: Provide the SDK sibling
-        run: |
-          if [ ! -f vendor/agentport-sdk/package.json ]; then
-            echo '::error::Missing vendor/agentport-sdk. Re-copy package.json + dist from the SDK repo (see netlify.toml).'
-            exit 1
-          fi
       - run: npm ci --no-audit --no-fund
       - run: npm run typecheck
       - run: npm run lint

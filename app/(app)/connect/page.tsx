@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { EnforcingPanel } from '@/components/enforcing-panel'
 import { GithubPanel } from '@/components/github-panel'
 import { SignupForm } from '@/components/signup-form'
-import { TestEventButton } from '@/components/test-event-button'
 import { WebsiteForm } from '@/components/website-form'
 import { WebhookPanel } from '@/components/webhook-panel'
 
@@ -220,8 +219,6 @@ export default function ConnectPage() {
               <li>· Approvals stay in your environment: <span className="font-mono text-bone">agent-port approve</span> records who approved against the frozen request.</li>
             </ul>
           </div>
-
-          <TestEventButton />
 
           <WebhookPanel />
         </div>

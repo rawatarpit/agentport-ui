@@ -1,7 +1,7 @@
 import { Badge } from '@/components/stat'
 import { configHash } from '@/lib/agentport'
 import { listDecisions } from '@/lib/console-reads'
-import type { LedgerEntry } from '@agentport/sdk'
+import type { LedgerEntry } from '@/lib/contracts'
 
 export const dynamic = 'force-dynamic'
 

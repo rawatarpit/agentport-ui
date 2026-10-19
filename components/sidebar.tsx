@@ -25,7 +25,6 @@ const MORE = [
   { href: '/setup', label: 'Get started' },
   { href: '/capabilities', label: 'Capabilities' },
   { href: '/policies', label: 'Limits & stop' },
-  { href: '/chat', label: 'Storefront demo' },
 ]
 
 export function Sidebar() {
@@ -67,7 +66,7 @@ export function Sidebar() {
     )
   }
 
-  const onMoreRoute = ['/setup', '/capabilities', '/policies', '/chat'].includes(path)
+  const onMoreRoute = ['/setup', '/capabilities', '/policies'].includes(path)
 
   const body = (mobile: boolean) => (
     <div className={`flex ${mobile ? '' : 'min-h-0 flex-1 flex-col gap-5 overflow-y-auto'} flex-col gap-5`}>

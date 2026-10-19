@@ -19,8 +19,8 @@ opencode.json
 # does not carry the database.
 supabase/
 
-# The runtime SDK package is provisioned from its package source, not from
-# this repository; the working snapshot stays on disk at vendor/agentport-sdk.
+# Former runtime-SDK snapshot. Nothing in the build reads it anymore; kept
+# on disk for local reference only.
 vendor/
 
 # Internal docs (plans, decision log, runbooks) stay on disk, not in git.

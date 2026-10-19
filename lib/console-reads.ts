@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import type { LedgerEntry } from '@agentport/sdk'
+import type { LedgerEntry } from '@/lib/contracts'
 
 /**
  * Durable reads for the console's own decision rows (TASKS.md 12.2, 2.4).

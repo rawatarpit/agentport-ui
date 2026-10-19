@@ -1,5 +1,5 @@
 import { createHmac } from 'node:crypto'
-import type { Policy } from '@agentport/sdk'
+import type { Policy } from '@/lib/contracts'
 import { getDraft, getLive, resolveTenant, type LiveCapability } from '@/lib/store'
 
 /**
