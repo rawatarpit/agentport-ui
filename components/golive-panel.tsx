@@ -29,6 +29,10 @@ export function GolivePanel() {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  const [envelope, setEnvelope] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const [uploadMsg, setUploadMsg] = useState<string | null>(null)
+  const [uploadErr, setUploadErr] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setErr(null)
@@ -139,6 +143,43 @@ export function GolivePanel() {
     void loadVersions()
   }, [loadVersions])
 
+  const upload = async () => {
+    setUploading(true)
+    setUploadErr(null)
+    setUploadMsg(null)
+    try {
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(envelope)
+      } catch {
+        throw new Error('The envelope is not valid JSON — upload the file `agent-port publish` wrote.')
+      }
+      const res = await fetch('/api/publish/artifact', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(parsed),
+      })
+      const body = (await res.json()) as {
+        status: string
+        reason?: string
+        version?: number
+        activated?: boolean
+        revision?: number
+      }
+      if (body.status !== 'ok') throw new Error(body.reason ?? 'Upload refused.')
+      setUploadMsg(
+        `Artifact v${body.version} stored and activated${typeof body.revision === 'number' ? ` (runtime revision ${body.revision})` : ''}. The worker picks it up within one poll interval.`,
+      )
+      setEnvelope('')
+      await load()
+      await loadVersions()
+    } catch (e) {
+      setUploadErr(e instanceof Error ? e.message : 'Upload refused.')
+    } finally {
+      setUploading(false)
+    }
+  }
+
   const rollback = async (version: number) => {
     // Rollback is a new approval of old bytes (append-only friendly), then
     // the same sign-and-upload as any publish. Narrowing-or-equal content
@@ -207,10 +248,54 @@ export function GolivePanel() {
           </div>
           <p className="font-mono text-[11px] leading-relaxed text-bone-faint">
             After approval, sign locally with{' '}
-            <span className="text-bone">agent-port publish --key</span> (the key never leaves your
-            machine), then upload the envelope. Until the hosted governor applies it and the
-            heartbeat confirms, nothing changes.
+            <span className="text-bone">agent-port publish --key merchant-private.pem --public-key merchant-public.pem</span>{' '}
+            (the private key never leaves your machine), then upload the envelope. Until the hosted
+            governor applies it and the heartbeat confirms, nothing changes.
           </p>
+          <div className="border-t border-ink-line pt-3">
+            <p className="label">Upload the signed envelope</p>
+            <p className="mt-1 text-[12px] leading-relaxed text-bone-faint">
+              Upload the JSON `agent-port publish` produced. The public key inside it is pinned by
+              the hosted worker on first activation; a later key change is refused until an operator
+              clears the pin.
+            </p>
+            <input
+              type="file"
+              accept=".json,application/json"
+              className="mt-3 block w-full text-[12px] text-bone-dim file:mr-3 file:rounded-md file:border file:border-ink-line file:bg-ink-soft file:px-3 file:py-1.5 file:text-[12px] file:text-bone"
+              onChange={async (e) => {
+                const file = e.target.files?.[0]
+                if (!file) return
+                setUploadMsg(null)
+                setUploadErr(null)
+                setEnvelope(await file.text())
+              }}
+            />
+            <textarea
+              className="mt-2 w-full rounded-md border border-ink-line bg-ink px-3 py-2 font-mono text-[12px] text-bone"
+              rows={5}
+              spellCheck={false}
+              value={envelope}
+              onChange={(e) => setEnvelope(e.target.value)}
+              placeholder='{ "artifact": { ... }, "signature": "...", "publicKey": "-----BEGIN PUBLIC KEY-----..." }'
+            />
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                className="btn"
+                disabled={uploading || envelope.trim() === ''}
+                onClick={upload}
+              >
+                {uploading ? 'Uploading…' : 'Upload and activate'}
+              </button>
+              {uploadMsg ? <span className="text-[13px] text-verdant">{uploadMsg}</span> : null}
+            </div>
+            {uploadErr ? (
+              <p className="mt-2 text-[13px] text-rust" role="alert">
+                {uploadErr}
+              </p>
+            ) : null}
+          </div>
           <p className="font-mono text-[11px] leading-relaxed text-bone-faint">
             No GitHub App on your repo yet? Download{' '}
             <span className="text-bone">agentport-install.mjs</span>, run it at the repo root, review

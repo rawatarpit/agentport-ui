@@ -3,12 +3,11 @@ import { createClient } from '@supabase/supabase-js'
 /**
  * Server-only Supabase client that bypasses RLS.
  *
- * The ONLY permitted use is the GitHub install write, after the callback has
- * exchanged the user's OAuth code and proven the caller administers the
- * installation's account. `github_installations` has no INSERT/UPDATE grant
- * for `authenticated` precisely so a tenant owner cannot claim a numeric
- * installation id directly; the matching `record_github_install` RPC is
- * service-role-only for the same reason.
+ * Permitted uses are the GitHub install write (after the callback proves the
+ * caller administers the installation's account) and runtime activation
+ * (after the route has proven the caller is an owner/admin). The matching
+ * service-role-only RPCs are the control; this client is never reachable from
+ * a browser bundle or a route that has not already checked the role.
  *
  * Never import this from a Client Component, a browser bundle, or any route
  * that has not already proven installation ownership. The service-role key is

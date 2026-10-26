@@ -67,13 +67,9 @@ export async function POST(req: Request) {
   }
   const { data: tenantRow } = await supabase
     .from('tenants')
-    .select('display_name,website_url')
+    .select('display_name')
     .eq('tenant_id', tenantId)
     .maybeSingle()
-  const baseUrl =
-    typeof tenantRow?.website_url === 'string' && tenantRow.website_url.trim() !== ''
-      ? tenantRow.website_url
-      : undefined
 
   // Content: stored version (rollback) or current drafts. One compiler.
   let policy: Policy
@@ -109,13 +105,41 @@ export async function POST(req: Request) {
       return Response.json({ status: 'error', reason: compiled.reason }, { status: 422 })
     }
     policy = compiled.compiled.policy as unknown as Policy
-    caps = compiled.compiled.capabilities.map((c) => ({ name: c.name }))
+    // Approve the route-backed capabilities, not the discovery catalogue.
+    // The known semantic names (searchProducts, createOrder, …) are
+    // advertised for discovery but have no merchant route in this draft, so
+    // the runtime cannot execute them. Including them here would make the
+    // approved digest disagree with the signed artifact, which carries only
+    // the routes the merchant actually exposes.
+    const mapped = capabilities?.payload !== undefined ? validateCapabilities(capabilities.payload) : null
+    const extras = mapped?.ok ? mapped.value.extra ?? [] : []
+    caps = extras.map((e) => ({ name: e.name }))
+    // Persist the execution descriptors the hosted worker needs. The signed
+    // artifact names capabilities; this inventory supplies method/path/kind.
+    // Doing it before the approval row means an approval cannot exist without
+    // the descriptors the runtime will require at activation.
+    const inventory = extras.map((e) => ({
+      tenant_id: tenantId,
+      name: e.name,
+      method: e.method,
+      path: e.path,
+      kind: e.kind,
+      origin: 'mapped' as const,
+    }))
+    if (inventory.length > 0) {
+      const { error: inventoryError } = await supabase
+        .from('agent_capabilities')
+        .upsert(inventory, { onConflict: 'tenant_id,name' })
+      if (inventoryError) {
+        return Response.json(
+          { status: 'error', reason: `Could not record the capability inventory: ${inventoryError.message}` },
+          { status: 500 },
+        )
+      }
+    }
     // Extra kinds for tiering (unknown kinds fail toward typed ceremony).
     const extraKinds = new Map<string, 'read' | 'write'>()
-    if (capabilities?.payload !== undefined) {
-      const c = validateCapabilities(capabilities.payload)
-      if (c.ok) for (const e of c.value.extra ?? []) extraKinds.set(e.name, e.kind)
-    }
+    for (const e of extras) extraKinds.set(e.name, e.kind)
     kindOf = (name: string) => extraKinds.get(name) ?? knownKind(name)
   }
 
@@ -142,13 +166,12 @@ export async function POST(req: Request) {
   const version = (typeof latest?.version === 'number' ? latest.version : 0) + 1
 
   const tier = tierForChange(prev, { policy, capabilities: caps }, kindOf)
-  const digest = contentDigest({
-    tenantId,
-    version,
-    policy,
-    capabilities: caps,
-    ...(baseUrl !== undefined ? { baseUrl } : {}),
-  })
+  // The approval binds the policy and capability set, not the transport
+  // origin. `baseUrl` is validated against the registered website at upload
+  // time, and the runtime reads the origin from the activation row, so
+  // including it here would make an envelope without a signed baseUrl fail
+  // to match the approval it was issued for.
+  const digest = contentDigest({ tenantId, version, policy, capabilities: caps })
 
   // Ceremony: typed needs the business name spelled out (blast radius =
   // kill-switch-class); light needs an explicit true (never a default).
@@ -191,6 +214,6 @@ export async function POST(req: Request) {
     version,
     tier,
     digest,
-    next: `Sign exactly these bytes: agent-port publish --key merchant-private.pem --version ${version} (key never leaves your machine), then upload the envelope.`,
+    next: `Sign exactly these bytes: agent-port publish --key merchant-private.pem --public-key merchant-public.pem --version ${version} (key never leaves your machine), then upload the envelope.`,
   })
 }
