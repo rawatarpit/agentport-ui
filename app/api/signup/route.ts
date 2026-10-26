@@ -1,3 +1,5 @@
+import { demoGuard } from '@/lib/demo-gate'
+import { guardStateChange } from '@/lib/request-guard'
 import { createMerchant, findMerchantByEmail } from '@/lib/store'
 
 export const dynamic = 'force-dynamic'
@@ -13,6 +15,10 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
  * tenant. An account that cannot sign you in is a row, and this says so.
  */
 export async function POST(req: Request) {
+  const guarded = guardStateChange(req, 'signup')
+  if (guarded) return guarded
+  const denied = await demoGuard()
+  if (denied) return denied
   let body: { email?: unknown; businessName?: unknown }
   try {
     body = await req.json()

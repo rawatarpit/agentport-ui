@@ -6,18 +6,21 @@
 # REQUIRED in Netlify site settings (never in this file):
 #   AGENTPORT_SIGNING_SECRET  — HMAC key (server-only)
 #   NEXT_PUBLIC_SUPABASE_URL + NEXT_PUBLIC_SUPABASE_ANON_KEY — public project
-#   identifiers (anon only; never service-role or access tokens).
+#   identifiers (anon only).
+#   SUPABASE_SERVICE_ROLE_KEY — server-only; used ONLY by the GitHub install
+#   write after ownership proof (lib/supabase/admin.ts). Never NEXT_PUBLIC_.
 #
-# NOTE: the console carries no runtime SDK dependency — enforcement lives in
-# the merchant's own process, never here. Reads go to Supabase (RLS-scoped);
-# the config compiler is local (lib/golive.ts). Builds are self-contained
+# NOTE: the console carries no runtime SDK dependency and decides nothing.
+# Enforcement lives in the hosted Rust governor on Agent Port's infrastructure,
+# never in this package and never in the merchant's process. The dashboard reads
+# and writes through Supabase (RLS-scoped) and calls the governor's admin API;
+# the config compiler runs in this app (lib/golive.ts). Builds are self-contained
 # with npm dependencies only.
 #
-# Netlify runs NO backend here: no ingest, no sync, no sessions, no reads.
-# Every edge/server function it bundles (`server-handler`, middleware) is the
-# UI serving itself — pages, auth redirects, and the dashboard's own
-# authoring APIs. Runtime traffic goes to Supabase edge functions directly;
-# the data plane never touches this host.
+# Netlify serves the console: pages, auth redirects, and the dashboard's own
+# authoring/admin API routes. It is not the enforcement plane. Agent runtime
+# traffic goes to the hosted governor, not here; the governor writes decisions
+# to the ledger in Supabase.
 
 [build]
   command = "npm run build"

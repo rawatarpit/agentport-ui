@@ -1,7 +1,9 @@
 import { getDraftDb, putDraftDb } from '@/lib/durable-store'
+import { guardStateChange } from '@/lib/request-guard'
 import type { DraftSection } from '@/lib/store'
 import { validateCapabilities, validateRules, validateSetup } from '@/lib/golive'
 import { resolveCallerTenant } from '@/lib/tenant'
+import { readSelectedTenantId, tenantRefusalResponse } from '@/lib/tenant-server'
 import { createClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
@@ -18,13 +20,14 @@ function check(section: DraftSection, payload: unknown): string[] | null {
   return r.ok ? null : r.errors
 }
 
-async function callerTenantId(): Promise<string | null> {
+async function callerTenant(): Promise<Awaited<ReturnType<typeof resolveCallerTenant>>> {
   try {
     const supabase = createClient()
     const { data } = await supabase.auth.getUser()
     const t = await resolveCallerTenant({
       getUserId: async () => data.user?.id ?? null,
-      listMemberships: async (userId: string) => {
+      selectedTenantId: readSelectedTenantId(),
+    listMemberships: async (userId: string) => {
         const { data: rows } = await supabase
           .from('tenant_members')
           .select('tenant_id,role,created_at')
@@ -33,9 +36,9 @@ async function callerTenantId(): Promise<string | null> {
         return (rows ?? []) as Array<{ tenant_id: string; role: string; created_at: string }>
       },
     })
-    return t.tenantId
+    return t
   } catch {
-    return null
+    return { tenantId: null, code: 'signed_out', reason: 'Sign in first — drafts belong to your business.' }
   }
 }
 
@@ -53,15 +56,15 @@ export async function GET(_req: Request, { params }: { params: { section: string
   if (!SECTIONS.includes(section)) {
     return Response.json({ status: 'error', reason: `Unknown section "${params.section}".` }, { status: 400 })
   }
-  const tenantId = await callerTenantId()
-  if (!tenantId) {
-    return Response.json({ status: 'error', reason: 'Sign in first — drafts belong to your business.' }, { status: 401 })
-  }
-  const draft = await getDraftDb(tenantId, section)
+  const t = await callerTenant()
+  if (t.tenantId === null) return tenantRefusalResponse(t)
+  const draft = await getDraftDb(t.tenantId, section)
   return Response.json({ status: 'ok', section, draft: draft?.payload ?? null, updatedAt: draft?.updatedAt ?? null })
 }
 
 export async function PUT(req: Request, { params }: { params: { section: string } }) {
+  const guarded = guardStateChange(req, 'drafts')
+  if (guarded) return guarded
   const section = params.section as DraftSection
   if (!SECTIONS.includes(section)) {
     return Response.json({ status: 'error', reason: `Unknown section "${params.section}".` }, { status: 400 })
@@ -76,12 +79,10 @@ export async function PUT(req: Request, { params }: { params: { section: string 
   if (errors) {
     return Response.json({ status: 'error', reason: 'Draft rejected.', errors }, { status: 422 })
   }
-  const tenantId = await callerTenantId()
-  if (!tenantId) {
-    return Response.json({ status: 'error', reason: 'Sign in first — drafts belong to your business.' }, { status: 401 })
-  }
+  const t = await callerTenant()
+  if (t.tenantId === null) return tenantRefusalResponse(t)
   const payload = ((body as { payload?: unknown })?.payload ?? body) as unknown
-  const draft = await putDraftDb(tenantId, section, payload)
+  const draft = await putDraftDb(t.tenantId, section, payload)
   if (!draft) {
     return Response.json({ status: 'error', reason: 'Draft could not be saved — try again.' }, { status: 503 })
   }

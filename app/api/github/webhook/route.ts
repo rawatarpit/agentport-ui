@@ -1,13 +1,16 @@
 import { verifyWebhookSignature } from '@/lib/github'
+import { enforceRateLimit } from '@/lib/request-guard'
 
 export const dynamic = 'force-dynamic'
 
 /**
  * POST /api/github/webhook — GitHub App event deliveries.
  *
- * Verified before read: HMAC-SHA256 over the exact raw bytes against
- * `GITHUB_WEBHOOK_SECRET`, constant-time. An unverified delivery is refused
- * with 401 and nothing else happens — no parse, no store, no log of the body.
+ * HMAC-SHA256 over the exact raw bytes against `GITHUB_WEBHOOK_SECRET`,
+ * constant-time. An unverified delivery is refused with 401 and nothing else
+ * happens — no parse, no store, no log of the body. A declared body over the
+ * cap is refused before buffering; GitHub's install/pull-request deliveries
+ * are far below it.
  *
  * Unknown events are acknowledged, never errored: GitHub retries 5xx, and an
  * event this code does not understand is not a failure, it is a future event.
@@ -18,11 +21,19 @@ export async function POST(req: Request) {
   if (!secret) {
     return Response.json({ status: 'error', reason: 'GitHub App not configured — no webhook secret.' }, { status: 503 })
   }
+  const declared = Number(req.headers.get('content-length') ?? '')
+  if (Number.isFinite(declared) && declared > 1_000_000) {
+    return Response.json({ status: 'error', reason: 'Delivery body too large.' }, { status: 413 })
+  }
   const raw = await req.text()
   const verdict = verifyWebhookSignature(secret, raw, req.headers.get('x-hub-signature-256'))
   if (!verdict.ok) {
     return Response.json({ status: 'error', reason: `Delivery refused: ${verdict.reason}.` }, { status: 401 })
   }
+  // HMAC replaces the browser Origin check here. Limit only after the
+  // signature passes, so anonymous garbage is refused as 401, not 429.
+  const limited = enforceRateLimit(req, 'github:webhook')
+  if (limited) return limited
 
   const event = req.headers.get('x-github-event') ?? ''
   const delivery = req.headers.get('x-github-delivery') ?? ''

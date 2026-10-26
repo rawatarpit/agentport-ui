@@ -5,9 +5,9 @@ export const dynamic = 'force-dynamic'
 
 /**
  * 5.x reading it back — the merchant comes back after a week.
- * Everything on this screen is something the runtime asserted: counts plus
- * the enforcing digest and its age. The ledger itself stays in their
- * database; this screen never proxies a row.
+ * Everything on this screen is something the hosted governor asserted: counts
+ * plus the enforcing digest and its age. The ledger stays in Agent Port's
+ * backend; this screen never proxies a raw row.
  */
 export default function AnalyticsPage() {
   return (

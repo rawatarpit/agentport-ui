@@ -1,15 +1,10 @@
 import Link from 'next/link'
 import { Badge } from '@/components/stat'
+import { getLiveArtifact } from '@/lib/backend-reads'
+import { getDraftDb, getInstallationsDb, getPullRequestsDb, installationKnownDb } from '@/lib/durable-store'
 import { mintInstallationTokenFor, readPrState } from '@/lib/github'
-import { getCounts, getLive, getMerchant, getPullRequests, resolveTenant } from '@/lib/store'
-
-/** True when the GitHub App credentials exist — the only thing code cannot invent. */
-export function githubConnected(): boolean {
-  return (
-    (process.env.GITHUB_APP_ID ?? '').trim().length > 0 &&
-    (process.env.GITHUB_APP_PRIVATE_KEY ?? '').trim().length > 0
-  )
-}
+import { getCounts, getLive, getMerchant } from '@/lib/store'
+import { resolveRequestTenant } from '@/lib/tenant-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,7 +17,8 @@ export const dynamic = 'force-dynamic'
  * runtime that may not exist.
  */
 export async function DashboardKpis() {
-  const rows = getCounts(resolveTenant())
+  const tenant = await resolveRequestTenant()
+  const rows = tenant.active.status === 'active' ? getCounts(tenant.active.tenantId) : []
 
   if (rows.length === 0) {
     return (
@@ -32,7 +28,7 @@ export async function DashboardKpis() {
           Nothing recorded yet — this reads <span className="text-bone">unknown</span>,
           not zero. Numbers appear here once your site starts reporting.
         </p>
-        <Link href="/connect" className="btn mt-2">Connect your site</Link>
+        <Link href="/#connect-github" className="btn mt-2">Connect your site</Link>
       </div>
     )
   }
@@ -145,18 +141,41 @@ function Kpi({ label, value, sub, tone, link }: { label: string; value: number; 
  * completed onboarding disappears instead of nagging.
  */
 export async function OnboardingCard() {
-  const tenantId = resolveTenant()
+  const tenant = await resolveRequestTenant()
+  if (tenant.active.status !== 'active') return null
+  const tenantId = tenant.active.tenantId
   const merchant = getMerchant(tenantId)
-  const live = getLive(tenantId)
-  const github = githubConnected()
+  const [setup, rules, installations, prs, liveArtifact] = await Promise.all([
+    getDraftDb(tenantId, 'setup'),
+    getDraftDb(tenantId, 'rules'),
+    getInstallationsDb(tenantId),
+    getPullRequestsDb(tenantId),
+    getLiveArtifact(tenantId),
+  ])
+  const rulesReady = Boolean(setup || rules)
+  const prOpened = prs.length > 0
+  const live = liveArtifact !== null
+
+  // Revalidate before calling an installation connected. Only a successful
+  // mint is proof; a revoked install or an App/network failure is not a green
+  // step. The row stays in the durable store so the panel can retry.
+  let installed = false
+  for (const inst of installations) {
+    const minted = await mintInstallationTokenFor(inst.installationId)
+    if (minted.ok) {
+      installed = true
+      break
+    }
+  }
 
   // Has any recorded pull request actually merged? Read live through a
-  // fresh installation token — the record only says one was opened.
-  // Anything failing here means "not proven merged", never an error on
-  // screen: the checklist answers what is done, and unproven is not done.
+  // fresh installation token — the record only says one was opened. A PR
+  // record whose installation is no longer linked is skipped before mint,
+  // exactly as /api/github/pr does; a stale row is not authority.
   let merged = false
   try {
-    for (const pr of getPullRequests(tenantId)) {
+    for (const pr of prs) {
+      if (!(await installationKnownDb(tenantId, pr.installationId))) continue
       const minted = await mintInstallationTokenFor(pr.installationId)
       if (!minted.ok) continue
       const state = await readPrState({ installationToken: minted.token, repoFullName: pr.repo, prNumber: pr.number })
@@ -187,27 +206,59 @@ export async function OnboardingCard() {
 
   const items = [
     { done: account.done, label: 'Create your account', body: account.body, href: '/connect', key: 'account' },
-    { done: github, label: 'Connect your repo', body: github ? 'Connected — the runtime can move in.' : 'You pick the repo, we open the pull request.', href: '/connect', key: 'github' },
-    { done: merged, label: 'Merge the pull request', body: merged ? 'Merged — your signature is on it.' : 'Review it like any other change. Merging is what turns everything on.', href: '/connect', key: 'merge' },
-    { done: !!live, label: 'Publish your rules', body: 'Review the summary, publish, watch your site pick it up.', href: '/rules', key: 'live' },
+    {
+      done: rulesReady,
+      label: 'Set your starter rules',
+      body: rulesReady ? 'Saved as a draft — nothing is live yet.' : 'Four plain questions. The install package is generated from these answers.',
+      href: '/setup',
+      key: 'rules',
+    },
+    {
+      done: installed,
+      label: 'Connect GitHub and choose your website repo',
+      body: installed ? 'GitHub is connected for this business.' : 'You pick the repo; we never see your password.',
+      href: '#connect-github',
+      key: 'github',
+    },
+    {
+      done: prOpened,
+      label: 'Open the install PR',
+      body: prOpened ? 'PR opened — review it on GitHub.' : 'Adds `agentport/` and discovery files, not a runtime.',
+      href: '#connect-github',
+      key: 'pr',
+    },
+    {
+      done: merged,
+      label: 'Review and merge the PR',
+      body: merged ? 'Merged — your CI/CD can deploy it.' : 'Your merge adopts it; your normal deploy puts it on the site.',
+      href: '#connect-github',
+      key: 'merge',
+    },
+    {
+      done: live,
+      label: 'Publish your rules',
+      body: live ? 'Published — the hosted governor enforces it.' : 'Review the summary and publish. Nothing is live before this.',
+      href: '/rules',
+      key: 'live',
+    },
   ]
   const done = items.filter((i) => i.done).length
   if (done === items.length) return null
-  // First run gets one door, not five: the single next action as the
+  // First run gets one door, not six: the single next action as the
   // primary button, the rest as the list below. A wall of equal choices
   // is how onboarding stalls on step zero.
   const firstUndone = items.find((i) => !i.done)
-  // The single most important un-done thing gets the amber frame, not an
-  // error: an account with no website connection governs nothing yet, and
-  // that fact should be felt before it is read.
-  const urgent = account.done && !github
+  // Rules come before the install PR because the package is generated from
+  // them. Until a draft exists, the PR would refuse with "nothing to
+  // publish" after the merchant had already picked a repo.
+  const urgent = account.done && !rulesReady
   const nextUndone = firstUndone
 
   return (
     <div className={`panel p-5 ${urgent ? 'border-amber/40' : ''}`}>
       <div className="flex items-baseline justify-between">
         <p className="label">
-          {urgent ? 'One step left — connect your website' : `Getting started — ${done} of ${items.length}`}
+          {urgent ? 'One step left — set your starter rules' : `Getting started — ${done} of ${items.length}`}
         </p>
         <div className="h-1.5 w-32 overflow-hidden rounded-full bg-ink-line/50" role="progressbar" aria-valuenow={Math.round((done / items.length) * 100)} aria-valuemin={0} aria-valuemax={100} aria-label={`Setup progress: ${done} of ${items.length} steps done`}>
           <div className="h-full rounded-full bg-verdant/70" style={{ width: `${Math.round((done / items.length) * 100)}%` }} />
@@ -215,13 +266,13 @@ export async function OnboardingCard() {
       </div>
       {urgent ? (
         <p className="mt-3 max-w-[62ch] text-[14px] leading-relaxed text-bone-dim">
-          Your account is ready, but nothing is governed yet — your
-          website&apos;s code lives on GitHub, so connecting happens there:
-          connect your repo and we deliver the runtime to your site. You pick the repo, and your merge is what turns
-          everything on.
+          Your account is ready. Set your starter rules first: the install
+          pull request adds <span className="font-mono text-bone">agentport/</span>{' '}
+          and the discovery files your site serves, and those files are
+          generated from your answers. It is not a runtime.
         </p>
       ) : null}
-      {done === 0 && firstUndone ? (
+      {firstUndone && (done === 0 || urgent) ? (
         <div className="mt-4">
           <Link href={firstUndone.href} className="btn btn-primary px-5 py-2.5">
             Start: {firstUndone.label.toLowerCase()} →
@@ -246,7 +297,7 @@ export async function OnboardingCard() {
               <ol className="ml-1 mt-2 space-y-1 border-l border-ink-line pl-3 text-[13px] text-bone-dim">
                 <li><span className="font-mono text-bone">1.</span> On GitHub, connect your website&apos;s repo — we never see your password.</li>
                 <li><span className="font-mono text-bone">2.</span> We open a pull request your team reviews like any other change.</li>
-                <li><span className="font-mono text-bone">3.</span> You merge — that merge turns everything on.</li>
+                <li><span className="font-mono text-bone">3.</span> You merge; your normal CI/CD deploys it. Merge is not live by itself.</li>
               </ol>
             ) : null}
           </li>
@@ -263,7 +314,9 @@ export async function OnboardingCard() {
  * nothing to stop would be decoration.
  */
 export async function KillSwitchRow() {
-  const live = getLive(resolveTenant())
+  const tenant = await resolveRequestTenant()
+  if (tenant.active.status !== 'active') return null
+  const live = getLive(tenant.active.tenantId)
   if (!live) return null
   if (!live.emergencyKillSwitch) {
     return (

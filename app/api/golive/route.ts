@@ -1,5 +1,7 @@
+import { demoGuard } from '@/lib/demo-gate'
 import { getLive, getMerchant, publishLive, resolveTenant } from '@/lib/store'
 import { compileLive, digestFor, goliveStatus } from '@/lib/golive'
+import { guardStateChange } from '@/lib/request-guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,9 +15,11 @@ export const dynamic = 'force-dynamic'
  * the one control that must stay local). What this endpoint keeps is the
  * concurrency guard: `fromDigest` must match what is live (or "none" on
  * first publish), so nobody publishes over a version they never read.
- * Publishing signs the config; only the runtime heartbeat turns it live.
+ * Publishing signs the config; only the hosted governor heartbeat turns it live.
  */
 export async function GET() {
+  const denied = await demoGuard()
+  if (denied) return denied
   const tenantId = resolveTenant()
   const merchant = getMerchant(tenantId)
   return Response.json({
@@ -26,6 +30,10 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const guarded = guardStateChange(req, 'golive')
+  if (guarded) return guarded
+  const denied = await demoGuard()
+  if (denied) return denied
   const tenantId = resolveTenant()
   const merchant = getMerchant(tenantId)
   if (!merchant) {

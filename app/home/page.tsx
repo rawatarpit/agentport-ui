@@ -13,8 +13,8 @@ export const metadata = {
  *
  * Analytics-first, because that is the question a merchant actually opens
  * with: who is asking, for what, and did it work. The governance half is the
- * upgrade — policy in front of the action, decided by the runtime, never by
- * this page.
+ * upgrade — policy in front of the action, decided by the hosted governor,
+ * never by this page.
  *
  * No fixtures, no invented numbers, no logos, no testimonials: the only
  * data-shaped element below is labelled an example, because a marketing panel
@@ -63,12 +63,12 @@ const STEPS = [
   {
     n: '1',
     title: 'Install once',
-    body: 'Connect GitHub and we open one pull request that adds one reviewable file — your policy config. Your team reviews it; you merge. The merge is your signature. Repos that cannot take the App download the same file from the same compiler.',
+    body: 'Connect GitHub and we open one pull request that adds the agentport/ discovery package — not a runtime. Your team reviews it; you merge; your normal CI/CD deploys it. Repos that cannot take the App download the same package from the same compiler.',
   },
   {
     n: '2',
     title: 'Answer four questions',
-    body: 'Two money questions, two permission questions, in plain language. They become typed policy — what agents see, what waits for you, what is always no. Drafts until your runtime verifies and applies the signed artifact.',
+    body: 'Two money questions, two permission questions, in plain language. They become typed policy — what agents see, what waits for you, what is always no. Drafts until the hosted governor applies the signed artifact.',
   },
   {
     n: '3',
@@ -80,11 +80,11 @@ const STEPS = [
 const RULES = [
   {
     title: 'Draft is never live.',
-    body: 'Dashboard edits stay drafts until the runtime verifies and applies them. This page authors; it never enforces.',
+    body: 'Dashboard edits stay drafts until the hosted governor applies them. This page authors; it never enforces.',
   },
   {
     title: 'Held is never executed.',
-    body: 'An approval freezes the request. The decision lands in the CLI, where the credential is — not on a browser button.',
+    body: 'An approval freezes the request. The decision lands through the hosted approval path, not on a browser button.',
   },
   {
     title: 'Unknown is never healthy.',
@@ -240,7 +240,7 @@ export default function HomePage() {
           <p className="prose-bone mt-3 max-w-[68ch]">
             The screen a merchant actually returns to: which agents ask for
             what, what happened, and whether it worked. No tracking pixels,
-            no tags — the runtime reports decisions, not browsing.
+            no tags — the hosted governor reports decisions, not browsing.
           </p>
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
             {PILLARS.map((p) => (

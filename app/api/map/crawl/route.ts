@@ -1,5 +1,7 @@
+import { demoGuard } from '@/lib/demo-gate'
 import { getMerchant, resolveTenant } from '@/lib/store'
 import { checkHostResolvesPublic, checkTarget, parseMerchantOrigin, shapeCrawled } from '@/lib/map-crawl'
+import { guardStateChange } from '@/lib/request-guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,7 +20,11 @@ const OVERALL_MS = 45_000
  * shaped for the Map page's reconcile step — paste-equivalent output from a
  * live source. Every refusal is specific; every bound above is fail-closed.
  */
-export async function POST() {
+export async function POST(req: Request) {
+  const guarded = guardStateChange(req, 'map:crawl')
+  if (guarded) return guarded
+  const denied = await demoGuard()
+  if (denied) return denied
   const started = Date.now()
   const merchant = getMerchant(resolveTenant())
   const websiteUrl = merchant?.websiteUrl ?? null

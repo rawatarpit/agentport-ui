@@ -1,6 +1,8 @@
 import { insertInstallState } from '@/lib/durable-store'
 import { installUrlFor, newInstallState } from '@/lib/install-state'
 import { canManageIntegrations, resolveCallerContext } from '@/lib/tenant'
+import { guardStateChange } from '@/lib/request-guard'
+import { readSelectedTenantId, tenantRefusalResponse } from '@/lib/tenant-server'
 import { createClient } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
@@ -14,14 +16,17 @@ export const dynamic = 'force-dynamic'
  * state. The Setup-URL callback consumes it atomically — a leaked or
  * replayed state links nothing.
  */
-export async function POST() {
+export async function POST(req: Request) {
+  const guarded = guardStateChange(req, 'github:install')
+  if (guarded) return guarded
   const supabase = createClient()
   let ctx: Awaited<ReturnType<typeof resolveCallerContext>>
   try {
     const { data } = await supabase.auth.getUser()
     ctx = await resolveCallerContext({
       getUserId: async () => data.user?.id ?? null,
-      listMemberships: async (userId: string) => {
+      selectedTenantId: readSelectedTenantId(),
+    listMemberships: async (userId: string) => {
         const { data: rows } = await supabase
           .from('tenant_members')
           .select('tenant_id,role,created_at')
@@ -34,10 +39,7 @@ export async function POST() {
     return Response.json({ status: 'error', reason: 'Sign in first.' }, { status: 401 })
   }
   if (!ctx.tenantId) {
-    return Response.json(
-      { status: 'error', reason: 'Signed in, but no business is linked to this login yet.' },
-      { status: 404 },
-    )
+    return tenantRefusalResponse(ctx)
   }
   if (!canManageIntegrations(ctx.role)) {
     return Response.json(

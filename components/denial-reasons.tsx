@@ -28,7 +28,7 @@ export async function DenialReasons() {
 
   return (
     <div className="panel p-5">
-      <p className="label">What is actually firing — from your runtime</p>
+      <p className="label">What is actually firing — from the hosted governor</p>
       <ul className="mt-3 space-y-2 text-[13px]">
         {rows.slice(0, 10).map((r, i) => (
           <li key={`${r.denial_reason}-${r.policy_rule}-${i}`} className="flex items-center justify-between gap-3 border-b border-ink-line/60 py-2 last:border-0">

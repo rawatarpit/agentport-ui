@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   asConsumedState,
+  bindInstallState,
   hashInstallState,
   installUrlFor,
   newInstallState,
@@ -16,12 +17,30 @@ describe('resolveCallerContext', () => {
     { tenant_id: 'new', role: 'viewer', created_at: '2026-10-14T00:00:00Z' },
     { tenant_id: 'old', role: 'admin', created_at: '2026-10-01T00:00:00Z' },
   ]
-  const deps = (userId: string | null) => ({
+  const deps = (userId: string | null, selectedTenantId: string | null = 'old') => ({
     getUserId: async () => userId,
     listMemberships: async () => rows,
+    selectedTenantId,
   })
-  it('returns oldest tenant with its role', async () => {
+  it('returns the selected tenant with its role', async () => {
     expect(await resolveCallerContext(deps('u1'))).toEqual({ userId: 'u1', tenantId: 'old', role: 'admin' })
+  })
+  it('asks for a workspace when several memberships have no selection', async () => {
+    expect(await resolveCallerContext(deps('u1', null))).toMatchObject({
+      userId: 'u1',
+      tenantId: null,
+      role: null,
+      code: 'selection_required',
+      selectionRequired: true,
+    })
+  })
+  it('rejects a selection the user does not belong to', async () => {
+    expect(await resolveCallerContext(deps('u1', 'foreign'))).toMatchObject({
+      userId: 'u1',
+      tenantId: null,
+      role: null,
+      code: 'invalid_selection',
+    })
   })
   it('returns nulls when logged out or tenantless', async () => {
     expect(await resolveCallerContext(deps(null))).toEqual({ userId: null, tenantId: null, role: null })
@@ -93,6 +112,29 @@ describe('asConsumedState', () => {
   })
 })
 
+describe('bindInstallState', () => {
+  const consumed = { tenantId: 't1', initiatedBy: 'u1', purpose: 'install' }
+  const caller = { userId: 'u1', tenantId: 't1' }
+
+  it('accepts a live state issued to this exact caller', () => {
+    expect(bindInstallState(consumed, caller)).toEqual({ ok: true, tenantId: 't1' })
+  })
+
+  it('refuses a forged or replayed state (consume returns no row) with 400', () => {
+    expect(bindInstallState(null, caller)).toMatchObject({ ok: false, status: 400 })
+  })
+
+  it('refuses another user or another tenant with 403', () => {
+    expect(bindInstallState(consumed, { ...caller, userId: 'u2' })).toMatchObject({ ok: false, status: 403 })
+    expect(bindInstallState(consumed, { ...caller, tenantId: 't2' })).toMatchObject({ ok: false, status: 403 })
+    expect(bindInstallState(consumed, { userId: null, tenantId: null })).toMatchObject({ ok: false, status: 403 })
+  })
+
+  it('refuses a state issued for a different purpose', () => {
+    expect(bindInstallState({ ...consumed, purpose: 'oauth' }, caller)).toMatchObject({ ok: false, status: 400 })
+  })
+})
+
 describe('canManageIntegrations', () => {
   it('owner/admin link, viewer and logged-out never do', () => {
     expect(canManageIntegrations('owner')).toBe(true)
@@ -103,12 +145,39 @@ describe('canManageIntegrations', () => {
   })
 })
 
-describe('install/setup/disconnect routes stay off RAM and gated', () => {
+describe('callback binds state and installation ownership before recording', () => {
+  const here = dirname(fileURLToPath(import.meta.url))
+  const callback = readFileSync(join(here, '..', 'app/api/github/callback/route.ts'), 'utf8')
+  const pr = readFileSync(join(here, '..', 'app/api/github/pr/route.ts'), 'utf8')
+
+  it('requires the one-time state and the caller authorization', () => {
+    expect(callback).toContain('consumeInstallState')
+    expect(callback).toContain('bindInstallState')
+    expect(callback).toContain('verifyInstallationOwnership')
+    expect(callback).toContain('recordInstallationDb(tenantId')
+  })
+
+  it('repo/PR routes re-check the durable installation row', () => {
+    expect(pr).toContain('installationKnownDb')
+  })
+})
+
+describe('setup URL cannot link without ownership proof', () => {
+  const here = dirname(fileURLToPath(import.meta.url))
+  const setup = readFileSync(join(here, '..', 'app/api/github/setup/route.ts'), 'utf8')
+
+  it('refuses the spoofable setup arrival and sends the merchant back to the dashboard', () => {
+    expect(setup).toContain("githubFailureUrl('install-use-dashboard')")
+    expect(setup).not.toContain('recordInstallationDb')
+    expect(setup).not.toContain('mintInstallationTokenFor')
+  })
+})
+
+describe('install/disconnect routes stay off RAM and gated', () => {
   const here = dirname(fileURLToPath(import.meta.url))
   const read = (rel: string) => readFileSync(join(here, '..', rel), 'utf8')
   const routes = [
     'app/api/github/install/route.ts',
-    'app/api/github/setup/route.ts',
     'app/api/github/installations/[id]/route.ts',
   ]
   for (const route of routes) {

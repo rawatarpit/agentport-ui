@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
 import { AuthShell, FieldError } from '@/components/auth-shell'
 
 /**
@@ -25,14 +24,14 @@ export default function SignupPage() {
     setBusy(true)
     setErr(null)
     try {
-      const supabase = createClient()
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
-        options: { data: { business_name: business.trim() } },
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password, businessName: business.trim() }),
       })
-      if (error) throw new Error(error.message)
-      if (!data.session) {
+      const body = (await res.json()) as { status: string; session?: boolean; reason?: string }
+      if (body.status !== 'ok') throw new Error(body.reason ?? 'Signup failed.')
+      if (!body.session) {
         setSent(true)
         return
       }
@@ -67,7 +66,7 @@ export default function SignupPage() {
       </div>
       <div>
         <label className="field-label" htmlFor="su-password">Password</label>
-        <input id="su-password" type="password" className="input" value={password} autoComplete="new-password" placeholder="At least 8 characters" onChange={(e) => setPassword(e.target.value)} />
+        <input id="su-password" type="password" className="input" value={password} autoComplete="new-password" placeholder="At least 12 characters" onChange={(e) => setPassword(e.target.value)} />
       </div>
       <div>
         <label className="field-label" htmlFor="su-business">Business name</label>

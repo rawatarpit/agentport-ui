@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import { AuthShell, FieldError } from '@/components/auth-shell'
+import { sanitizeNextPath } from '@/lib/redirect'
 
 /** Email + password login. GoTrue holds the password; this form never sees it twice. */
 export default function LoginPage() {
@@ -18,10 +18,15 @@ export default function LoginPage() {
     setBusy(true)
     setErr(null)
     try {
-      const supabase = createClient()
-      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
-      if (error) throw new Error(error.message)
-      router.push('/')
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password }),
+      })
+      const body = (await res.json()) as { status: string; reason?: string }
+      if (body.status !== 'ok') throw new Error(body.reason ?? 'Sign-in failed.')
+      const next = sanitizeNextPath(new URLSearchParams(window.location.search).get('next'), '/')
+      router.push(next)
       router.refresh()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Sign-in failed.')

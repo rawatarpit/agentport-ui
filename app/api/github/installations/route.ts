@@ -1,7 +1,10 @@
 import { getInstallationsDb } from '@/lib/durable-store'
 import { mintInstallationTokenFor } from '@/lib/github'
 import { resolveCallerTenant } from '@/lib/tenant'
+import { readSelectedTenantId, tenantRefusalResponse } from '@/lib/tenant-server'
 import { createClient } from '@/lib/supabase/server'
+
+import { enforceRateLimit } from '@/lib/request-guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,14 +19,22 @@ export const dynamic = 'force-dynamic'
  * any other reason (App unconfigured, network) are kept: an outage must
  * not rewrite history as an uninstall.
  */
-export async function GET() {
-  let tenantId: string | null = null
+export async function GET(req: Request) {
+  const limited = enforceRateLimit(req, 'github:read')
+  if (limited) return limited
+
+  let t: Awaited<ReturnType<typeof resolveCallerTenant>> = {
+    tenantId: null,
+    code: 'signed_out',
+    reason: 'Sign in first — installs belong to your business.',
+  }
   try {
     const supabase = createClient()
     const { data } = await supabase.auth.getUser()
-    const t = await resolveCallerTenant({
+    t = await resolveCallerTenant({
       getUserId: async () => data.user?.id ?? null,
-      listMemberships: async (userId: string) => {
+      selectedTenantId: readSelectedTenantId(),
+    listMemberships: async (userId: string) => {
         const { data: rows } = await supabase
           .from('tenant_members')
           .select('tenant_id,role,created_at')
@@ -32,12 +43,11 @@ export async function GET() {
         return (rows ?? []) as Array<{ tenant_id: string; role: string; created_at: string }>
       },
     })
-    tenantId = t.tenantId
   } catch {
-    tenantId = null
+    // Leave the signed-out refusal in place.
   }
-  if (!tenantId) return Response.json({ status: 'ok', installations: [] })
-  const rows = await getInstallationsDb(tenantId)
+  if (t.tenantId === null) return tenantRefusalResponse(t)
+  const rows = await getInstallationsDb(t.tenantId)
   const live: Array<{ installationId: number; accountLogin: string; receivedAt: string }> = []
   for (const r of rows) {
     const minted = await mintInstallationTokenFor(r.installationId)

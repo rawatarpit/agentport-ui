@@ -46,6 +46,42 @@ export function normalizePayloadSha(v: unknown): string | null {
   return hex.toLowerCase()
 }
 
+export type LivePolicyRow = {
+  version: number
+  policy: Record<string, unknown>
+  publishedAt: string
+}
+
+/**
+ * The newest published policy for this tenant, or null.
+ *
+ * The console reads the same row the runtime fetches; it never invents a
+ * policy from drafts. A missing row is "nothing published", not "allow all".
+ */
+export async function getLivePolicy(tenantId: string): Promise<LivePolicyRow | null> {
+  try {
+    const db = createClient()
+    const { data, error } = await db
+      .from('policy_artifacts')
+      .select('version, artifact, published_at')
+      .eq('tenant_id', tenantId)
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (error || !data) return null
+    const r = data as { version: number; artifact: { policy?: unknown } | null; published_at: string }
+    if (!Number.isInteger(r.version)) return null
+    if (!r.artifact || typeof r.artifact.policy !== 'object' || r.artifact.policy === null) return null
+    return {
+      version: r.version,
+      policy: r.artifact.policy as Record<string, unknown>,
+      publishedAt: r.published_at,
+    }
+  } catch {
+    return null
+  }
+}
+
 /** Latest push_batches row mapped to the enforcing input. Null = unknown. */
 export function pushRecordToRow(r: {
   payload_sha256: unknown
@@ -58,13 +94,14 @@ export function pushRecordToRow(r: {
   return { digest, pushedAt: r.received_at, eventCount: r.event_count }
 }
 
-/** One home row: business identity + liveness, never amounts or PII. */
-export async function getHome(): Promise<HomeRow | null> {
+/** One home row for the active tenant: identity + liveness, never amounts or PII. */
+export async function getHome(tenantId: string): Promise<HomeRow | null> {
   try {
     const db = createClient()
     const { data, error } = await db
       .from('v_tenant_home')
       .select('tenant_id, display_name, last_push_at, event_count, member_count, my_role')
+      .eq('tenant_id', tenantId)
       .maybeSingle()
     if (error || !data) return null
     const r = data as Partial<HomeRow>
@@ -87,13 +124,17 @@ export async function getHome(): Promise<HomeRow | null> {
   }
 }
 
-/** Newest push receipt. Null until the runtime's first real push lands. */
-export async function getLatestPush(tenantId?: string): Promise<PushRow | null> {
+/** Newest push receipt for the active tenant. Null until the first push lands. */
+export async function getLatestPush(tenantId: string): Promise<PushRow | null> {
   try {
     const db = createClient()
-    let q = db.from('push_batches').select('tenant_id, payload_sha256, received_at, event_count')
-    if (tenantId) q = q.eq('tenant_id', tenantId)
-    const { data, error } = await q.order('received_at', { ascending: false }).limit(1).maybeSingle()
+    const { data, error } = await db
+      .from('push_batches')
+      .select('tenant_id, payload_sha256, received_at, event_count')
+      .eq('tenant_id', tenantId)
+      .order('received_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
     if (error || !data) return null
     const r = data as { payload_sha256: unknown; received_at: string; event_count: number }
     return pushRecordToRow(r)
@@ -102,13 +143,15 @@ export async function getLatestPush(tenantId?: string): Promise<PushRow | null> 
   }
 }
 
-/** Any analytics event yet? Counts flow via the ingest edge function. */
-export async function hasAnalyticsEvents(tenantId?: string): Promise<boolean> {
+/** Any analytics event yet for the active tenant? Counts flow via the ingest edge function. */
+export async function hasAnalyticsEvents(tenantId: string): Promise<boolean> {
   try {
     const db = createClient()
-    let q = db.from('analytics_events').select('event_id')
-    if (tenantId) q = q.eq('tenant_id', tenantId)
-    const { data, error } = await q.limit(1)
+    const { data, error } = await db
+      .from('analytics_events')
+      .select('event_id')
+      .eq('tenant_id', tenantId)
+      .limit(1)
     if (error || !data) return false
     return (data as unknown[]).length > 0
   } catch {
@@ -116,13 +159,17 @@ export async function hasAnalyticsEvents(tenantId?: string): Promise<boolean> {
   }
 }
 
-/** Latest published artifact version for the "go live" step. Null = none. */
-export async function getLiveArtifact(tenantId?: string): Promise<LiveArtifactRow | null> {
+/** Latest published artifact for the active tenant's "go live" step. Null = none. */
+export async function getLiveArtifact(tenantId: string): Promise<LiveArtifactRow | null> {
   try {
     const db = createClient()
-    let q = db.from('policy_artifacts').select('tenant_id, version, published_at')
-    if (tenantId) q = q.eq('tenant_id', tenantId)
-    const { data, error } = await q.order('version', { ascending: false }).limit(1).maybeSingle()
+    const { data, error } = await db
+      .from('policy_artifacts')
+      .select('tenant_id, version, published_at')
+      .eq('tenant_id', tenantId)
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle()
     if (error || !data) return null
     const r = data as { version: number; published_at: string }
     if (!Number.isInteger(r.version)) return null

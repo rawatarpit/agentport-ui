@@ -113,10 +113,10 @@ export function createMerchant(email: string, businessName: string): Merchant {
   return m
 }
 
-/** Normalise a merchant runtime URL or refuse it with a reason. */
+/** Normalise a merchant website URL or refuse it with a reason. */
 export function normaliseWebsiteUrl(v: unknown): { ok: true; url: string } | { ok: false; reason: string } {
   if (typeof v !== 'string' || v.trim().length === 0) {
-    return { ok: false, reason: 'Give the public https:// address your runtime serves.' }
+    return { ok: false, reason: 'Give the public https:// address of your website.' }
   }
   let u: URL
   try {

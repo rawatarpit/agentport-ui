@@ -1,5 +1,6 @@
 import { Badge } from '@/components/stat'
 import { listHolds } from '@/lib/console-reads'
+import { resolveRequestTenant } from '@/lib/tenant-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,10 +9,11 @@ export const dynamic = 'force-dynamic'
  * whole point of the queue: a held request is a request that was authorised to
  * wait, not a request that ran and is being reported afterwards.
  *
- * Durable reads (TASKS.md 2.4): require_approval rows from console_decisions,
- * member-scoped, newest first. Commits happen merchant-side (`agent-port
- * approve`), so every row here is pending by construction — a granted flag
- * this app did not witness would be attestation of nothing.
+ * Durable reads (TASKS.md 2.4): require_approval rows from the hosted ledger
+ * that no later approval row names as its held request. Commits happen
+ * merchant-side (`agent-port approve`), so a hold stays here until the ledger
+ * carries the commit — a browser flag this app did not witness would be
+ * attestation of nothing.
  *
  * Four columns only — capability, agent, reason for hold, rule that fired.
  * No amounts, no line items, no customer: the boundary (amounts and
@@ -44,10 +46,20 @@ export const dynamic = 'force-dynamic'
 const INERT = 'Approvals run in the merchant’s environment, where the request was frozen.'
 
 export default async function ApprovalsPage() {
+  const tenant = await resolveRequestTenant()
+  if (tenant.active.status !== 'active') {
+    return (
+      <div className="panel p-8 text-center">
+        <p className="text-bone-dim">Choose a workspace before reading the queue.</p>
+        <p className="mt-1 font-mono text-[11px] text-bone-faint">no tenant is read without an explicit selection</p>
+      </div>
+    )
+  }
+
   let holds: Awaited<ReturnType<typeof listHolds>> = []
   let failed = false
   try {
-    holds = await listHolds(200)
+    holds = await listHolds(tenant.active.tenantId, 200)
   } catch {
     failed = true
   }

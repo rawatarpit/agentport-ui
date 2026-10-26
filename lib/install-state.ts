@@ -59,6 +59,32 @@ export type ConsumedState =
   | { ok: true; tenantId: string; initiatedBy: string; purpose: InstallStatePurpose }
   | { ok: false; reason: string }
 
+export type InstallStateBinding =
+  | { ok: true; tenantId: string }
+  | { ok: false; status: 400 | 403; reason: string }
+
+/**
+ * Bind a consumed state to the caller's live session. A missing/expired/
+ * replayed state is a 400; a state issued to another user or business is a
+ * 403. The state already carries the tenant, so the callback records under
+ * that tenant — never under whichever session happens to be present.
+ */
+export function bindInstallState(
+  consumed: { tenantId: string; initiatedBy: string; purpose: string } | null,
+  caller: { userId: string | null; tenantId: string | null },
+): InstallStateBinding {
+  if (!consumed || consumed.purpose !== 'install') {
+    return { ok: false, status: 400, reason: 'The install state is missing, expired, or already used.' }
+  }
+  if (!caller.userId || !caller.tenantId) {
+    return { ok: false, status: 403, reason: 'Sign in to the business that started this install.' }
+  }
+  if (consumed.tenantId !== caller.tenantId || consumed.initiatedBy !== caller.userId) {
+    return { ok: false, status: 403, reason: 'This install state belongs to a different session.' }
+  }
+  return { ok: true, tenantId: consumed.tenantId }
+}
+
 /**
  * Pure shape-check on a consumed row. The atomicity (single
  * UPDATE...RETURNING with consumed_at IS NULL AND expires_at > now())

@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { normaliseWebsiteUrl } from '@/lib/store'
-import { resolveCallerTenant } from '@/lib/tenant'
+import { guardStateChange } from '@/lib/request-guard'
+import { resolveCallerContext } from '@/lib/tenant'
+import { readSelectedTenantId, tenantRefusalResponse } from '@/lib/tenant-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,8 +26,9 @@ export const dynamic = 'force-dynamic'
  */
 async function callerTenantId() {
   const supabase = createClient()
-  const t = await resolveCallerTenant({
+  const t = await resolveCallerContext({
     getUserId: async () => (await supabase.auth.getUser()).data.user?.id ?? null,
+    selectedTenantId: readSelectedTenantId(),
     listMemberships: async (userId: string) => {
       const { data } = await supabase
         .from('tenant_members')
@@ -41,7 +44,7 @@ async function callerTenantId() {
 export async function GET() {
   const { supabase, t } = await callerTenantId()
   if (t.tenantId === null) {
-    return Response.json({ status: 'error', reason: t.reason }, { status: 404 })
+    return tenantRefusalResponse(t)
   }
   const { data: tenant } = await supabase
     .from('tenants')
@@ -57,6 +60,7 @@ export async function GET() {
   return Response.json({
     status: 'ok',
     tenantId: t.tenantId,
+    role: t.role,
     merchant: {
       id: tenant.tenant_id as string,
       email: tenant.contact_email as string,
@@ -68,9 +72,11 @@ export async function GET() {
 }
 
 export async function PUT(req: Request) {
+  const guarded = guardStateChange(req, 'me')
+  if (guarded) return guarded
   const { supabase, t } = await callerTenantId()
   if (t.tenantId === null) {
-    return Response.json({ status: 'error', reason: t.reason }, { status: 409 })
+    return tenantRefusalResponse(t)
   }
   let body: { websiteUrl?: unknown }
   try {

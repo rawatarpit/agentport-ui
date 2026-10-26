@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 
 type Installation = { installationId: number; accountLogin: string; receivedAt: string }
@@ -13,7 +14,14 @@ type Repo = { id: number; fullName: string; defaultBranch: string; private: bool
  * the picker. PR opened: live branch, CI rollup, merge state, and the link —
  * refreshed on demand, never implied. The merge stays the merchant's.
  */
-export function GithubPanel() {
+export function GithubPanel({
+  canManage = false,
+  prBlockedReason = 'Set your starter rules first — the discovery package is generated from them.',
+}: {
+  canManage?: boolean
+  prBlockedReason?: string | null
+}) {
+  const router = useRouter()
   const [installations, setInstallations] = useState<Installation[] | null>(null)
   const [installationId, setInstallationId] = useState<number | null>(null)
   const [repos, setRepos] = useState<Repo[] | null>(null)
@@ -54,6 +62,10 @@ export function GithubPanel() {
   // returns stateless and the server refuses to link it — that refusal is
   // the control, so this button is the only way to start.
   const startInstall = useCallback(async () => {
+    if (!canManage) {
+      setErr('Only the owner or an admin of this business can connect GitHub.')
+      return
+    }
     setBusy(true)
     setErr(null)
     try {
@@ -68,7 +80,7 @@ export function GithubPanel() {
     } finally {
       setBusy(false)
     }
-  }, [])
+  }, [canManage])
 
 
 
@@ -100,6 +112,14 @@ export function GithubPanel() {
 
   const openPrs = async () => {
     if (installationId === null || picked.length === 0) return
+    if (!canManage) {
+      setErr('Only the owner or an admin of this business can open the install pull request.')
+      return
+    }
+    if (prBlockedReason) {
+      setErr(prBlockedReason)
+      return
+    }
     setBusy(true)
     setErr(null)
     setOpened([])
@@ -116,6 +136,9 @@ export function GithubPanel() {
         done.push({ repo, url: body.pr.url, number: body.pr.number })
         setOpened([...done])
       }
+      // The dashboard checklist is server-rendered; refresh it after the
+      // PR record lands so the next step stops saying "open the PR".
+      router.refresh()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Could not open the pull request.')
     } finally {
@@ -136,6 +159,19 @@ export function GithubPanel() {
         )}
       </div>
 
+      {!canManage ? (
+        <p className="text-[13px] leading-relaxed text-bone-dim">
+          Only the owner or an admin of this business can connect GitHub. Ask them
+          to finish this step.
+        </p>
+      ) : null}
+      {prBlockedReason ? (
+        <p className="text-[13px] leading-relaxed text-amber">
+          <a href="/setup" className="text-bone underline underline-offset-4">Set your starter rules</a>{' '}
+          first — the install PR adds a discovery package generated from them.
+        </p>
+      ) : null}
+
       {!installations ? (
         <p className="text-[13px] text-bone-faint">Reading installations…</p>
       ) : installations.length === 0 && installationId === null ? (
@@ -146,11 +182,11 @@ export function GithubPanel() {
             never see your password. Until then there is nothing to show, and
             this screen will not pretend otherwise.
           </p>
-          <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void startInstall()}>
+          <button type="button" className="btn btn-primary" disabled={busy || !canManage} onClick={() => void startInstall()}>
             {busy ? 'Starting…' : 'Connect a GitHub repo'}
           </button>
           <p className="font-mono text-[11px] text-bone-faint">
-            installs through GitHub with a one-time link to your business — after installing you land back here
+            installs through GitHub with a one-time link to your business — after installing you land on the dashboard
           </p>
           <button type="button" className="btn" onClick={() => void loadInstallations()}>
             Check again
@@ -204,10 +240,17 @@ export function GithubPanel() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <button type="button" className="btn btn-primary" disabled={busy || installationId === null || picked.length === 0} onClick={openPrs}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={busy || installationId === null || picked.length === 0 || !canManage || Boolean(prBlockedReason)}
+              onClick={openPrs}
+            >
               {busy ? 'Opening…' : `Open install PR${picked.length > 1 ? `s (${picked.length})` : ''}`}
             </button>
-            {picked.length === 0 && (repos?.length ?? 0) > 0 ? (
+            {prBlockedReason ? (
+              <span className="font-mono text-[11px] text-amber">starter rules first</span>
+            ) : picked.length === 0 && (repos?.length ?? 0) > 0 ? (
               <span className="font-mono text-[11px] text-bone-faint">pick at least one repo — the button stays off until then</span>
             ) : (
               <span className="font-mono text-[11px] text-bone-faint">one PR per repo · re-running updates, never duplicates</span>
@@ -231,8 +274,15 @@ export function GithubPanel() {
 
       {err ? <p className="text-[13px] text-rust" role="alert">{err}</p> : null}
       <p className="text-[12px] leading-relaxed text-bone-faint">
+        The PR adds <span className="font-mono text-bone">agentport/</span> and the
+        discovery files your site serves. It is not a runtime, SDK, or binary: it
+        carries no policy engine, ledger, approval queue, credential, or execution
+        path. The hosted Agent Port governor decides every call.
+      </p>
+      <p className="text-[12px] leading-relaxed text-bone-faint">
         You merge. That merge is your signature — nothing here can merge for you,
-        and review happens in your repo under protections you already own.
+        and review happens in your repo under protections you already own. Your
+        normal CI/CD still deploys it; merge alone is not live.
       </p>
     </div>
   )

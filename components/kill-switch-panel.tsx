@@ -13,7 +13,7 @@ import { Badge } from '@/components/stat'
  * fast careless action in this product should be a refusal — flipping this
  * is deliberately the opposite of fast.
  */
-export function KillSwitchPanel() {
+export function KillSwitchPanel({ demo = false }: { demo?: boolean }) {
   const [engaged, setEngaged] = useState<boolean | null>(null)
   const [businessName, setBusinessName] = useState<string | null>(null)
   const [confirm, setConfirm] = useState('')
@@ -38,8 +38,10 @@ export function KillSwitchPanel() {
   }, [])
 
   useEffect(() => {
-    void load()
-  }, [load])
+    // The demo route is gated off in production; do not call it there. The
+    // local panel below does not need a server round-trip.
+    if (demo) void load()
+  }, [demo, load])
 
   const flip = async (engage: boolean) => {
     setBusy(true)
@@ -61,6 +63,29 @@ export function KillSwitchPanel() {
     } finally {
       setBusy(false)
     }
+  }
+
+  if (!demo) {
+    return (
+      <div className="panel space-y-3 p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="label">Emergency stop</p>
+          <Badge tone="idle">hosted governor</Badge>
+        </div>
+        <p className="text-[13px] leading-relaxed text-bone-dim">
+          The stop is evaluated first by the hosted governor. It is command-only:
+          this console can show the state, but it cannot flip the switch from a
+          browser session.
+        </p>
+        <pre className="overflow-x-auto border border-ink-line bg-ink/60 p-3 font-mono text-[12px] text-bone-dim">
+          agent-port kill engage
+        </pre>
+        <p className="text-[13px] leading-relaxed text-bone-dim">
+          Releasing requires typing your business name. The switch survives restarts
+          and cannot be cleared by a publish, a rollback, or this dashboard.
+        </p>
+      </div>
+    )
   }
 
   return (

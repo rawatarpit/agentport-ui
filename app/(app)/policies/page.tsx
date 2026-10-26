@@ -1,7 +1,8 @@
 import { Badge } from '@/components/stat'
 import { KillSwitchPanel } from '@/components/kill-switch-panel'
-import { policy } from '@/lib/agentport'
-import { getLive, resolveTenant } from '@/lib/store'
+import { getLivePolicy } from '@/lib/backend-reads'
+import { demoModeEnabled } from '@/lib/demo-gate'
+import { resolveRequestTenant } from '@/lib/tenant-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -57,11 +58,12 @@ const ORDER = [
   },
 ]
 
-export default function PoliciesPage() {
-  // Live values win; the demo constant below is only the fallback shape.
-  // Nothing published yet renders as exactly that — never demo numbers
-  // dressed as the merchant's configuration.
-  const live = getLive(resolveTenant())
+export default async function PoliciesPage() {
+  // Live values win for the explicitly selected workspace. Nothing published
+  // yet renders as exactly that — never demo numbers dressed as the
+  // merchant's configuration.
+  const tenant = await resolveRequestTenant()
+  const live = tenant.active.status === 'active' ? await getLivePolicy(tenant.active.tenantId) : null
   const livePolicy = live?.policy as
     | {
         maxOrderValue?: { minor?: number; currency?: string }
@@ -77,8 +79,11 @@ export default function PoliciesPage() {
     never: livePolicy?.absoluteMaxOrderValue?.minor ?? null,
     forbidden: livePolicy?.forbiddenCapabilities ?? null,
     alwaysAsk: livePolicy?.alwaysRequireApproval ?? null,
-    rate: livePolicy?.rateLimit?.requestsPerMinute ?? policy.rateLimit?.requestsPerMinute,
-    kill: live ? live.emergencyKillSwitch : null,
+    rate: livePolicy?.rateLimit?.requestsPerMinute ?? null,
+    // The switch is deliberately absent from every artifact: it is local and
+    // monotonic, and a publish must never clear it. This screen cannot read
+    // another machine's file, so it says so instead of inventing a state.
+    kill: null,
   }
   const fmt = (minor: number | null) => (minor === null ? '—' : `${minor.toLocaleString()} ${shown.currency} minor`)
 
@@ -163,13 +168,7 @@ export default function PoliciesPage() {
           <div className="flex justify-between gap-3 border-b border-ink-line/60 py-2">
             <dt className="text-bone-faint">Emergency stop</dt>
             <dd>
-              {shown.kill === null ? (
-                <span className="font-mono text-[12px] text-bone-faint">—</span>
-              ) : (
-                <Badge tone={shown.kill ? 'deny' : 'idle'}>
-                  {shown.kill ? 'stopped' : 'running normally'}
-                </Badge>
-              )}
+              <span className="font-mono text-[12px] text-bone-faint">hosted governor</span>
             </dd>
           </div>
         </dl>
@@ -180,7 +179,7 @@ export default function PoliciesPage() {
         ) : null}
       </div>
 
-      <KillSwitchPanel />
+      <KillSwitchPanel demo={demoModeEnabled()} />
     </div>
   )
 }

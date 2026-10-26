@@ -314,7 +314,7 @@ export function SetupWizard() {
             <p className="label">Next — two ways forward</p>
             <ol className="mt-3 space-y-2 text-[13px] leading-relaxed text-bone-dim">
               <li>1. <span className="text-bone">Stay here:</span> keep answering on the capabilities and rules screens, then publish when the summary looks right.</li>
-              <li>2. <span className="text-bone">Hands-on:</span> save this into your project as <span className="font-mono text-bone">agentport.config.ts</span>, mint a credential (<span className="font-mono text-bone">npx agent-port token</span>), run it (<span className="font-mono text-bone">npx agent-port serve</span>) — for you or your developer.</li>
+              <li>2. <span className="text-bone">Install the discovery package:</span> open the install PR from the connect screen, or download <span className="font-mono text-bone">agentport-install.mjs</span> and run it at your repo root. It publishes discovery files only — the hosted governor still makes every decision.</li>
             </ol>
             <p className="mt-4 text-[12px] leading-relaxed text-bone-faint">
               Either way, nothing takes effect until it is published and your

@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { contentDigest } from '@/lib/publish'
+import { guardStateChange } from '@/lib/request-guard'
 import { resolveCallerRole } from '@/lib/tenant'
+import { readSelectedTenantId, tenantRefusalResponse } from '@/lib/tenant-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,6 +11,7 @@ async function caller() {
   const { data } = await supabase.auth.getUser()
   const t = await resolveCallerRole({
     getUserId: async () => data.user?.id ?? null,
+    selectedTenantId: readSelectedTenantId(),
     listMemberships: async (userId: string) => {
       const { data: rows } = await supabase
         .from('tenant_members')
@@ -41,9 +44,11 @@ async function caller() {
  * runtime cannot verify is refused there, loudly, and never enforces.
  */
 export async function POST(req: Request) {
+  const guarded = guardStateChange(req, 'publish:artifact')
+  if (guarded) return guarded
   const { supabase, t } = await caller()
   if (t.tenantId === null) {
-    return Response.json({ status: 'error', reason: t.reason }, { status: 401 })
+    return tenantRefusalResponse(t)
   }
   if (t.role !== 'owner' && t.role !== 'admin') {
     return Response.json({ status: 'error', reason: 'Only the owner or an admin can upload a signed envelope.' }, { status: 403 })
@@ -56,7 +61,14 @@ export async function POST(req: Request) {
     return Response.json({ status: 'error', reason: 'Body must be JSON.' }, { status: 400 })
   }
   const art = (body.artifact ?? null) as
-    | { tenantId?: unknown; version?: unknown; policy?: unknown; capabilities?: unknown }
+    | {
+        tenantId?: unknown
+        version?: unknown
+        policy?: unknown
+        capabilities?: unknown
+        baseUrl?: unknown
+        publicBaseUrl?: unknown
+      }
     | null
   const sig = typeof body.signature === 'string' ? body.signature.trim() : ''
   if (!art || typeof art !== 'object') {
@@ -78,6 +90,12 @@ export async function POST(req: Request) {
   ) {
     return Response.json({ status: 'error', reason: 'Envelope capabilities must be [{name}].' }, { status: 400 })
   }
+  for (const key of ['baseUrl', 'publicBaseUrl'] as const) {
+    const value = art[key]
+    if (value !== undefined && (typeof value !== 'string' || value.trim() === '')) {
+      return Response.json({ status: 'error', reason: `Envelope ${key} must be a non-empty string when present.` }, { status: 400 })
+    }
+  }
   if (sig === '') {
     return Response.json({ status: 'error', reason: 'Envelope carries no signature — sign it with your merchant key first.' }, { status: 400 })
   }
@@ -89,7 +107,29 @@ export async function POST(req: Request) {
   }
   const policy = art.policy as Record<string, unknown>
   const caps = (art.capabilities as Array<{ name: string }>).map((c) => ({ name: c.name }))
-  const digest = contentDigest({ tenantId, version, policy, capabilities: caps })
+  const { data: tenantRow } = await supabase
+    .from('tenants')
+    .select('website_url')
+    .eq('tenant_id', tenantId)
+    .maybeSingle()
+  const signedBaseUrl = typeof art.baseUrl === 'string' ? art.baseUrl : undefined
+  const websiteUrl =
+    typeof tenantRow?.website_url === 'string' && tenantRow.website_url.trim() !== ''
+      ? tenantRow.website_url
+      : undefined
+  if (signedBaseUrl !== undefined && websiteUrl !== undefined && signedBaseUrl !== websiteUrl) {
+    return Response.json(
+      { status: 'error', reason: 'Envelope baseUrl does not match the website registered for this business.' },
+      { status: 409 },
+    )
+  }
+  const digest = contentDigest({
+    tenantId,
+    version,
+    policy,
+    capabilities: caps,
+    ...(signedBaseUrl !== undefined ? { baseUrl: signedBaseUrl } : {}),
+  })
   const { data: approval } = await supabase
     .from('publish_approvals')
     .select('digest')
@@ -111,7 +151,14 @@ export async function POST(req: Request) {
   const { error } = await supabase.from('policy_artifacts').insert({
     tenant_id: tenantId,
     version,
-    artifact: { tenantId, version, policy, capabilities: caps },
+    artifact: {
+      tenantId,
+      version,
+      policy,
+      capabilities: caps,
+      ...(signedBaseUrl !== undefined ? { baseUrl: signedBaseUrl } : {}),
+      ...(typeof art.publicBaseUrl === 'string' ? { publicBaseUrl: art.publicBaseUrl } : {}),
+    },
     signature: sig,
   })
   if (error) {

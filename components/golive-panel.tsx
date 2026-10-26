@@ -13,14 +13,15 @@ import { Badge } from '@/components/stat'
  * the PR merge, not in this button. What the button keeps is the concurrency
  * guard: it publishes only over the digest it just read, so a version that
  * landed since is never silently overwritten — a 409 sends you back to read.
- * Nothing here is verdant until the runtime reports the digest back.
+ * Nothing here is verdant until the hosted governor reports the digest back.
  */
 
 type Status = {
   businessName: string | null
-  live: { version: number; digest: string; confirmedAt: string } | null
+  live: { version: number; publishedAt: string } | null
   draft: { summary: string[] } | null
   draftError: string | null
+  nextVersion: number
 }
 
 export function GolivePanel() {
@@ -32,7 +33,7 @@ export function GolivePanel() {
   const load = useCallback(async () => {
     setErr(null)
     try {
-      const res = await fetch('/api/golive')
+      const res = await fetch('/api/publish/status')
       const body = (await res.json()) as Status & { status: string }
       if (body.status !== 'ok') throw new Error('Could not read publish state.')
       setS(body)
@@ -51,16 +52,36 @@ export function GolivePanel() {
     setBusy(true)
     setErr(null)
     setMsg(null)
-    try {
-      const res = await fetch('/api/golive', {
+    const approve = async (confirm: boolean | string) => {
+      const res = await fetch('/api/publish/approve', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ fromDigest: s.live?.digest ?? 'none' }),
+        body: JSON.stringify({ confirm }),
       })
-      const body = (await res.json()) as { status: string; reason?: string; version?: number; digest?: string }
+      return (await res.json()) as {
+        status: string
+        reason?: string
+        tier?: string
+        version?: number
+        next?: string
+      }
+    }
+    try {
+      let body = await approve(true)
+      if (body.status !== 'ok' && body.tier === 'typed') {
+        const typed = window.prompt(
+          `This widens what agents may do. Type your business name to approve v${body.version}:`,
+        )
+        if (typed === null) return
+        body = await approve(typed)
+      }
       if (body.status !== 'ok') throw new Error(body.reason ?? 'Publish refused.')
-      setMsg(`Published as version ${body.version}. Your site picks it up from here.`)
+      setMsg(
+        body.next ??
+          `Approved version ${body.version}. Sign the exact bytes locally, then upload the envelope.`,
+      )
       await load()
+      await loadVersions()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Publish refused.')
     } finally {
@@ -75,20 +96,20 @@ export function GolivePanel() {
     setMsg(null)
     try {
       const res = await fetch('/api/golive/file')
-      const body = (await res.json()) as { status: string; reason?: string; path?: string; content?: string }
+      const body = (await res.json()) as { status: string; reason?: string; filename?: string; content?: string }
       if (body.status !== 'ok' || typeof body.content !== 'string') {
-        throw new Error(body.reason ?? 'Config not ready — finish your answers first.')
+        throw new Error(body.reason ?? 'Install package not ready — finish your answers first.')
       }
-      const blob = new Blob([body.content], { type: 'text/plain' })
+      const blob = new Blob([body.content], { type: 'text/javascript' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = body.path ?? 'agentport.config.ts'
+      a.download = body.filename ?? 'agentport-install.mjs'
       document.body.appendChild(a)
       a.click()
       a.remove()
       URL.revokeObjectURL(url)
-      setMsg('Downloaded. Drop it at your repo root and push — your merge adopts it.')
+      setMsg('Downloaded. Run `node agentport-install.mjs` at your repo root, review the diff, then commit.')
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Download refused.')
     } finally {
@@ -166,7 +187,7 @@ export function GolivePanel() {
       ) : s.draft ? (
         <>
           <p className="text-[13px] leading-relaxed text-bone-dim">
-            Read this carefully — publishing turns exactly this on:
+            Read this carefully — approving records exactly these bytes:
           </p>
           <ul className="space-y-1.5 text-[13px] leading-relaxed text-bone-dim">
             {s.draft.summary.map((line) => (
@@ -175,16 +196,25 @@ export function GolivePanel() {
           </ul>
           <div className="flex flex-wrap items-center gap-3">
             <button type="button" className="btn btn-primary" disabled={busy} onClick={publish}>
-              {busy ? 'Publishing…' : s.live ? 'Publish new version' : 'Publish'}
+              {busy ? 'Approving…' : s.live ? 'Approve new version' : 'Approve publish'}
             </button>
             <button type="button" className="btn" disabled={busy} onClick={downloadFile}>
-              {busy ? 'Preparing…' : 'Download config file'}
+              {busy ? 'Preparing…' : 'Download install package'}
             </button>
-            <span className="font-mono text-[11px] text-bone-faint">review above — publishing turns on exactly this</span>
+            <span className="font-mono text-[11px] text-bone-faint">
+              review above — approval covers the exact bytes you sign
+            </span>
           </div>
           <p className="font-mono text-[11px] leading-relaxed text-bone-faint">
+            After approval, sign locally with{' '}
+            <span className="text-bone">agent-port publish --key</span> (the key never leaves your
+            machine), then upload the envelope. Until the hosted governor applies it and the
+            heartbeat confirms, nothing changes.
+          </p>
+          <p className="font-mono text-[11px] leading-relaxed text-bone-faint">
             No GitHub App on your repo yet? Download{' '}
-            <span className="text-bone">agentport.config.ts</span>, drop it at the repo root, push — same file the PR would carry, same review.
+            <span className="text-bone">agentport-install.mjs</span>, run it at the repo root, review
+            the diff, then commit — same discovery package the PR would carry.
           </p>
         </>
       ) : (
@@ -197,7 +227,9 @@ export function GolivePanel() {
           {err}
         </p>
       ) : null}
-      <p className="font-mono text-[11px] text-bone-faint">your site picks up the new version from here</p>
+      <p className="font-mono text-[11px] text-bone-faint">
+        nothing runs until the signed envelope is stored and the hosted governor applies it
+      </p>
       {versions && versions.length > 0 ? (
         <div className="mt-2 border-t border-ink-line pt-3">
           <p className="label">Published versions</p>

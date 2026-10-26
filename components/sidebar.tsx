@@ -13,7 +13,7 @@ import { useEffect, useState } from 'react'
  */
 const PRIMARY = [
   { href: '/', label: 'Overview' },
-  { href: '/connect', label: 'Connect repo' },
+  { href: '/#connect-github', label: 'Connect repo' },
   { href: '/rules', label: 'Rules' },
   { href: '/ledger', label: 'Ledger' },
   { href: '/approvals', label: 'Approvals' },
@@ -85,7 +85,7 @@ export function Sidebar() {
       <nav aria-label="Primary">
         <ul className="space-y-0.5">
           {PRIMARY.slice(0, 2).map((l) => (
-            <li key={l.href}>{item(l.href, l.label, l.href === '/connect' && setupDone === true)}</li>
+            <li key={l.href}>{item(l.href, l.label, l.href === '/#connect-github' && setupDone === true)}</li>
           ))}
         </ul>
       </nav>

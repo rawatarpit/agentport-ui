@@ -1,25 +1,25 @@
 import { createClient } from '@/lib/supabase/server'
-import { buildInstallFileFrom } from '@/lib/golive'
-import { getDraftDb } from '@/lib/durable-store'
+import { buildInstallPackageFrom, buildManualInstaller, normaliseWorkerUrl } from '@/lib/install-package'
+import { getDraftDb, getTenantProfileDb } from '@/lib/durable-store'
 import { resolveCallerTenant } from '@/lib/tenant'
+import { readSelectedTenantId, tenantRefusalResponse } from '@/lib/tenant-server'
 
 export const dynamic = 'force-dynamic'
 
 /**
- * GET /api/golive/file — the compiled install file as a download.
+ * GET /api/golive/file — the discovery package as one runnable installer.
  *
- * Same compiler as the PR path (`buildInstallFileFrom` over the durable
- * drafts), second delivery: the merchant whose repo cannot take the App flow
- * yet drops `agentport.config.ts` at their repo root and pushes. One
- * compiler, two deliveries — a file that disagrees with the PR is a fork,
- * and forks drift. Empty drafts refuse with 422 and the reason: a config
- * compiled from nothing is a deny-by-silence nobody reviewed.
+ * Same builder as the PR path, second delivery: a merchant whose repo cannot
+ * take the App flow yet downloads `agentport-install.mjs`, runs it at the repo
+ * root, reviews the diff and commits. It writes discovery files only. The
+ * hosted governor still makes every decision.
  */
 export async function GET() {
   const supabase = createClient()
   const { data } = await supabase.auth.getUser()
   const t = await resolveCallerTenant({
     getUserId: async () => data.user?.id ?? null,
+    selectedTenantId: readSelectedTenantId(),
     listMemberships: async (userId: string) => {
       const { data: rows } = await supabase
         .from('tenant_members')
@@ -30,20 +30,42 @@ export async function GET() {
     },
   })
   if (t.tenantId === null) {
-    return Response.json({ status: 'error', reason: t.reason }, { status: 401 })
+    return tenantRefusalResponse(t)
   }
-  const [rules, setup, capabilities] = await Promise.all([
+  const [rules, setup, capabilities, profile] = await Promise.all([
     getDraftDb(t.tenantId, 'rules'),
     getDraftDb(t.tenantId, 'setup'),
     getDraftDb(t.tenantId, 'capabilities'),
+    getTenantProfileDb(t.tenantId),
   ])
-  const file = buildInstallFileFrom({
-    rules: rules?.payload,
-    setup: setup?.payload,
-    capabilities: capabilities?.payload,
-  })
-  if (!file.ok) {
-    return Response.json({ status: 'error', reason: file.reason }, { status: 422 })
+  if (!profile || !profile.businessName) {
+    return Response.json(
+      { status: 'error', reason: 'Set the business name before downloading an install package.' },
+      { status: 422 },
+    )
   }
-  return Response.json({ status: 'ok', path: file.path, content: file.content })
+  const worker = normaliseWorkerUrl(process.env.AGENTPORT_WORKER_URL ?? '', t.tenantId)
+  if (!worker.ok) {
+    return Response.json({ status: 'error', reason: worker.reason }, { status: 503 })
+  }
+  const pkg = buildInstallPackageFrom({
+    drafts: {
+      rules: rules?.payload,
+      setup: setup?.payload,
+      capabilities: capabilities?.payload,
+    },
+    tenantId: t.tenantId,
+    business: profile.businessName,
+    siteUrl: profile.websiteUrl,
+    workerUrl: worker.url,
+    publishTarget: { dir: '.', mode: 'direct', framework: 'static-root' },
+  })
+  if (!pkg.ok) {
+    return Response.json({ status: 'error', reason: pkg.reason }, { status: 422 })
+  }
+  return Response.json({
+    status: 'ok',
+    filename: 'agentport-install.mjs',
+    content: buildManualInstaller(pkg.value.files),
+  })
 }

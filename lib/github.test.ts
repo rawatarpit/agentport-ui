@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createHmac, generateKeyPairSync } from 'node:crypto'
 
-import { candidatePrivateKeys, createAppJwt, exchangeOAuthCode, extractPemArmor, listUserInstallations, normalizeAppPrivateKey, pickOurInstallation, verifyWebhookSignature } from './github.js'
+import { candidatePrivateKeys, createAppJwt, exchangeOAuthCode, extractPemArmor, hasOurInstallation, listUserInstallations, normalizeAppPrivateKey, pickOurInstallation, verifyInstallationOwnership, verifyWebhookSignature } from './github.js'
 
 const assert = {
   deepEqual: (a: unknown, b: unknown) => expect(a).toEqual(b),
@@ -108,13 +108,44 @@ describe('repo listing + PR shapes (offline guards)', () => {
     const r = await openInstallPr({
       installationToken: 'x',
       repoFullName: 'not-a-repo',
-      filePath: 'agentport.config.ts',
-      fileContent: '// draft',
+      files: [{ path: 'agentport/manifest.json', content: '{}' }],
       prTitle: 't',
       prBody: 'b',
     })
     assert.equal(r.ok, false)
     assert.equal((r as { reason: string }).reason, 'pick a repository first')
+  })
+
+  it('openInstallPr refuses unsafe or duplicate paths before touching the network', async () => {
+    const { openInstallPr } = await import('./github.js')
+    for (const files of [
+      [{ path: '../escape.txt', content: 'x' }],
+      [{ path: '.git/config', content: 'x' }],
+      [
+        { path: 'agentport/manifest.json', content: '{}' },
+        { path: 'agentport/manifest.json', content: '{}' },
+      ],
+    ]) {
+      const r = await openInstallPr({
+        installationToken: 'x',
+        repoFullName: 'o/r',
+        files,
+        prTitle: 't',
+        prBody: 'b',
+      })
+      assert.equal(r.ok, false)
+    }
+  })
+
+  it('readRepoFile refuses unsafe paths before touching the network', async () => {
+    const { readRepoFile } = await import('./github.js')
+    const r = await readRepoFile({
+      installationToken: 'x',
+      repoFullName: 'o/r',
+      path: '../secrets',
+    })
+    assert.equal(r.ok, false)
+    assert.equal((r as { reason: string }).reason, 'file path is not safe')
   })
 
   it('readPrState refuses a missing repo before touching the network', async () => {
@@ -224,13 +255,13 @@ describe('private-key paste normalization', () => {
 })
 
 describe('install discovery (code-only callback)', () => {
-  const ours = (id: number, at: string) => ({ id, accountLogin: 'acme', installedAt: at, appId: '5225757' })
+  const ours = (id: number, at: string) => ({ id, accountLogin: 'acme', accountId: 1, accountType: 'User', installedAt: at, appId: '5225757' })
 
   it('picks the latest install of our App only', () => {
     const rows = [
       ours(1, '2026-10-14T10:00:00.000Z'),
       { ...ours(2, '2026-10-15T10:00:00.000Z') },
-      { id: 9, accountLogin: 'other', installedAt: '2026-10-16T10:00:00.000Z', appId: '999' },
+      { id: 9, accountLogin: 'other', accountId: 9, accountType: 'User', installedAt: '2026-10-16T10:00:00.000Z', appId: '999' },
     ]
     assert.deepEqual(pickOurInstallation(rows, '5225757'), ours(2, '2026-10-15T10:00:00.000Z'))
   })
@@ -242,11 +273,144 @@ describe('install discovery (code-only callback)', () => {
     assert.equal(pickOurInstallation([], '5225757'), null)
   })
 
+  it('refuses a victim installation id that is not in the caller authorization', () => {
+    const authorized = [ours(1, '2026-10-14T10:00:00.000Z'), ours(2, '2026-10-15T10:00:00.000Z')]
+    expect(hasOurInstallation(authorized, '5225757', 2)).toBe(true)
+    // Same App, but another merchant's installation id.
+    expect(hasOurInstallation(authorized, '5225757', 999)).toBe(false)
+    // Same id, but another App's installation.
+    expect(hasOurInstallation([{ ...ours(7, ''), appId: '999' }], '5225757', 7)).toBe(false)
+    expect(hasOurInstallation(authorized, '', 1)).toBe(false)
+    expect(hasOurInstallation(authorized, '5225757', 0)).toBe(false)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
   it('listUserInstallations never leaks the user token into its reason', async () => {
     const token = 'USERTOKEN123'
     const r = await listUserInstallations(token)
     const text = JSON.stringify(r)
     assert.ok(!text.includes(token), 'the user token reached the reason')
     if (r.ok) assert.ok(Array.isArray(r.value), 'ok carries a list')
+  })
+
+  it('follows a same-origin rel=next page', async () => {
+    const calls: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        calls.push(String(input))
+        if (calls.length === 1) {
+          return new Response(
+            JSON.stringify({
+              installations: [
+                { id: 1, account: { login: 'acme', id: 1, type: 'User' }, app_id: 5225757 },
+              ],
+            }),
+            {
+              status: 200,
+              headers: {
+                link: '<https://api.github.com/user/installations?per_page=100&page=2>; rel="next"',
+              },
+            },
+          )
+        }
+        return new Response(
+          JSON.stringify({
+            installations: [
+              { id: 2, account: { login: 'acme', id: 1, type: 'User' }, app_id: 5225757 },
+            ],
+          }),
+          { status: 200 },
+        )
+      }),
+    )
+    const r = await listUserInstallations('token')
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.value.map((i) => i.id)).toEqual([1, 2])
+    expect(calls).toHaveLength(2)
+  })
+
+  it('ignores a rel=next link pointing at another origin', async () => {
+    let calls = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        calls += 1
+        return new Response(
+          JSON.stringify({
+            installations: [
+              { id: 1, account: { login: 'acme', id: 1, type: 'User' }, app_id: 5225757 },
+            ],
+          }),
+          {
+            status: 200,
+            headers: {
+              link: '<https://evil.example/user/installations?page=2>; rel="next"',
+            },
+          },
+        )
+      }),
+    )
+    const r = await listUserInstallations('token')
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.value.map((i) => i.id)).toEqual([1])
+    expect(calls).toBe(1)
+  })
+})
+
+
+describe('installation ownership', () => {
+  const personal = (id: number, accountId: number) => ({
+    id,
+    accountLogin: 'acme',
+    accountId,
+    accountType: 'User',
+    installedAt: '',
+    appId: '5225757',
+  })
+  const org = (id: number, login: string) => ({
+    id,
+    accountLogin: login,
+    accountId: 900,
+    accountType: 'Organization',
+    installedAt: '',
+    appId: '5225757',
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('accepts a personal installation only for the same GitHub user id', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ id: 42, login: 'acme' }), { status: 200 })),
+    )
+    expect((await verifyInstallationOwnership('token', '5225757', 1, [personal(1, 42)])).ok).toBe(true)
+    expect((await verifyInstallationOwnership('token', '5225757', 1, [personal(1, 43)])).ok).toBe(false)
+  })
+
+  it('accepts an organization installation only for an active admin', async () => {
+    const membership = (role: string, state: string) =>
+      vi.fn(async () => new Response(JSON.stringify({ role, state }), { status: 200 }))
+
+    vi.stubGlobal('fetch', membership('admin', 'active'))
+    expect((await verifyInstallationOwnership('token', '5225757', 2, [org(2, 'acme-org')])).ok).toBe(true)
+
+    vi.stubGlobal('fetch', membership('member', 'active'))
+    expect((await verifyInstallationOwnership('token', '5225757', 2, [org(2, 'acme-org')])).ok).toBe(false)
+
+    vi.stubGlobal('fetch', membership('admin', 'pending'))
+    expect((await verifyInstallationOwnership('token', '5225757', 2, [org(2, 'acme-org')])).ok).toBe(false)
+  })
+
+  it('refuses an installation id absent from the caller list without any API call', async () => {
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
+    expect((await verifyInstallationOwnership('token', '5225757', 999, [personal(1, 42)])).ok).toBe(false)
+    expect(fetchSpy).not.toHaveBeenCalled()
   })
 })

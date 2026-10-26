@@ -1,3 +1,5 @@
+import { demoGuard } from '@/lib/demo-gate'
+import { guardStateChange } from '@/lib/request-guard'
 import { getLive, getMerchant, publishLive, resolveTenant } from '@/lib/store'
 
 export const dynamic = 'force-dynamic'
@@ -11,10 +13,14 @@ export const dynamic = 'force-dynamic'
  * silently in either direction is a toy. Either way the switch lives only in
  * the live config row — the sync payload cannot express it (type + boundary
  * check), so no push, update, or rollback from here can clear what it sets.
- * Runtime-local monotonicity (an engaged switch surviving restarts and
- * rollbacks on the merchant's machine) is the runtime's job, not this route's.
+ * Monotonicity (an engaged switch surviving restarts and rollbacks) is the
+ * hosted governor's job, not this route's.
  */
 export async function POST(req: Request) {
+  const guarded = guardStateChange(req, 'kill-switch')
+  if (guarded) return guarded
+  const denied = await demoGuard()
+  if (denied) return denied
   const tenantId = resolveTenant()
   const merchant = getMerchant(tenantId)
   if (!merchant) {

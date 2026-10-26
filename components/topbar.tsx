@@ -1,9 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import { ThemeToggle } from '@/components/theme-toggle'
 
 /**
@@ -11,25 +9,13 @@ import { ThemeToggle } from '@/components/theme-toggle'
  * including mobile — the toggle and sign-out lived in the sidebar footer,
  * which requires scrolling precisely when you need them fastest.
  */
-export function Topbar() {
-  const [email, setEmail] = useState<string | null>(null)
+export function Topbar({ email }: { email: string | null }) {
   const router = useRouter()
 
-  useEffect(() => {
-    let live = true
-    createClient()
-      .auth.getSession()
-      .then(({ data }) => {
-        if (live) setEmail(data.session?.user.email ?? null)
-      })
-      .catch(() => {})
-    return () => {
-      live = false
-    }
-  }, [])
-
+  // The session lives in an httpOnly cookie, so the server passes the email
+  // in rather than the browser trying to read the cookie itself.
   const signOut = async () => {
-    await createClient().auth.signOut()
+    await fetch('/api/auth/signout', { method: 'POST' })
     router.push('/login')
     router.refresh()
   }
@@ -44,9 +30,14 @@ export function Topbar() {
           <ThemeToggle />
         </div>
         {email ? (
-          <button type="button" className="btn" onClick={signOut}>
-            Sign out
-          </button>
+          <>
+            <Link href="/select-workspace" className="btn">
+              Workspace
+            </Link>
+            <button type="button" className="btn" onClick={signOut}>
+              Sign out
+            </button>
+          </>
         ) : (
           <Link href="/login" className="btn btn-primary">
             Sign in

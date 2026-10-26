@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { resolveCallerTenant } from '@/lib/tenant'
+import { readSelectedTenantId, tenantRefusalResponse } from '@/lib/tenant-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,6 +17,7 @@ export async function GET() {
   const { data } = await supabase.auth.getUser()
   const t = await resolveCallerTenant({
     getUserId: async () => data.user?.id ?? null,
+    selectedTenantId: readSelectedTenantId(),
     listMemberships: async (userId: string) => {
       const { data: rows } = await supabase
         .from('tenant_members')
@@ -26,7 +28,7 @@ export async function GET() {
     },
   })
   if (t.tenantId === null) {
-    return Response.json({ status: 'error', reason: t.reason }, { status: 401 })
+    return tenantRefusalResponse(t)
   }
   const tenantId = t.tenantId
   const [approvals, artifacts] = await Promise.all([

@@ -1,7 +1,9 @@
 import Link from 'next/link'
 import { EnforcingPanel } from '@/components/enforcing-panel'
 import { BusinessCard } from '@/components/business-card'
+import { ConnectSection } from '@/components/connect-section'
 import { DashboardKpis, KillSwitchRow, OnboardingCard } from '@/components/dashboard'
+import { GithubNotice } from '@/components/github-notice'
 import { PullRequestCard } from '@/components/pull-request-card'
 
 export const dynamic = 'force-dynamic'
@@ -46,7 +48,11 @@ export default async function Overview() {
 
       <BusinessCard />
 
+      <GithubNotice />
+
       <OnboardingCard />
+
+      <ConnectSection />
 
       <PullRequestCard />
 

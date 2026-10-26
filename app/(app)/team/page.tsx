@@ -1,14 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
 
 type Member = { user_id: string; role: string; created_at: string }
 
 /**
  * FRONTEND.md §4 — the team page.
  *
- * Calls `agentport-team` with the session JWT; the function enforces
+ * Calls `agentport-team` through /api/team (the JWT never reaches the page); the function enforces
  * owner/admin/viewer asymmetry and refuses self-escalation, so this UI hides
  * what the function refuses — it never decides who may do what. Refusals
  * stay coarse (`forbidden`, `last_owner`): mapping them to "no such account"
@@ -29,15 +28,11 @@ export default function TeamPage() {
   const [invited, setInvited] = useState<Array<{ email: string; role: string }>>([])
 
   const call = useCallback(async (action: string, extra: Record<string, string> = {}) => {
-    const supabase = createClient()
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
-    if (!session) throw new Error('Signed out — sign in again.')
-    const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/agentport-team`
-    const res = await fetch(url, {
+    // Same-origin proxy: the JWT stays in the httpOnly session cookie and the
+    // server attaches it to the edge-function call.
+    const res = await fetch('/api/team', {
       method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${session.access_token}` },
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ action, ...extra }),
     })
     const body = (await res.json()) as { ok?: boolean; reason?: string; members?: Member[] }

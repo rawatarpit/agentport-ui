@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { buildInstallFileFrom, compileLiveFrom } from '@/lib/golive'
+import { compileLiveFrom } from '@/lib/golive'
+import { buildInstallPackageFrom } from '@/lib/install-package'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const read = (rel: string) => readFileSync(join(here, '..', rel), 'utf8')
@@ -12,19 +13,36 @@ describe('compileLiveFrom (durable-drafts path)', () => {
     const r = compileLiveFrom({})
     expect(r.ok).toBe(false)
   })
-  it('builds the same file shape from explicit drafts as the RAM path contract', () => {
-    const r = buildInstallFileFrom({
-      setup: { ceilingMinor: 25000, hardCeilingMinor: 100000, alwaysAsk: true, forbidRefunds: true },
-      capabilities: { hidden: { createOrder: ['amountMinor'] } },
+  it('builds a discovery package, not a policy file', () => {
+    const r = buildInstallPackageFrom({
+      drafts: {
+        setup: { ceilingMinor: 25000, hardCeilingMinor: 100000, alwaysAsk: true, forbidRefunds: true },
+        capabilities: { hidden: { createOrder: ['amountMinor'] } },
+      },
+      tenantId: 'tenant-1',
+      business: 'Acme',
+      siteUrl: 'https://acme.example',
+      workerUrl: 'https://governor.agentport.dev',
+      publishTarget: { dir: 'public', mode: 'direct', framework: 'next' },
     })
     expect(r.ok).toBe(true)
     if (r.ok) {
-      expect(r.path).toBe('agentport.config.ts')
-      expect(r.content).toContain('export default')
+      const paths = r.value.files.map((f) => f.path)
+      expect(paths).toContain('agentport/manifest.json')
+      expect(paths).toContain('public/.well-known/agent.json')
+      expect(paths).toContain('public/llms.txt')
+      expect(paths).not.toContain('agentport.config.ts')
+      expect(r.value.manifest.generatedBy).toBe('agentport')
+      expect(r.value.manifest).not.toHaveProperty('emergencyKillSwitch')
     }
   })
-  it('rejects invalid drafts with a reason, not a file', () => {
-    const r = buildInstallFileFrom({ rules: { askAboveMinor: -1 } })
+  it('rejects invalid drafts with a reason, not a package', () => {
+    const r = buildInstallPackageFrom({
+      drafts: { rules: { askAboveMinor: -1 } },
+      tenantId: 'tenant-1',
+      business: 'Acme',
+      workerUrl: 'https://governor.agentport.dev',
+    })
     expect(r.ok).toBe(false)
   })
 })
@@ -47,6 +65,19 @@ describe('durable-store custody guard', () => {
     const upserts = src.match(/\.upsert\(/g) ?? []
     const conflicts = src.match(/onConflict: '/g) ?? []
     expect(conflicts.length).toEqual(upserts.length)
+  })
+})
+
+describe('installation writes are server-only', () => {
+  const src = read('lib/durable-store.ts')
+
+  it('never writes github_installations through the session client', () => {
+    expect(src).toContain("rpc('record_github_install'")
+    expect(src).not.toMatch(/from\('github_installations'\)\s*\.upsert/)
+  })
+
+  it('uses the service-role admin client in exactly one place', () => {
+    expect((src.match(/createAdminClient\(\)/g) ?? []).length).toBe(1)
   })
 })
 

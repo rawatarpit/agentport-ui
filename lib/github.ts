@@ -1,4 +1,5 @@
 import { createHmac, createSign, timingSafeEqual } from 'node:crypto'
+import { isSafeRepoPath } from '@/lib/repo-path'
 
 /**
  * GitHub App primitives — pure functions, no framework, no store.
@@ -186,46 +187,98 @@ async function gh<T>(path: string, token: string, init?: RequestInit): Promise<G
   }
 }
 
+type GhPage<T> = { ok: true; value: T; next: string | null } | { ok: false; reason: string }
+
+/** Same failure mapping as `gh`, plus the Link: rel="next" path. */
+async function ghPage<T>(path: string, token: string): Promise<GhPage<T>> {
+  let res: Response
+  try {
+    res = await fetch(`${API}${path}`, {
+      headers: { ...API_HEADERS, Authorization: `Bearer ${token}` },
+    })
+  } catch {
+    return { ok: false, reason: 'github unreachable' }
+  }
+  if (res.status === 401 || res.status === 403) return { ok: false, reason: 'github refused the credential' }
+  if (res.status === 404) return { ok: false, reason: 'not found on GitHub' }
+  if (res.status === 422) {
+    const detail = await res.text().catch(() => '')
+    return { ok: false, reason: detail.slice(0, 160) || 'github rejected the request' }
+  }
+  if (!res.ok) return { ok: false, reason: `github refused (${res.status})` }
+  let value: T
+  try {
+    value = (await res.json()) as T
+  } catch {
+    return { ok: false, reason: 'github response unreadable' }
+  }
+  return { ok: true, value, next: nextPagePath(res.headers.get('link')) }
+}
+
+function nextPagePath(link: string | null): string | null {
+  if (!link) return null
+  const match = link.match(/<([^>]+)>;\s*rel="next"/)
+  if (!match) return null
+  try {
+    const url = new URL(match[1])
+    if (url.origin !== API) return null
+    return `${url.pathname}${url.search}`
+  } catch {
+    return null
+  }
+}
+
 export type UserInstallation = {
   id: number
   accountLogin: string
+  accountId: number | null
+  accountType: string
   installedAt: string
   appId: string
 }
 
 /**
  * Installations the authorizing GitHub user can access, listed with their
- * own user token. Used ONLY when the install callback arrives with a code
- * but no installation_id: GitHub sends the id to the Setup URL, which this
- * App cannot set alongside its OAuth redirect URI — so the install is
- * discovered from the user's own authorizations instead of trusted from
- * the URL. The token is the caller's, used once, never stored.
+ * own user token. Used to verify a named installation id and to discover a
+ * code-only install. Paginated (`per_page=100` plus Link rel=next) so a
+ * just-created install on page 2 is not silently missed. The token is the
+ * caller's, used once, never stored.
  */
 export async function listUserInstallations(userToken: string): Promise<GhResult<UserInstallation[]>> {
-  const r = await gh<{
-    installations?: Array<{
-      id?: unknown
-      account?: { login?: unknown }
-      app_id?: unknown
-      created_at?: unknown
-      updated_at?: unknown
-    }>
-  }>('/user/installations', userToken)
-  if (!r.ok) return r
-  if (!Array.isArray(r.value.installations)) return { ok: false, reason: 'github response unreadable' }
   const out: UserInstallation[] = []
-  for (const item of r.value.installations ?? []) {
-    if (!item || typeof item.id !== 'number' || !Number.isInteger(item.id) || item.id <= 0) continue
-    const updatedAt = typeof item.updated_at === 'string' ? item.updated_at : ''
-    const createdAt = typeof item.created_at === 'string' ? item.created_at : ''
-    out.push({
-      id: item.id,
-      accountLogin: typeof item.account?.login === 'string' ? item.account.login : '',
-      installedAt: updatedAt || createdAt,
-      appId: item.app_id === undefined || item.app_id === null ? '' : String(item.app_id),
-    })
+  let path = '/user/installations?per_page=100'
+  for (let page = 0; page < 20; page += 1) {
+    const r = await ghPage<{
+      installations?: Array<{
+        id?: unknown
+        account?: { login?: unknown; id?: unknown; type?: unknown }
+        app_id?: unknown
+        created_at?: unknown
+        updated_at?: unknown
+      }>
+    }>(path, userToken)
+    if (!r.ok) return r
+    if (!Array.isArray(r.value.installations)) return { ok: false, reason: 'github response unreadable' }
+    for (const item of r.value.installations) {
+      if (!item || typeof item.id !== 'number' || !Number.isInteger(item.id) || item.id <= 0) continue
+      const updatedAt = typeof item.updated_at === 'string' ? item.updated_at : ''
+      const createdAt = typeof item.created_at === 'string' ? item.created_at : ''
+      out.push({
+        id: item.id,
+        accountLogin: typeof item.account?.login === 'string' ? item.account.login : '',
+        accountId:
+          typeof item.account?.id === 'number' && Number.isSafeInteger(item.account.id) && item.account.id > 0
+            ? item.account.id
+            : null,
+        accountType: typeof item.account?.type === 'string' ? item.account.type : '',
+        installedAt: updatedAt || createdAt,
+        appId: item.app_id === undefined || item.app_id === null ? '' : String(item.app_id),
+      })
+    }
+    if (!r.next) return { ok: true, value: out }
+    path = r.next
   }
-  return { ok: true, value: out }
+  return { ok: false, reason: 'too many installations to enumerate' }
 }
 
 /**
@@ -242,6 +295,112 @@ export function pickOurInstallation(installations: UserInstallation[], appId: st
   if (ours.length === 0) return null
   ours.sort((a, b) => (a.installedAt < b.installedAt ? 1 : a.installedAt > b.installedAt ? -1 : 0))
   return ours[0] ?? null
+}
+
+/**
+ * Does this exact installation id appear in the caller's own authorization,
+ * for OUR App? A mint only proves the App can mint a token for an id; it
+ * cannot prove the caller owns that install. The callback records nothing
+ * until ownership is verified, so a victim's numeric id in a crafted URL
+ * links nothing.
+ */
+export function hasOurInstallation(
+  installations: UserInstallation[],
+  appId: string,
+  installationId: number,
+): boolean {
+  const want = (appId ?? '').trim()
+  if (!want || !Number.isSafeInteger(installationId) || installationId <= 0) return false
+  return installations.some((i) => i.id === installationId && i.appId === want)
+}
+
+export type GitHubUser = { id: number; login: string }
+export type OrgMembership = { role: string; state: string }
+
+/** The user behind a user-to-server token. Used only to prove account identity. */
+export async function getAuthenticatedUser(userToken: string): Promise<GhResult<GitHubUser>> {
+  const r = await gh<{ id?: unknown; login?: unknown }>('/user', userToken)
+  if (!r.ok) return r
+  if (typeof r.value.id !== 'number' || !Number.isSafeInteger(r.value.id) || r.value.id <= 0) {
+    return { ok: false, reason: 'github user id unreadable' }
+  }
+  return {
+    ok: true,
+    value: {
+      id: r.value.id,
+      login: typeof r.value.login === 'string' ? r.value.login : '',
+    },
+  }
+}
+
+/** The caller's membership in one organization, with role and state. */
+export async function getOrgMembership(userToken: string, org: string): Promise<GhResult<OrgMembership>> {
+  const login = (org ?? '').trim()
+  if (!login) return { ok: false, reason: 'organization login missing' }
+  const r = await gh<{ role?: unknown; state?: unknown }>(
+    `/user/memberships/orgs/${encodeURIComponent(login)}`,
+    userToken,
+  )
+  if (!r.ok) return r
+  return {
+    ok: true,
+    value: {
+      role: typeof r.value.role === 'string' ? r.value.role : '',
+      state: typeof r.value.state === 'string' ? r.value.state : '',
+    },
+  }
+}
+
+/**
+ * Prove the authorizing user may bind this installation, not merely see it.
+ *
+ * GitHub's `/user/installations` lists installs the user can access; an org
+ * member can see an org installation without being allowed to administer it.
+ * For a personal account the installation's account id must equal `/user`'s
+ * id. For an organization the caller must be an ACTIVE ADMIN. Without this,
+ * an org member could bind the org's install to their own Agent Port tenant.
+ */
+export async function verifyInstallationOwnership(
+  userToken: string,
+  appId: string,
+  installationId: number,
+  listed?: UserInstallation[],
+): Promise<GhResult<UserInstallation>> {
+  const want = (appId ?? '').trim()
+  if (!want) return { ok: false, reason: 'GitHub App ID missing' }
+  if (!Number.isSafeInteger(installationId) || installationId <= 0) {
+    return { ok: false, reason: 'installation id invalid' }
+  }
+  let installations: UserInstallation[]
+  if (listed) {
+    installations = listed
+  } else {
+    const read = await listUserInstallations(userToken)
+    if (!read.ok) return read
+    installations = read.value
+  }
+  const found = installations.find((i) => i.id === installationId && i.appId === want)
+  if (!found) return { ok: false, reason: 'installation is not authorized by this GitHub user' }
+
+  if (found.accountType === 'User') {
+    const me = await getAuthenticatedUser(userToken)
+    if (!me.ok) return me
+    if (found.accountId === null || found.accountId !== me.value.id) {
+      return { ok: false, reason: 'installation belongs to another GitHub account' }
+    }
+    return { ok: true, value: found }
+  }
+
+  if (found.accountType === 'Organization') {
+    const membership = await getOrgMembership(userToken, found.accountLogin)
+    if (!membership.ok) return { ok: false, reason: 'could not verify GitHub organization ownership' }
+    if (membership.value.state !== 'active' || membership.value.role !== 'admin') {
+      return { ok: false, reason: 'GitHub organization admin required' }
+    }
+    return { ok: true, value: found }
+  }
+
+  return { ok: false, reason: 'installation account type unknown' }
 }
 
 /**
@@ -263,6 +422,33 @@ export async function listInstallationRepos(installationToken: string): Promise<
       private: repo.private,
     })),
   }
+}
+
+export type RepoInfo = { fullName: string; defaultBranch: string }
+
+/**
+ * Read the one field the installer needs from the repo itself: the branch to
+ * base a PR on. The installation token is scoped to this repo; a bad name is
+ * a plain refusal, not a 500.
+ */
+export async function readRepoInfo(opts: {
+  installationToken: string
+  repoFullName: string
+}): Promise<GhResult<RepoInfo>> {
+  const parts = opts.repoFullName.split('/')
+  if (parts.length !== 2 || parts.some((p) => p === '' || p === '.' || p === '..')) {
+    return { ok: false, reason: 'repository name is not owner/name' }
+  }
+  const [owner, repo] = parts as [string, string]
+  const r = await gh<{ full_name?: unknown; default_branch?: unknown }>(
+    `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`,
+    opts.installationToken,
+  )
+  if (!r.ok) return r
+  if (typeof r.value.full_name !== 'string' || typeof r.value.default_branch !== 'string') {
+    return { ok: false, reason: 'github response unreadable' }
+  }
+  return { ok: true, value: { fullName: r.value.full_name, defaultBranch: r.value.default_branch } }
 }
 
 export type RepoTree = { entries: Array<{ path: string; size: number | null }>; truncated: boolean }
@@ -319,80 +505,183 @@ export async function readRepoTree(opts: {
   return { ok: true, value: { entries, truncated: !!r.value.truncated } }
 }
 
+/**
+ * Read one small text file. The installer needs `package.json` and, when it
+ * already exists, a prior generated manifest. Bodies are the merchant's source,
+ * so the caller asks for a specific path — never a directory walk — and the
+ * size cap refuses anything that is not a configuration file.
+ */
+export async function readRepoFile(opts: {
+  installationToken: string
+  repoFullName: string
+  path: string
+  ref?: string
+}): Promise<GhResult<string>> {
+  const parts = opts.repoFullName.split('/')
+  if (parts.length !== 2 || parts.some((p) => p === '' || p === '.' || p === '..')) {
+    return { ok: false, reason: 'repository name is not owner/name' }
+  }
+  if (!isSafeRepoPath(opts.path)) return { ok: false, reason: 'file path is not safe' }
+  const [owner, repo] = parts as [string, string]
+  const encodedPath = opts.path.split('/').map(encodeURIComponent).join('/')
+  const query = opts.ref ? `?ref=${encodeURIComponent(opts.ref)}` : ''
+  const r = await gh<{
+    type?: unknown
+    encoding?: unknown
+    content?: unknown
+    size?: unknown
+  }>(
+    `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${encodedPath}${query}`,
+    opts.installationToken,
+  )
+  if (!r.ok) return r
+  if (r.value.type !== 'file') return { ok: false, reason: 'not a regular file' }
+  if (typeof r.value.size === 'number' && r.value.size > 256 * 1024) {
+    return { ok: false, reason: 'file is too large to read safely' }
+  }
+  if (r.value.encoding !== 'base64' || typeof r.value.content !== 'string') {
+    return { ok: false, reason: 'github file encoding is not base64' }
+  }
+  try {
+    return { ok: true, value: Buffer.from(r.value.content, 'base64').toString('utf8') }
+  } catch {
+    return { ok: false, reason: 'github file content unreadable' }
+  }
+}
+
 export type OpenPrResult =
   | { ok: true; prUrl: string; prNumber: number; branch: string }
   | { ok: false; reason: string }
 
+export type InstallPrFile = { path: string; content: string }
+
 /**
- * Open the install PR: branch off the default branch, commit the generated
- * install file, open the pull request. One branch name per tenant so a
- * second run updates the same PR instead of opening duplicates — the branch
- * is force-pushed only when it is ours (created here), never otherwise.
+ * Open the install PR: branch off the default branch, commit the discovery
+ * package in one commit, open the pull request. One branch name so a second
+ * run updates the same PR instead of opening duplicates.
  *
- * Everything the merchant reviews is in that single file. Nothing executes
- * on merge except what their own CI runs.
+ * The commit is built with the Git Trees API because the package is a folder,
+ * not a single config file. `base_tree` keeps every unrelated file untouched;
+ * only the paths in `files` change. Nothing here can merge the PR.
  */
 export async function openInstallPr(opts: {
   installationToken: string
   repoFullName: string
-  filePath: string
-  fileContent: string
+  files: InstallPrFile[]
   prTitle: string
   prBody: string
+  branch?: string
 }): Promise<OpenPrResult> {
   const [owner, repo] = opts.repoFullName.split('/')
   if (!owner || !repo) return { ok: false, reason: 'pick a repository first' }
-  const branch = 'agentport/install'
+  if (opts.files.length === 0) return { ok: false, reason: 'install package is empty' }
+  const seen = new Set<string>()
+  for (const file of opts.files) {
+    if (!isSafeRepoPath(file.path)) return { ok: false, reason: `file path is not safe: ${file.path}` }
+    if (seen.has(file.path)) return { ok: false, reason: `duplicate file path: ${file.path}` }
+    if (Buffer.byteLength(file.content, 'utf8') > 1024 * 1024) {
+      return { ok: false, reason: `file is too large: ${file.path}` }
+    }
+    seen.add(file.path)
+  }
+  const branch = opts.branch ?? 'agentport/install'
+  if (
+    !branch ||
+    branch.length > 128 ||
+    branch.startsWith('/') ||
+    branch.endsWith('/') ||
+    branch.split('/').some((s) => s === '' || s === '.' || s === '..') ||
+    /[^A-Za-z0-9._\-/]/.test(branch)
+  ) {
+    return { ok: false, reason: 'branch name is not safe' }
+  }
 
-  const repoInfo = await gh<{ default_branch: string }>(`/repos/${owner}/${repo}`, opts.installationToken)
-  if (!repoInfo.ok) return repoInfo
-  const base = repoInfo.value.default_branch
+  const info = await readRepoInfo({
+    installationToken: opts.installationToken,
+    repoFullName: opts.repoFullName,
+  })
+  if (!info.ok) return info
+  const base = info.value.defaultBranch
 
-  const ref = await gh<{ object: { sha: string } }>(`/repos/${owner}/${repo}/git/ref/heads/${base}`, opts.installationToken)
+  const ref = await gh<{ object: { sha: string } }>(
+    `/repos/${owner}/${repo}/git/ref/heads/${encodeURIComponent(base)}`,
+    opts.installationToken,
+  )
   if (!ref.ok) return { ok: false, reason: 'could not read the default branch' }
   const baseSha = ref.value.object.sha
 
   // Reuse our branch when it already exists (update the PR); create otherwise.
-  const existing = await gh<{ object: { sha: string } }>(`/repos/${owner}/${repo}/git/ref/heads/${branch.replace('/', '%2F')}`, opts.installationToken)
+  const existing = await gh<{ object: { sha: string } }>(
+    `/repos/${owner}/${repo}/git/ref/heads/${encodeURIComponent(branch)}`,
+    opts.installationToken,
+  )
   if (!existing.ok && existing.reason !== 'not found on GitHub') {
     return { ok: false, reason: existing.reason }
   }
-  if (!existing.ok) {
+  const branchExists = existing.ok
+  const headSha = existing.ok ? existing.value.object.sha : baseSha
+
+  const head = await gh<{ tree: { sha: string } }>(
+    `/repos/${owner}/${repo}/git/commits/${headSha}`,
+    opts.installationToken,
+  )
+  if (!head.ok) return { ok: false, reason: 'could not read the base commit' }
+
+  const treeEntries: Array<{ path: string; mode: '100644'; type: 'blob'; sha: string }> = []
+  for (const file of opts.files) {
+    const blob = await gh<{ sha: string }>(`/repos/${owner}/${repo}/git/blobs`, opts.installationToken, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        content: Buffer.from(file.content, 'utf8').toString('base64'),
+        encoding: 'base64',
+      }),
+    })
+    if (!blob.ok) return { ok: false, reason: `could not write ${file.path}: ${blob.reason}` }
+    treeEntries.push({ path: file.path, mode: '100644', type: 'blob', sha: blob.value.sha })
+  }
+
+  const tree = await gh<{ sha: string }>(`/repos/${owner}/${repo}/git/trees`, opts.installationToken, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ base_tree: head.value.tree.sha, tree: treeEntries }),
+  })
+  if (!tree.ok) return { ok: false, reason: `could not build the install tree: ${tree.reason}` }
+
+  const commit = await gh<{ sha: string }>(`/repos/${owner}/${repo}/git/commits`, opts.installationToken, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      message: 'Add Agent Port discovery package',
+      tree: tree.value.sha,
+      parents: [headSha],
+    }),
+  })
+  if (!commit.ok) return { ok: false, reason: `could not create the install commit: ${commit.reason}` }
+
+  if (branchExists) {
+    const updated = await gh<{ object: { sha: string } }>(
+      `/repos/${owner}/${repo}/git/refs/heads/${encodeURIComponent(branch)}`,
+      opts.installationToken,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sha: commit.value.sha, force: false }),
+      },
+    )
+    if (!updated.ok) return { ok: false, reason: `could not update the install branch: ${updated.reason}` }
+  } else {
     const created = await gh<{ object: { sha: string } }>(
       `/repos/${owner}/${repo}/git/refs`,
       opts.installationToken,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ref: `refs/heads/${branch}`, sha: baseSha }),
+        body: JSON.stringify({ ref: `refs/heads/${branch}`, sha: commit.value.sha }),
       },
     )
-    if (!created.ok) return created
+    if (!created.ok) return { ok: false, reason: `could not create the install branch: ${created.reason}` }
   }
-
-  // File content: fetch current blob sha when the file exists (update),
-  // absent otherwise (create). Both go through the contents API so the
-  // commit is one file, reviewable in one screen.
-  const contentB64 = Buffer.from(opts.fileContent, 'utf8').toString('base64')
-  const current = await gh<{ sha: string }>(
-    `/repos/${owner}/${repo}/contents/${opts.filePath}?ref=${encodeURIComponent(branch)}`,
-    opts.installationToken,
-  )
-  const put = await gh<{ commit: { sha: string } }>(
-    `/repos/${owner}/${repo}/contents/${opts.filePath}`,
-    opts.installationToken,
-    {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: 'Govern agent access with AgentPort',
-        content: contentB64,
-        branch,
-        ...(current.ok ? { sha: current.value.sha } : {}),
-      }),
-    },
-  )
-  if (!put.ok) return put
 
   const pr = await gh<{ html_url: string; number: number }>(
     `/repos/${owner}/${repo}/pulls`,

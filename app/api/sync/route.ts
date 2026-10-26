@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
+import { enforceRateLimit } from '@/lib/request-guard'
 import { alreadySawPush, recordSync, resolveTenant } from '@/lib/store'
 import type { SyncPayload } from '@/lib/enforcing'
 
@@ -64,6 +65,10 @@ export async function POST(req: Request) {
   if (a.length !== b.length || !timingSafeEqual(a, b)) {
     return Response.json({ status: 'error', reason: 'Bad signature — recorded, not applied.' }, { status: 403 })
   }
+  // Same HMAC-not-cookie exemption as the GitHub webhook: no Origin check,
+  // but a verified push flood is still bounded.
+  const limited = enforceRateLimit(req, 'sync')
+  if (limited) return limited
 
   let body: { capabilities?: unknown; policy?: unknown; fromDigest?: unknown }
   try {

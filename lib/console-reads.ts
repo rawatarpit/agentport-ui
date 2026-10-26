@@ -1,29 +1,32 @@
 import { createClient } from '@/lib/supabase/server'
 import type { LedgerEntry } from '@/lib/contracts'
+import { holdsFromRows } from '@/lib/ledger-view'
 
 /**
- * Durable reads for the console's own decision rows (TASKS.md 12.2, 2.4).
+ * Durable reads for the hosted ledger's console projection (TASKS.md 12.2, 2.4).
  *
  * Server Components only: reads go through the session client (anon key +
  * cookies), so RLS scopes every row to the merchant's own tenants. No
  * service role, no key material, nothing to leak — a read path with nothing
  * to steal is a read path that cannot be turned into a write path.
  *
- * Fidelity note, stated where the reader renders it rather than buried in a
- * doc: console rows carry coarser attribution than merchant-ledger rows
- * (no measured figures, no detail prose, no parameters — the data-class
- * boundary). Fields the row cannot know are ABSENT (`evaluated` undefined
- * renders '—'), never fabricated. A dashboard that invents figures to fill
- * its own columns is decorating.
+ * Why a view and not `ledger_entries`: the proof table carries redacted
+ * parameters, detail prose and evaluated figures. The console boundary is
+ * narrower, and `ledger_console_view` is that projection at the database, not
+ * a promise that every future `select` remembers. Fields the view does not
+ * carry are ABSENT (`evaluated` undefined renders '—'), never fabricated.
  */
 
 type ConsoleRow = {
   tenant_id: string
   request_id: string
-  decided_at: string
+  held_request_id: string | null
+  at: string
   agent_id: string
   assurance: 'verified' | 'unverified'
   capability: string
+  capability_registered: boolean | null
+  access: 'read' | 'write' | null
   decision: 'allow' | 'deny' | 'require_approval'
   reason: string
   rule: string
@@ -38,20 +41,18 @@ function toEntry(r: ConsoleRow): LedgerEntry {
   return {
     tenantId: r.tenant_id,
     requestId: r.request_id,
-    at: r.decided_at,
+    // The approval commit names the held request it ran. The queue uses this
+    // link to stop showing a hold once a commit exists; the link is recorded
+    // in the ledger, never inferred from timing.
+    heldRequestId: r.held_request_id ?? undefined,
+    at: r.at,
     agentId: r.agent_id,
     assurance: r.assurance,
     capability: r.capability,
-    // Unregistered-capability denials carry no access class: the row records
-    // the name the agent actually asked for (like the SDK ledger does) and
-    // reports no class rather than inventing one. Pinned to these two
-    // DENIAL_REASONS (SDK src/types.ts) — a future unregistered-reason would
-    // misreport true until this line learns it, so grep this comment when
-    // that union grows (N2).
-    capabilityRegistered: r.reason === 'unknown_capability' || r.reason === 'capability_not_exposed' ? false : true,
-    access: undefined,
-    // Absent, not empty: the page renders '—' for missing figures, which is
-    // the honest answer for rows that never carried them.
+    capabilityRegistered: r.capability_registered ?? undefined,
+    access: r.access ?? undefined,
+    // Absent, not empty: the view deliberately omits the figures, and the page
+    // renders '—' rather than inventing a measurement.
     evaluated: undefined,
     parameters: {},
     decision: r.decision,
@@ -66,39 +67,23 @@ function toEntry(r: ConsoleRow): LedgerEntry {
   }
 }
 
-/** Newest first, member-scoped by RLS. Never throws: callers render failed. */
-export async function listDecisions(limit = 200): Promise<LedgerEntry[]> {
+/** Newest first for one explicit tenant. Never throws: callers render failed. */
+export async function listDecisions(tenantId: string, limit = 200): Promise<LedgerEntry[]> {
   const db = createClient()
   const { data, error } = await db
-    .from('console_decisions')
+    .from('ledger_console_view')
     .select(
-      'tenant_id, request_id, decided_at, agent_id, assurance, capability, decision, reason, rule, approval, result, config_hash, row_digest, duration_ms',
+      'tenant_id, request_id, held_request_id, at, agent_id, assurance, capability, capability_registered, access, decision, reason, rule, approval, result, config_hash, row_digest, duration_ms',
     )
-    .order('decided_at', { ascending: false })
+    .eq('tenant_id', tenantId)
+    .order('at', { ascending: false })
     .limit(limit)
   if (error || !data) return []
   return (data as ConsoleRow[]).map(toEntry)
 }
 
-/** Holds: decided require_approval with no grant recorded. Commits happen
- *  merchant-side (CLI), so a granted flag here would be attestation of
- *  nothing — the queue is require_approval rows, period.
- *
- *  Expired holds stay listed with an `expiredHold` marker rather than being
- *  filtered (N1): the row truthfully has not executed, the buttons are
- *  inert with the merchant-side-commit explanation either way, and the CLI
- *  enforces expiry at commit. Filtering them would report "nothing waiting"
- *  while rows disagree — a silent queue is worse than a stale one. */
-export async function listHolds(limit = 200): Promise<Array<LedgerEntry & { expiredHold: boolean }>> {
-  const now = Date.now()
-  const rows = await listDecisions(limit)
-  return rows
-    .filter((e) => e.decision === 'require_approval')
-    .map((e) => {
-      const expiresAt = (e.approval as { expiresAt?: unknown } | undefined)?.expiresAt
-      return {
-        ...e,
-        expiredHold: typeof expiresAt === 'string' && Number.isFinite(Date.parse(expiresAt)) && Date.parse(expiresAt) < now,
-      }
-    })
+/** Holds: require_approval rows with no later approval commit naming them. */
+export async function listHolds(tenantId: string, limit = 200): Promise<Array<LedgerEntry & { expiredHold: boolean }>> {
+  const rows = await listDecisions(tenantId, limit)
+  return holdsFromRows(rows)
 }

@@ -16,12 +16,14 @@
     "active": true
   },
   "redirect_url": "https://agentport.relayforge.in/api/github/callback",
+  "request_oauth_on_install": true,
   "public": false,
   "default_permissions": {
     "contents": "write",
     "pull_requests": "write",
     "checks": "read",
-    "metadata": "read"
+    "metadata": "read",
+    "members": "read"
   },
   "default_events": ["installation", "installation_repositories", "pull_request"]
 }

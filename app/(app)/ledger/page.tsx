@@ -2,6 +2,7 @@ import { Badge } from '@/components/stat'
 import { configHash } from '@/lib/agentport'
 import { listDecisions } from '@/lib/console-reads'
 import type { LedgerEntry } from '@/lib/contracts'
+import { resolveRequestTenant } from '@/lib/tenant-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,14 +25,24 @@ function evaluated(e: LedgerEntry): string {
 }
 
 export default async function LedgerPage() {
+  const tenant = await resolveRequestTenant()
+  if (tenant.active.status !== 'active') {
+    return (
+      <div className="panel p-8 text-center">
+        <p className="text-bone-dim">Choose a workspace before reading the ledger.</p>
+        <p className="mt-1 font-mono text-[11px] text-bone-faint">no tenant is read without an explicit selection</p>
+      </div>
+    )
+  }
+
   let entries: LedgerEntry[] = []
   let failed = false
-  // Durable reads (TASKS.md 2.2): member-scoped rows from console_decisions,
-  // newest first. No seed, no fixtures, no fallback to memory — an empty
-  // table renders the empty state below ("unknown — not zero"), which is the
-  // honest answer before the first real request lands.
+  // Durable reads (TASKS.md 2.2): rows for the selected tenant only, newest
+  // first. RLS can return the union of memberships, so the explicit filter is
+  // what keeps a second workspace out of this table. No seed, no fixtures,
+  // no fallback to memory — empty renders the honest "unknown — not zero".
   try {
-    entries = await listDecisions(200)
+    entries = await listDecisions(tenant.active.tenantId, 200)
   } catch {
     failed = true
   }
@@ -44,8 +55,7 @@ export default async function LedgerPage() {
         <p className="prose-bone mt-3 max-w-[68ch]">
           Every call an agent has made, including the ones that were refused. A
           refusal you cannot explain is a control the agent will route around, so
-          denials are recorded with the rule that fired and the numbers it was
-          measured against.
+          denials are recorded with the rule that fired.
         </p>
       </div>
 
@@ -185,7 +195,7 @@ export default async function LedgerPage() {
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone="idle">durable rows</Badge>
         <p className="font-mono text-[11px] text-bone-faint">
-          member-scoped reads — decision rows carry identity, outcome and digest, never amounts or parameters
+          member-scoped reads — identity, decision, rule, outcome and digest; amounts and parameters are not projected
         </p>
       </div>
 

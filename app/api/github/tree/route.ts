@@ -1,17 +1,21 @@
 import { mintInstallationTokenFor, readRepoTree } from '@/lib/github'
 import { installationKnownDb } from '@/lib/durable-store'
 import { resolveCallerTenant } from '@/lib/tenant'
+import { readSelectedTenantId, tenantRefusalResponse } from '@/lib/tenant-server'
 import { createClient } from '@/lib/supabase/server'
+
+import { enforceRateLimit } from '@/lib/request-guard'
 
 export const dynamic = 'force-dynamic'
 
-async function callerTenantId(): Promise<string | null> {
+async function callerTenant(): Promise<Awaited<ReturnType<typeof resolveCallerTenant>>> {
   try {
     const supabase = createClient()
     const { data } = await supabase.auth.getUser()
     const t = await resolveCallerTenant({
       getUserId: async () => data.user?.id ?? null,
-      listMemberships: async (userId: string) => {
+      selectedTenantId: readSelectedTenantId(),
+    listMemberships: async (userId: string) => {
         const { data: rows } = await supabase
           .from('tenant_members')
           .select('tenant_id,role,created_at')
@@ -20,9 +24,9 @@ async function callerTenantId(): Promise<string | null> {
         return (rows ?? []) as Array<{ tenant_id: string; role: string; created_at: string }>
       },
     })
-    return t.tenantId
+    return t
   } catch {
-    return null
+    return { tenantId: null, code: 'signed_out', reason: 'Sign in first — installs belong to your business.' }
   }
 }
 
@@ -36,10 +40,12 @@ async function callerTenantId(): Promise<string | null> {
  * only.
  */
 export async function GET(req: Request) {
-  const tenantId = await callerTenantId()
-  if (!tenantId) {
-    return Response.json({ status: 'error', reason: 'Sign in first — installs belong to your business.' }, { status: 401 })
-  }
+  const limited = enforceRateLimit(req, 'github:read')
+  if (limited) return limited
+
+  const t = await callerTenant()
+  if (t.tenantId === null) return tenantRefusalResponse(t)
+  const tenantId = t.tenantId
   const params = new URL(req.url).searchParams
   const installationId = Number(params.get('installation') ?? '')
   const repo = (params.get('repo') ?? '').trim()

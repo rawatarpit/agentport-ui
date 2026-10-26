@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { resolveRequestTenant } from '@/lib/tenant-server'
 
 type ActivityRow = {
   capability: string
@@ -38,12 +38,25 @@ type DemandRow = {
 }
 
 export async function AnalyticsView() {
-  const supabase = createClient()
+  const tenant = await resolveRequestTenant()
+  if (tenant.active.status !== 'active') {
+    return (
+      <div className="panel space-y-2 p-6">
+        <p className="label">By capability — counts, not money</p>
+        <p className="text-[14px] leading-relaxed text-bone-dim">
+          Choose a workspace before reading analytics.
+        </p>
+      </div>
+    )
+  }
+
+  const tenantId = tenant.active.tenantId
+  const supabase = tenant.supabase
   const [{ data: activity, error: aErr }, { data: conversion, error: cErr }, { data: demand, error: dErr }] =
     await Promise.all([
-      supabase.from('v_capability_activity').select('*').order('window_start', { ascending: false }).limit(200),
-      supabase.from('v_conversion').select('*').order('window_start', { ascending: false }).limit(200),
-      supabase.from('console_decisions').select('agent_id,assurance,capability,decision').limit(500),
+      supabase.from('v_capability_activity').select('*').eq('tenant_id', tenantId).order('window_start', { ascending: false }).limit(200),
+      supabase.from('v_conversion').select('*').eq('tenant_id', tenantId).order('window_start', { ascending: false }).limit(200),
+      supabase.from('console_decisions').select('agent_id,assurance,capability,decision').eq('tenant_id', tenantId).limit(500),
     ])
 
   if (aErr || cErr || dErr) {

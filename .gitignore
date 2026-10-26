@@ -17,7 +17,7 @@ opencode.json
 
 # Migrations are applied live and mirrored to the SDK repo; this repository
 # does not carry the database.
-supabase/
+/supabase/
 
 # Former runtime-SDK snapshot. Nothing in the build reads it anymore; kept
 # on disk for local reference only.

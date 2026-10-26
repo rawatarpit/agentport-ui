@@ -2,7 +2,9 @@ import { createClient } from '@/lib/supabase/server'
 import { compileLiveFrom, KNOWN_CAPABILITIES, validateCapabilities } from '@/lib/golive'
 import { getDraftDb } from '@/lib/durable-store'
 import { contentDigest, tierForChange } from '@/lib/publish'
+import { guardStateChange } from '@/lib/request-guard'
 import { resolveCallerRole } from '@/lib/tenant'
+import { readSelectedTenantId, tenantRefusalResponse } from '@/lib/tenant-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,6 +16,7 @@ async function caller() {
   const { data } = await supabase.auth.getUser()
   const t = await resolveCallerRole({
     getUserId: async () => data.user?.id ?? null,
+    selectedTenantId: readSelectedTenantId(),
     listMemberships: async (userId: string) => {
       const { data: rows } = await supabase
         .from('tenant_members')
@@ -46,9 +49,11 @@ const knownKind = (name: string): 'read' | 'write' | 'unknown' =>
  * approval first.
  */
 export async function POST(req: Request) {
+  const guarded = guardStateChange(req, 'publish:approve')
+  if (guarded) return guarded
   const { supabase, t } = await caller()
   if (t.tenantId === null) {
-    return Response.json({ status: 'error', reason: t.reason }, { status: 401 })
+    return tenantRefusalResponse(t)
   }
   if (t.role !== 'owner' && t.role !== 'admin') {
     return Response.json({ status: 'error', reason: 'Only the owner or an admin can approve a publish.' }, { status: 403 })
@@ -60,6 +65,15 @@ export async function POST(req: Request) {
   } catch {
     return Response.json({ status: 'error', reason: 'Body must be JSON.' }, { status: 400 })
   }
+  const { data: tenantRow } = await supabase
+    .from('tenants')
+    .select('display_name,website_url')
+    .eq('tenant_id', tenantId)
+    .maybeSingle()
+  const baseUrl =
+    typeof tenantRow?.website_url === 'string' && tenantRow.website_url.trim() !== ''
+      ? tenantRow.website_url
+      : undefined
 
   // Content: stored version (rollback) or current drafts. One compiler.
   let policy: Policy
@@ -128,13 +142,18 @@ export async function POST(req: Request) {
   const version = (typeof latest?.version === 'number' ? latest.version : 0) + 1
 
   const tier = tierForChange(prev, { policy, capabilities: caps }, kindOf)
-  const digest = contentDigest({ tenantId, version, policy, capabilities: caps })
+  const digest = contentDigest({
+    tenantId,
+    version,
+    policy,
+    capabilities: caps,
+    ...(baseUrl !== undefined ? { baseUrl } : {}),
+  })
 
   // Ceremony: typed needs the business name spelled out (blast radius =
   // kill-switch-class); light needs an explicit true (never a default).
   if (tier === 'typed') {
-    const { data: tenant } = await supabase.from('tenants').select('display_name').eq('tenant_id', tenantId).maybeSingle()
-    const name = (tenant?.display_name as string | undefined) ?? ''
+    const name = (tenantRow?.display_name as string | undefined) ?? ''
     if (typeof body.confirm !== 'string' || body.confirm.trim() !== name || name === '') {
       return Response.json(
         {

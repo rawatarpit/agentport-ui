@@ -1,3 +1,4 @@
+import { demoGuard } from '@/lib/demo-gate'
 import { getLive, resolveTenant } from '@/lib/store'
 
 export const dynamic = 'force-dynamic'
@@ -13,6 +14,8 @@ export const dynamic = 'force-dynamic'
  * an empty policy that reads as "allow everything".
  */
 export async function GET() {
+  const denied = await demoGuard()
+  if (denied) return denied
   const tenantId = resolveTenant()
   const live = getLive(tenantId)
   if (!live) {

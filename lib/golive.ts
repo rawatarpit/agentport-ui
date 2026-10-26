@@ -12,10 +12,34 @@ import { getDraft, getLive, resolveTenant, type LiveCapability } from '@/lib/sto
  */
 
 export const KNOWN_CAPABILITIES = [
-  { name: 'searchProducts', kind: 'read', fields: ['q', 'maxPriceMinor'] },
-  { name: 'checkInventory', kind: 'read', fields: ['sku'] },
-  { name: 'createOrder', kind: 'write', fields: ['items', 'amountMinor'] },
-  { name: 'requestRefund', kind: 'write', fields: ['orderId'] },
+  {
+    name: 'searchProducts',
+    kind: 'read',
+    fields: ['q', 'maxPriceMinor'],
+    description: 'Search the product catalogue.',
+    dataClass: 'public',
+  },
+  {
+    name: 'checkInventory',
+    kind: 'read',
+    fields: ['sku'],
+    description: 'Check stock for a SKU.',
+    dataClass: 'internal',
+  },
+  {
+    name: 'createOrder',
+    kind: 'write',
+    fields: ['items', 'amountMinor'],
+    description: 'Create an order for the represented user.',
+    dataClass: 'payment',
+  },
+  {
+    name: 'requestRefund',
+    kind: 'write',
+    fields: ['orderId'],
+    description: 'Request a refund for an existing order.',
+    dataClass: 'payment',
+  },
 ] as const
 
 export type RulesDraft = {
@@ -258,45 +282,6 @@ export function compileLiveFrom(drafts: {
       .join(' ') || 'Every field is visible to agents.',
   ]
   return { ok: true, compiled: { policy, capabilities, summary } }
-}
-
-/**
- * The install file committed by the GitHub PR: the compiled drafts as a
- * reviewable `agentport.config.ts`, one file, one screen. What the merchant
- * merges is exactly what the summary described — the PR body carries the
- * same lines, so review happens once, in their repo, against branch
- * protection they built for another purpose.
- */
-export function buildInstallFile(tenantId: string): { ok: true; path: string; content: string } | { ok: false; reason: string } {
-  const compiled = compileLive(tenantId)
-  if (!compiled.ok) return compiled
-  return installFileFromCompiled(compiled.compiled)
-}
-
-/** Build from an already-compiled policy — the durable-drafts path. */
-export function buildInstallFileFrom(
-  drafts: { rules?: unknown; setup?: unknown; capabilities?: unknown },
-): { ok: true; path: string; content: string } | { ok: false; reason: string } {
-  const compiled = compileLiveFrom(drafts)
-  if (!compiled.ok) return compiled
-  return installFileFromCompiled(compiled.compiled)
-}
-
-function installFileFromCompiled(compiled: Compiled): { ok: true; path: string; content: string } {
-  const { policy, capabilities, summary } = compiled
-  const lines = [
-    '// Governed agent access — generated from your answers, reviewable here.',
-    '// What you merge is what enforces: nothing here executes until this file',
-    '// is on your default branch and your runtime loads it.',
-    '//',
-    ...summary.map((s) => `// - ${s}`),
-    'export default {',
-    `  policy: ${JSON.stringify(policy, null, 2).replace(/\n/g, '\n  ')},`,
-    `  capabilities: ${JSON.stringify(capabilities.map((c) => c.name))},`,
-    `  hiddenFields: ${JSON.stringify(Object.fromEntries(capabilities.filter((c) => c.hiddenFields.length > 0).map((c) => [c.name, c.hiddenFields])))}`,
-    '} as const',
-  ]
-  return { ok: true, path: 'agentport.config.ts', content: `${lines.join('\n')}\n` }
 }
 
 /** Canonical bytes: sorted keys, no whitespace surprises. The digest signs these. */

@@ -72,6 +72,8 @@ export type DecisionReason = DenialReason | 'allowed'
 export interface LedgerEntry {
   tenantId: string
   requestId: string
+  /** The held request this approval row committed, when this row is a commit. */
+  heldRequestId?: string
   at: string
   agentId: string
   assurance: 'verified' | 'unverified'
@@ -94,6 +96,7 @@ export interface LedgerEntry {
     granted?: boolean
     approvedBy?: string
     at?: string
+    expiresAt?: string
   }
   result?: 'ok' | 'error'
   error?: string

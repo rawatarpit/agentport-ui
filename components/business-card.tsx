@@ -1,17 +1,23 @@
 import { Badge } from '@/components/stat'
-import { createClient } from '@/lib/supabase/server'
+import { resolveRequestTenant } from '@/lib/tenant-server'
 
 /**
  * FRONTEND.md §3 step 3 — home reads the business record.
  *
- * One card: display name, their role, member count, and when the runtime
- * was last heard from. NULL push time renders as unknown — never as
+ * One card: display name, their role, member count, and when the hosted
+ * governor was last heard from. NULL push time renders as unknown — never as
  * healthy. Says "business", never "tenant": tenant is our backend word,
  * and no merchant should need it to read their own dashboard.
  */
 export async function BusinessCard() {
-  const supabase = createClient()
-  const { data, error } = await supabase.from('v_tenant_home').select('*').maybeSingle()
+  const tenant = await resolveRequestTenant()
+  if (tenant.active.status !== 'active') return null
+
+  const { data, error } = await tenant.supabase
+    .from('v_tenant_home')
+    .select('*')
+    .eq('tenant_id', tenant.active.tenantId)
+    .maybeSingle()
 
   if (error || !data) return null
   const row = data as {

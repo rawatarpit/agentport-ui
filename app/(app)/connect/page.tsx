@@ -3,44 +3,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { EnforcingPanel } from '@/components/enforcing-panel'
+import { githubReasonText } from '@/lib/github-reasons'
 import { GithubPanel } from '@/components/github-panel'
 import { SignupForm } from '@/components/signup-form'
 import { WebsiteForm } from '@/components/website-form'
 import { WebhookPanel } from '@/components/webhook-panel'
 
 type Step = { n: string; title: string; body: string; state: 'missing' | 'done'; href?: string }
-
-/** Callback reasons are machine strings; the banner speaks merchant. */
-function githubReasonText(reason: string): string {
-  if (reason.startsWith('oauth-')) return `The sign-in step failed (${reason.slice('oauth-'.length)}). Nothing was linked.`
-  if (reason === 'missing-installation') return 'GitHub did not report an installation. It may have been cancelled halfway.'
-  if (reason === 'sign-in-required')
-    return 'You were not signed in here when GitHub returned, so nothing was linked. Sign in first, then install again.'
-  if (reason === 'installation-unverified')
-    return 'GitHub named an installation we could not verify — it may have been removed, or our App key is stale. Nothing was linked.'
-  if (reason === 'installation-unknown')
-    return 'That installation does not exist or was removed — nothing was linked. Install the App on the repo, then return here.'
-  if (reason === 'installation-key')
-    return 'Our GitHub App credential was refused — nothing was linked. This is our side: report it and we will rotate the App key.'
-  if (reason === 'installation-key-missing')
-    return 'Our GitHub App ID or private key is empty on the server — nothing was linked. This is our side: report it.'
-  if (reason === 'installation-key-parse')
-    return 'Our GitHub App private key does not parse — it was likely truncated or altered on paste. Nothing was linked. This is our side: report it and we will re-paste the key.'
-  if (reason === 'installation-key-auth')
-    return 'GitHub rejected our App credential — the key does not match the App ID, or the key was rotated away. Nothing was linked. This is our side: report it.'
-  if (reason === 'install-incomplete')
-    return 'GitHub authorized you but named no installation of this App yet — finish the install step on GitHub with the same account, then return here. Nothing was linked.'
-  if (reason === 'install-state-invalid')
-    return 'That install link expired or was already used — start again from Connect a GitHub repo. Nothing was linked.'
-  if (reason === 'install-state-missing')
-    return 'That arrival carried no install link — installs must start from the Connect a GitHub repo button below (not from GitHub directly), so the return can be tied to your business. Nothing was linked.'
-  if (reason === 'installation-attached')
-    return 'That installation is already linked to a different business — nothing was changed. Disconnect it there first if it should move.'
-  if (reason === 'install-start')
-    return 'Could not start installation — confirm you are signed in as owner or admin, then retry. Nothing was linked.'
-  if (reason === 'oauth-unconfigured') return 'Our side is not ready to receive the sign-in yet.'
-  return `Something interrupted the install (${reason}). Nothing was linked.`
-}
 
 /**
  * The front door as computed state, split in two: onboarding spine first
@@ -54,11 +23,12 @@ export default function ConnectPage() {
   const [failed, setFailed] = useState(false)
   const [showSignup, setShowSignup] = useState(false)
   const [websiteUrl, setWebsiteUrl] = useState<string | null | undefined>(undefined)
+  const [canManage, setCanManage] = useState(false)
   const [githubNotice, setGithubNotice] = useState<string | null>(null)
 
-  // The callback lands back here with ?github=<reason>: installed,
-  // oauth-<cause>, or missing-installation. Read once on mount (client-only,
-  // so no SSR/Suspense ceremony) and render it as a banner, never a dead end.
+  // This page remains a deep link and diagnostics surface. GitHub callbacks
+  // now land on the dashboard, but old links and failures may still carry
+  // ?github=<reason>; render it as a banner, never a dead end.
   useEffect(() => {
     const q = new URLSearchParams(window.location.search).get('github')
     if (!q) return
@@ -67,7 +37,11 @@ export default function ConnectPage() {
     } else {
       setGithubNotice(q)
     }
-    window.history.replaceState(null, '', window.location.pathname)
+    // Drop only the notice flag; an installation id may still be needed by
+    // the panel below and is not authority by itself.
+    const url = new URL(window.location.href)
+    url.searchParams.delete('github')
+    window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
   }, [])
 
   const load = useCallback(async () => {
@@ -82,10 +56,16 @@ export default function ConnectPage() {
     }
     try {
       const me = await fetch('/api/me')
-      const mbody = (await me.json()) as { status: string; merchant?: { websiteUrl?: string | null } }
+      const mbody = (await me.json()) as {
+        status: string
+        role?: string
+        merchant?: { websiteUrl?: string | null }
+      }
       setWebsiteUrl(mbody.status === 'ok' ? (mbody.merchant?.websiteUrl ?? null) : null)
+      setCanManage(mbody.status === 'ok' && (mbody.role === 'owner' || mbody.role === 'admin'))
     } catch {
       setWebsiteUrl(null)
+      setCanManage(false)
     }
   }, [])
 
@@ -94,6 +74,7 @@ export default function ConnectPage() {
   }, [load])
 
   const step1 = steps?.find((s) => s.n === '1')
+  const rulesReady = steps?.find((s) => s.n === '2')?.state === 'done'
 
   return (
     <div className="space-y-6">
@@ -101,20 +82,21 @@ export default function ConnectPage() {
         <p className="label">Front door</p>
         <h1 className="mt-2 font-display text-3xl text-bone">Connect your business</h1>
         <p className="prose-bone mt-3 max-w-[68ch]">
-          Two doors, one artifact. The dashboard is the front door;{' '}
-          <span className="font-mono text-bone">agent-port init</span> stays as the
-          second door for the team with no GitHub. Both produce the same committed
-          file — the merge is the signature either way.
+          Two doors, one artifact. The dashboard is the front door; the manual
+          installer stays as the second door for the team with no GitHub. Both
+          produce the same committed package — the merge is the signature either way.
         </p>
       </div>
 
       <EnforcingPanel draftLabel="no draft open" />
 
       {githubNotice === '__installed__' ? (
-        <div className="panel border-verdant/40 p-5" role="status">
-          <p className="font-mono text-[11px] uppercase tracking-widest text-verdant">GitHub connected</p>
+        <div className="panel p-5" role="status">
+          <p className="font-mono text-[11px] uppercase tracking-widest text-bone-faint">GitHub returned</p>
           <p className="mt-2 text-[13px] leading-relaxed text-bone-dim">
-            The App is installed. Pick the repositories below and open the install pull request.
+            The checklist below is authoritative: we verify the installation with
+            GitHub before marking it connected. Pick the repositories below only
+            after that step turns green.
           </p>
         </div>
       ) : githubNotice ? (
@@ -166,7 +148,12 @@ export default function ConnectPage() {
         <WebsiteForm current={websiteUrl} onDone={() => void load()} />
       ) : null}
 
-      <GithubPanel />
+      <GithubPanel
+        canManage={canManage}
+        prBlockedReason={
+          rulesReady ? null : 'Set your starter rules first — the discovery package is generated from them.'
+        }
+      />
 
       {failed ? (
         <p className="text-[13px] text-rust" role="alert">Could not read connection state.</p>

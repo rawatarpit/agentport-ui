@@ -1,32 +1,20 @@
+import { securityHeaderGroups } from './lib/security-headers.mjs'
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
 
   /**
-   * Security headers on every response (TASKS.md 12.4.2).
+   * Security headers on every response — pages and API routes alike.
    *
-   * Deliberately no `Content-Security-Policy`: Next.js needs inline scripts
-   * to hydrate, so a CSP without per-request nonces would be `unsafe-inline`
-   * theatre — a header that looks like a control and enforces nothing. The
-   * headers below are all enforceable as static values. HSTS is set by the
-   * host (Netlify) rather than here, so `http://localhost` development never
-   * gets pinned to https by a dev-server response.
+   * HSTS is emitted only from a production build, so `next dev` never pins
+   * http://localhost for two years. The CSP is report-only until the reports
+   * have been reviewed; lib/security-headers.mjs documents the exact path to
+   * enforcement (nonce + renamed header). Source of truth lives there so the
+   * policy is unit-tested rather than copied between config and docs.
    */
   async headers() {
-    return [
-      {
-        source: '/:path*',
-        headers: [
-          { key: 'X-Frame-Options', value: 'DENY' },
-          { key: 'X-Content-Type-Options', value: 'nosniff' },
-          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-          {
-            key: 'Permissions-Policy',
-            value: 'camera=(), microphone=(), geolocation=(), payment=()',
-          },
-        ],
-      },
-    ]
+    return securityHeaderGroups()
   },
 
   /**
