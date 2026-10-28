@@ -48,6 +48,21 @@ const EXAMPLE_ROWS = [
   },
 ]
 
+const PROBLEMS = [
+  {
+    title: 'You cannot see the requests.',
+    body: 'Page analytics counts humans. Agent requests arrive through interfaces nobody instrumented — chatbot checkouts, assistants calling your API.',
+  },
+  {
+    title: 'You cannot set the lines.',
+    body: 'Between an agent and your money there is no ceiling, no hold, no always-no. The only options are “trust it” or “switch it off”.',
+  },
+  {
+    title: 'You cannot prove what happened.',
+    body: 'When a decision is questioned, a screenshot is not evidence. A ledger row with its reason is.',
+  },
+]
+
 const PILLARS = [
   {
     title: 'Demand',
@@ -81,6 +96,21 @@ const STEPS = [
     n: '3',
     title: 'Watch the proof',
     body: 'Every decision lands on your ledger with its reason. When a site goes quiet, the console says unknown — never green.',
+  },
+]
+
+const FLOW = [
+  {
+    label: 'Discovery',
+    body: 'Your site publishes a small, advisory manifest that points agents at the hosted governor. Nothing on your site decides anything.',
+  },
+  {
+    label: 'Decision',
+    body: 'The governor verifies the caller, evaluates your ordered policy, then executes or refuses. Your ceilings and holds run first.',
+  },
+  {
+    label: 'Proof',
+    body: 'Every decision is written to your ledger with its reason and digest. Counts and decisions — never your order values.',
   },
 ]
 
@@ -162,8 +192,8 @@ const PILOT_TERMS = [
 ]
 
 const NAV = [
+  { href: '#problem', label: 'Why' },
   { href: '#see', label: 'What you see' },
-  { href: '#control', label: 'What you control' },
   { href: '#how', label: 'How it works' },
   { href: '#contact', label: 'Pilot' },
 ]
@@ -178,7 +208,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-40 border-b border-ink-line/70 bg-ink/80 backdrop-blur-md">
-        <div className="mx-auto flex w-full max-w-[1120px] items-center justify-between gap-4 px-5 py-3.5 sm:px-8">
+        <div className="mx-auto flex w-full max-w-[1120px] items-center justify-between gap-3 px-5 py-3.5 sm:px-8">
           <Link href="/" aria-label="AgentPort home" className="shrink-0">
             <AgentPortLogo />
           </Link>
@@ -199,10 +229,10 @@ export default function HomePage() {
             <div className="hidden w-28 sm:block">
               <ThemeToggle />
             </div>
-            <Link href="/login" className="btn px-4 py-2">
+            <Link href="/login" className="btn hidden px-4 py-2 sm:inline-flex">
               Sign in
             </Link>
-            <a href="#contact" className="btn btn-primary px-4 py-2">
+            <a href="#contact" className="btn btn-primary px-3 py-1.5 sm:px-4 sm:py-2">
               Request an invite
             </a>
           </div>
@@ -220,6 +250,13 @@ export default function HomePage() {
               backgroundSize: '22px 22px',
               maskImage: 'radial-gradient(ellipse 70% 60% at 25% 5%, black, transparent 75%)',
               WebkitMaskImage: 'radial-gradient(ellipse 70% 60% at 25% 5%, black, transparent 75%)',
+            }}
+          />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-40 top-0 -z-10 hidden h-[420px] w-[420px] rounded-full lg:block"
+            style={{
+              background: 'radial-gradient(circle, rgba(47,156,104,0.10), transparent 65%)',
             }}
           />
 
@@ -330,8 +367,28 @@ export default function HomePage() {
           </div>
         </section>
 
+        {/* The shift — why this exists. */}
+        <section id="problem" className="scroll-mt-24 py-16 sm:py-20">
+          <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr]">
+            <SectionHeading
+              eyebrow="The shift"
+              title="Agents are already acting on your business."
+              lede="Chatbots take orders. Assistants call APIs. Shoppers delegate checkout. The tools you have count visits — they do not tell you what an agent asked for, or what your policy decided."
+            />
+            <div className="grid gap-3 sm:grid-cols-3">
+              {PROBLEMS.map((p, i) => (
+                <div key={p.title} className="panel flex flex-col p-5">
+                  <span className="font-mono text-[11px] text-rust">0{i + 1}</span>
+                  <p className="mt-3 font-display text-[17px] leading-snug text-bone">{p.title}</p>
+                  <p className="mt-2 text-[13px] leading-relaxed text-bone-dim">{p.body}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* What you see */}
-        <section id="see" className="scroll-mt-24 py-16 sm:py-20">
+        <section id="see" className="scroll-mt-24 border-t border-ink-line/60 py-16 sm:py-20">
           <SectionHeading
             eyebrow="What you see"
             title="A clear read on every agent request."
@@ -424,6 +481,36 @@ export default function HomePage() {
               </li>
             ))}
           </ol>
+        </section>
+
+        {/* Under the hood — one path, one record. */}
+        <section className="border-t border-ink-line/60 py-16 sm:py-20">
+          <SectionHeading
+            eyebrow="Under the hood"
+            title="One path. One record."
+            lede="Nothing on your site decides whether a call is allowed. Enforcement lives on the hosted governor; the console only authors and displays."
+          />
+          <div className="relative mt-10 grid gap-3 lg:grid-cols-3">
+            {FLOW.map((f, i) => (
+              <div key={f.label} className="panel relative p-5">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-verdant">
+                    {f.label}
+                  </span>
+                  <span className="font-mono text-[11px] text-bone-faint">0{i + 1}</span>
+                </div>
+                <p className="mt-3 text-[13px] leading-relaxed text-bone-dim">{f.body}</p>
+                {i < FLOW.length - 1 ? (
+                  <span
+                    aria-hidden="true"
+                    className="absolute -right-2 top-1/2 hidden font-mono text-bone-faint lg:block"
+                  >
+                    →
+                  </span>
+                ) : null}
+              </div>
+            ))}
+          </div>
         </section>
 
         {/* The invariants, stated as promises the product keeps. */}
