@@ -41,8 +41,26 @@ export async function POST(req: Request) {
   }
 
   const value = parsed.value
+
+  // Split configuration from storage failure on the way out: an operator
+  // needs to tell "the service key is not set" from "the insert failed"
+  // without reading server logs, and neither code reveals a secret.
+  let admin: ReturnType<typeof createAdminClient>
   try {
-    const admin = createAdminClient()
+    admin = createAdminClient()
+  } catch {
+    console.error('pilot_requests: service role is not configured')
+    return Response.json(
+      {
+        status: 'error',
+        reason: 'Could not save your request. Please try again.',
+        code: 'not_configured',
+      },
+      { status: 503 },
+    )
+  }
+
+  try {
     const { error } = await admin.from('pilot_requests').insert({
       name: value.name,
       email: value.email,
@@ -53,14 +71,22 @@ export async function POST(req: Request) {
     if (error) {
       console.error('pilot_requests insert failed:', error.message)
       return Response.json(
-        { status: 'error', reason: 'Could not save your request. Please try again.' },
+        {
+          status: 'error',
+          reason: 'Could not save your request. Please try again.',
+          code: 'store_failed',
+        },
         { status: 503 },
       )
     }
   } catch (e) {
     console.error('pilot_requests insert threw:', e instanceof Error ? e.message : 'unknown')
     return Response.json(
-      { status: 'error', reason: 'Could not save your request. Please try again.' },
+      {
+        status: 'error',
+        reason: 'Could not save your request. Please try again.',
+        code: 'store_failed',
+      },
       { status: 503 },
     )
   }
