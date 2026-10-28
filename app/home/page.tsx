@@ -13,11 +13,11 @@ export const metadata = {
  * The public front door (agentport.relayforge.in/home).
  *
  * Analytics-first, because that is the question a merchant actually opens
- * with: who is asking, for what, and did it work. The governance half is the
- * upgrade — policy in front of the action, decided by the hosted governor,
- * never by this page.
+ * with: who is asking, for what, and did it work. Policy in front of the
+ * action is the second half — decided by the hosted governor, never by this
+ * page.
  *
- * No fixtures, no invented numbers, no logos, no testimonials: the only
+ * No invented numbers, no customer logos, no testimonials: the only
  * data-shaped element below is labelled an example, because a marketing panel
  * that reads like live customer data is the same lie as a green light on a
  * silent site. Every claim names something the product actually does — a
@@ -148,44 +148,75 @@ const PILOT_TERMS = [
   'exit anytime, one click — your ledger stays yours',
 ]
 
+const NAV = [
+  { href: '#see', label: 'What you see' },
+  { href: '#control', label: 'What you control' },
+  { href: '#how', label: 'How it works' },
+  { href: '#pilot', label: 'Pilot' },
+]
+
 export default function HomePage() {
   return (
-    <div className="mx-auto w-full max-w-[1080px] px-5 py-8 sm:px-8">
-      <header className="flex flex-wrap items-center justify-between gap-4">
-          <Link href="/" aria-label="AgentPort home">
-            <AgentPortLogo />
-          </Link>
-          <div className="flex items-center gap-2">
-            <div className="w-28">
-              <ThemeToggle />
-            </div>
-            <Link href="/login" className="btn px-4 py-2">
-              Sign in
-            </Link>
-            <Link href="/signup" className="btn btn-primary px-4 py-2">
-              Start the founding pilot
-            </Link>
+    <div className="mx-auto w-full max-w-[1120px] px-5 py-6 sm:px-8">
+      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-ink-line/70 pb-5">
+        <Link href="/" aria-label="AgentPort home" className="shrink-0">
+          <AgentPortLogo />
+        </Link>
+
+        <nav aria-label="Primary" className="hidden items-center gap-7 md:flex">
+          {NAV.map((item) => (
+            <a
+              key={item.href}
+              href={item.href}
+              className="font-mono text-[12px] text-bone-dim transition-colors hover:text-bone"
+            >
+              {item.label}
+            </a>
+          ))}
+        </nav>
+
+        <div className="flex items-center gap-2">
+          <div className="hidden w-28 sm:block">
+            <ThemeToggle />
           </div>
+          <Link href="/login" className="btn px-4 py-2">
+            Sign in
+          </Link>
+          <Link href="/signup" className="btn btn-primary px-4 py-2">
+            Start the pilot
+          </Link>
+        </div>
       </header>
 
-      <main className="mt-16 space-y-16 sm:mt-20 sm:space-y-20">
+      <main>
         {/* Hero — the category, then the two halves: see, then decide. */}
-        <section className="grid items-start gap-10 lg:grid-cols-[1.05fr_0.95fr]">
+        <section className="relative grid items-start gap-12 py-14 sm:py-20 lg:grid-cols-[1.05fr_0.95fr]">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 -z-10 opacity-[0.5]"
+            style={{
+              backgroundImage: 'radial-gradient(rgb(var(--ink-line)) 1px, transparent 1px)',
+              backgroundSize: '22px 22px',
+              maskImage: 'radial-gradient(ellipse 70% 60% at 30% 10%, black, transparent 75%)',
+              WebkitMaskImage: 'radial-gradient(ellipse 70% 60% at 30% 10%, black, transparent 75%)',
+            }}
+          />
+
           <div>
-            <div className="mb-6 flex items-center gap-2.5">
-              <AgentPortLogo size={40} />
-            </div>
-            <p className="label">Agent analytics</p>
-            <h1 className="mt-3 font-display text-4xl leading-[1.08] text-bone sm:text-5xl">
+            <span className="inline-flex items-center gap-2 rounded-full border border-ink-line bg-ink-soft/60 px-3 py-1 font-mono text-[11px] text-bone-dim">
+              <span className="h-1.5 w-1.5 rounded-full bg-verdant" aria-hidden="true" />
+              Agent analytics
+            </span>
+            <h1 className="mt-5 font-display text-[40px] leading-[1.04] tracking-[-0.02em] text-bone sm:text-[56px]">
               See what AI agents do on your site. Decide what they may do.
             </h1>
-            <p className="prose-bone mt-5 max-w-[58ch]">
-              See which agents ask for what on your site — chatbots, assistants,
-              and agents calling your interface. Put policy in front of every
-              action: what runs, what waits for you, what is always refused. Counts
-              and decisions, never order values.
+            <p className="prose-bone mt-6 max-w-[56ch]">
+              See which agents ask for what — chatbots, assistants, and agents
+              calling your interface. Put policy in front of every action: what
+              runs, what waits for you, what is always refused. Counts and
+              decisions, never order values.
             </p>
-            <div className="mt-7 flex flex-wrap gap-2">
+            <div className="mt-8 flex flex-wrap gap-2.5">
               <Link href="/signup" className="btn btn-primary px-5 py-2.5">
                 Start the founding pilot
               </Link>
@@ -193,9 +224,17 @@ export default function HomePage() {
                 See how it works
               </Link>
             </div>
-            <p className="mt-5 font-mono text-[11px] text-bone-faint">
-              Free during the founding pilot · Counts and decisions · Secrets never stored
-            </p>
+            <ul className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[11px] text-bone-faint">
+              <li>Free during the founding pilot</li>
+              <li aria-hidden="true" className="text-ink-line">
+                /
+              </li>
+              <li>Counts and decisions</li>
+              <li aria-hidden="true" className="text-ink-line">
+                /
+              </li>
+              <li>Secrets never stored</li>
+            </ul>
           </div>
 
           {/*
@@ -203,19 +242,23 @@ export default function HomePage() {
             honesty contract: anything shaped like a number on this page must
             say whose numbers it is — an example's, never a made-up customer's.
           */}
-          <div className="panel overflow-hidden" role="group" aria-label="Example analytics — illustrative values">
+          <div
+            className="panel overflow-hidden shadow-[0_24px_60px_-30px_rgba(0,0,0,0.55)]"
+            role="group"
+            aria-label="Example analytics — illustrative values"
+          >
             <div className="flex items-center justify-between gap-2 border-b border-ink-line px-4 py-3">
               <span className="label">Example — last 7 days</span>
               <span className="font-mono text-[11px] text-verdant">↗ busier than last week</span>
             </div>
-            <div className="space-y-3 px-4 py-4">
+            <div className="space-y-3.5 px-4 py-4">
               {EXAMPLE_ROWS.map((row) => (
                 <div key={row.capability}>
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="font-mono text-[12px] text-bone">{row.capability}</span>
                     <Badge tone={row.tone}>{row.label}</Badge>
                   </div>
-                  <p className="tabular mt-0.5 font-mono text-[11px] text-bone-faint">{row.counts}</p>
+                  <p className="tabular mt-1 font-mono text-[11px] text-bone-faint">{row.counts}</p>
                 </div>
               ))}
             </div>
@@ -231,45 +274,42 @@ export default function HomePage() {
         </section>
 
         {/* What you see — the analytics half, which is the reason to open the tool. */}
-        <section>
-          <p className="label">What you see</p>
-          <h2 className="mt-3 font-display text-3xl text-bone">
-            Every agent action, counted. Every decision, reasoned.
-          </h2>
-          <p className="prose-bone mt-3 max-w-[68ch]">
-            The screen a merchant actually returns to: which agents ask for
-            what, what happened, and whether it worked. No tracking pixels,
-            no tags — the hosted governor reports decisions, not browsing.
-          </p>
-          <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            {PILLARS.map((p) => (
-              <div key={p.title} className="panel p-5">
-                <p className="font-display text-lg text-bone">{p.title}</p>
+        <section id="see" className="scroll-mt-24 border-t border-ink-line/60 py-16 sm:py-20">
+          <SectionHeading
+            eyebrow="What you see"
+            title="Every agent action, counted. Every decision, reasoned."
+            lede="The screen a merchant actually returns to: which agents ask for what, what happened, and whether it worked. No tracking pixels, no tags — the hosted governor reports decisions, not browsing."
+          />
+          <div className="mt-8 grid gap-3 sm:grid-cols-3">
+            {PILLARS.map((p, i) => (
+              <div
+                key={p.title}
+                className="panel p-5 transition-colors hover:border-verdant/40"
+              >
+                <p className="font-mono text-[11px] text-verdant">0{i + 1}</p>
+                <p className="mt-3 font-display text-lg text-bone">{p.title}</p>
                 <p className="mt-2 text-[13px] leading-relaxed text-bone-dim">{p.body}</p>
               </div>
             ))}
           </div>
-          <p className="mt-4 font-mono text-[11px] text-bone-faint">
+          <p className="mt-5 font-mono text-[11px] text-bone-faint">
             A site with no pushes renders unknown — not a healthy zero.
           </p>
         </section>
 
-        {/* What you control — the half GA can never have. */}
-        <section>
-          <p className="label">What you control</p>
-          <h2 className="mt-3 font-display text-3xl text-bone">
-            Analytics tells you what happened. Policy decides before it happens.
-          </h2>
-          <p className="prose-bone mt-3 max-w-[68ch]">
-            Four questions in plain language: above what order value should we
-            ask you first, above what value is the answer always no, which
-            actions need a human, what must never run. The answers become typed
-            policy — ceilings in minor units, holds, refusals, and a kill switch
-            evaluated before everything else.
-          </p>
-          <div className="mt-5 flex flex-wrap gap-2 font-mono text-[11px]">
+        {/* What you control — the half analytics alone can never have. */}
+        <section id="control" className="scroll-mt-24 border-t border-ink-line/60 py-16 sm:py-20">
+          <SectionHeading
+            eyebrow="What you control"
+            title="Analytics tells you what happened. Policy decides before it happens."
+            lede="Four questions in plain language: above what order value should we ask you first, above what value is the answer always no, which actions need a human, what must never run. The answers become typed policy — ceilings in minor units, holds, refusals, and a kill switch evaluated before everything else."
+          />
+          <div className="mt-7 flex flex-wrap gap-2 font-mono text-[11px]">
             {['Ceilings', 'Holds for a human', 'Always refused', 'Kill switch first'].map((chip) => (
-              <span key={chip} className="rounded border border-ink-line px-3 py-1.5 text-bone-dim">
+              <span
+                key={chip}
+                className="rounded-full border border-ink-line px-3 py-1.5 text-bone-dim"
+              >
                 {chip}
               </span>
             ))}
@@ -277,13 +317,19 @@ export default function HomePage() {
         </section>
 
         {/* How it works */}
-        <section id="how" className="scroll-mt-8">
-          <p className="label">How it works</p>
-          <ol className="mt-4 grid gap-3 lg:grid-cols-3">
+        <section id="how" className="scroll-mt-24 border-t border-ink-line/60 py-16 sm:py-20">
+          <SectionHeading
+            eyebrow="How it works"
+            title="Three steps, then the proof runs itself."
+          />
+          <ol className="mt-8 grid gap-3 lg:grid-cols-3">
             {STEPS.map((s) => (
-              <li key={s.n} className="panel p-5">
-                <p className="font-mono text-[11px] text-verdant">Step {s.n}</p>
-                <p className="mt-2 font-display text-xl text-bone">{s.title}</p>
+              <li
+                key={s.n}
+                className="panel flex flex-col p-5 transition-colors hover:border-verdant/40"
+              >
+                <span className="font-display text-4xl leading-none text-verdant/80">{s.n}</span>
+                <p className="mt-4 font-display text-xl text-bone">{s.title}</p>
                 <p className="mt-2 text-[13px] leading-relaxed text-bone-dim">{s.body}</p>
               </li>
             ))}
@@ -291,24 +337,29 @@ export default function HomePage() {
         </section>
 
         {/* The invariants, stated as promises the product keeps. */}
-        <section className="panel p-6 sm:p-8">
-          <h2 className="label">What never bends</h2>
-          <div className="mt-4 grid gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
-            {RULES.map((r) => (
-              <div key={r.title}>
-                <p className="font-mono text-[13px] text-bone">{r.title}</p>
-                <p className="mt-1 text-[13px] leading-relaxed text-bone-dim">{r.body}</p>
-              </div>
-            ))}
+        <section className="border-t border-ink-line/60 py-16 sm:py-20">
+          <div className="panel p-6 sm:p-8">
+            <p className="label">What never bends</p>
+            <div className="mt-6 grid gap-x-8 gap-y-6 sm:grid-cols-2 lg:grid-cols-3">
+              {RULES.map((r) => (
+                <div key={r.title} className="border-l border-ink-line pl-4">
+                  <p className="font-mono text-[13px] text-bone">{r.title}</p>
+                  <p className="mt-1.5 text-[13px] leading-relaxed text-bone-dim">{r.body}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
 
         {/* Who it is for */}
-        <section>
-          <h2 className="label">Who it is for</h2>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <section className="border-t border-ink-line/60 py-16 sm:py-20">
+          <SectionHeading eyebrow="Who it is for" title="Any business whose agents act on its behalf." />
+          <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {AUDIENCES.map((a) => (
-              <div key={a.title} className="panel p-5">
+              <div
+                key={a.title}
+                className="panel p-5 transition-colors hover:border-verdant/40"
+              >
                 <p className="font-display text-lg text-bone">{a.title}</p>
                 <p className="mt-2 text-[13px] leading-relaxed text-bone-dim">{a.body}</p>
               </div>
@@ -317,43 +368,45 @@ export default function HomePage() {
         </section>
 
         {/* The offer, with the terms that are actually promised. */}
-        <section className="panel p-6 sm:p-8">
-          <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
-            <div>
-              <p className="label">Founding pilot</p>
-              <h2 className="mt-3 font-display text-3xl text-bone">
-                One merchant at a time, hand-held.
-              </h2>
-              <p className="prose-bone mt-3">
-                We are onboarding founding merchants: free, one environment, run
-                end to end with you. Read-only the first week, one
-                approval-gated write the next, then a policy change with its
-                effect observed. In exchange: a friction log we may quote
-                (anonymised on request) and a reference call.
-              </p>
-              <div className="mt-6">
-                <Link href="/signup" className="btn btn-primary px-5 py-2.5">
-                  Start the founding pilot
-                </Link>
+        <section id="pilot" className="scroll-mt-24 border-t border-ink-line/60 py-16 sm:py-20">
+          <div className="panel p-6 sm:p-8">
+            <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
+              <div>
+                <p className="label">Founding pilot</p>
+                <h2 className="mt-3 font-display text-3xl tracking-[-0.01em] text-bone">
+                  One merchant at a time, hand-held.
+                </h2>
+                <p className="prose-bone mt-3">
+                  We are onboarding founding merchants: free, one environment, run
+                  end to end with you. Read-only the first week, one
+                  approval-gated write the next, then a policy change with its
+                  effect observed. In exchange: a friction log we may quote
+                  (anonymised on request) and a reference call.
+                </p>
+                <div className="mt-6">
+                  <Link href="/signup" className="btn btn-primary px-5 py-2.5">
+                    Start the founding pilot
+                  </Link>
+                </div>
               </div>
+              <ul className="space-y-2.5 border-t border-ink-line pt-6 font-mono text-[12px] text-bone-dim lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
+                {PILOT_TERMS.map((term) => (
+                  <li key={term} className="flex gap-2">
+                    <span aria-hidden="true" className="text-verdant">
+                      ·
+                    </span>
+                    <span>{term}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
-            <ul className="space-y-2.5 border-t border-ink-line pt-6 font-mono text-[12px] text-bone-dim lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
-              {PILOT_TERMS.map((term) => (
-                <li key={term} className="flex gap-2">
-                  <span aria-hidden="true" className="text-verdant">
-                    ·
-                  </span>
-                  <span>{term}</span>
-                </li>
-              ))}
-            </ul>
           </div>
         </section>
 
         {/* Straight answers — the questions a security review would ask. */}
-        <section>
-          <h2 className="label">Straight answers</h2>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <section className="border-t border-ink-line/60 py-16 sm:py-20">
+          <SectionHeading eyebrow="Straight answers" title="The questions a security review would ask." />
+          <div className="mt-8 grid gap-3 sm:grid-cols-2">
             {FAQ.map((item) => (
               <div key={item.q} className="panel p-5">
                 <p className="text-[14px] font-medium text-bone">{item.q}</p>
@@ -364,20 +417,64 @@ export default function HomePage() {
         </section>
       </main>
 
-      <footer className="mt-16 flex flex-wrap items-center justify-between gap-3 border-t border-ink-line py-6">
-        <div className="flex items-center gap-2">
-          <AgentPortLogo className="scale-90" />
-          <p className="font-mono text-[11px] text-bone-faint">© 2026 AgentPort</p>
+      <footer className="border-t border-ink-line py-10">
+        <div className="flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between">
+          <div className="max-w-xs">
+            <AgentPortLogo />
+            <p className="mt-3 text-[13px] leading-relaxed text-bone-faint">
+              Agent analytics and policy for businesses whose agents act on
+              their behalf.
+            </p>
+          </div>
+          <nav aria-label="Footer" className="flex gap-12 font-mono text-[12px]">
+            <div className="space-y-2.5">
+              <p className="label">Product</p>
+              {NAV.map((item) => (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  className="block text-bone-dim transition-colors hover:text-bone"
+                >
+                  {item.label}
+                </a>
+              ))}
+            </div>
+            <div className="space-y-2.5">
+              <p className="label">Account</p>
+              <Link href="/login" className="block text-bone-dim transition-colors hover:text-bone">
+                Sign in
+              </Link>
+              <Link href="/signup" className="block text-bone-dim transition-colors hover:text-bone">
+                Create account
+              </Link>
+            </div>
+          </nav>
         </div>
-        <div className="flex gap-4 font-mono text-[11px] text-bone-dim">
-          <Link href="/login" className="hover:text-bone">
-            Sign in
-          </Link>
-          <Link href="/signup" className="hover:text-bone">
-            Create account
-          </Link>
+        <div className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-ink-line/60 pt-6 font-mono text-[11px] text-bone-faint">
+          <p>© 2026 AgentPort</p>
+          <p>Counts and decisions, never order values.</p>
         </div>
       </footer>
+    </div>
+  )
+}
+
+function SectionHeading({
+  eyebrow,
+  title,
+  lede,
+}: {
+  eyebrow: string
+  title: string
+  lede?: string
+}) {
+  return (
+    <div>
+      <p className="label">{eyebrow}</p>
+      <h2 className="mt-3 max-w-[26ch] font-display text-3xl tracking-[-0.01em] text-bone sm:text-[34px]">
+        {title}
+      </h2>
+      {lede ? <p className="prose-bone mt-3 max-w-[68ch]">{lede}</p> : null}
     </div>
   )
 }
