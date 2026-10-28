@@ -1,0 +1,6 @@
+# Add inside the governor.agentport.relayforge.in site block.
+# The console calls https://governor.agentport.relayforge.in/github/*.
+# GitHub's webhook points directly at /github/webhook.
+handle_path /github/* {
+	reverse_proxy 127.0.0.1:8790
+}

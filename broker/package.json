@@ -1,0 +1,21 @@
+{
+  "name": "agentport-github-broker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/server.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist/server.cjs --alias:@=.. --external:pg --external:@supabase/supabase-js",
+    "start": "node dist/server.cjs",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.100.0",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/pg": "^8.11.10",
+    "esbuild": "^0.24.2",
+    "typescript": "^5.7.2"
+  }
+}

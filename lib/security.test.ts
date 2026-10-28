@@ -6,7 +6,8 @@ import { join } from 'node:path'
 import { hardenedCookieOptions } from './cookie-options'
 import { checkRateLimit, clientIp, resetRateLimiter } from './rate-limit'
 import { guardStateChange, isSameOrigin, RATE_LIMITS } from './request-guard'
-import { POST as githubWebhook } from '../app/api/github/webhook/route'
+import { handleWebhook } from '../broker/src/handlers'
+import { loadConfig } from '../broker/src/config'
 
 function request(
   url = 'https://console.test/api/change',
@@ -127,22 +128,17 @@ describe('route coverage', () => {
 describe('webhook exemption', () => {
   it('still accepts an HMAC-verified delivery without a browser Origin', async () => {
     const secret = 'test-webhook-secret'
-    vi.stubEnv('GITHUB_WEBHOOK_SECRET', secret)
     const raw = JSON.stringify({ action: 'created', installation: { id: 42 } })
     const signature = `sha256=${createHmac('sha256', secret).update(raw, 'utf8').digest('hex')}`
-    const res = await githubWebhook(
-      new Request('https://console.test/api/github/webhook', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-hub-signature-256': signature,
-          'x-github-event': 'installation',
-          'x-github-delivery': 'test-delivery',
-        },
-        body: raw,
-      }),
-    )
-    expect(res.status).toBe(200)
-    expect(((await res.json()) as { status: string }).status).toBe('ok')
+    const config = loadConfig({ ...process.env, GITHUB_WEBHOOK_SECRET: secret })
+    const result = handleWebhook({
+      config,
+      rawBody: raw,
+      signature,
+      event: 'installation',
+      delivery: 'test-delivery',
+    })
+    expect(result.status).toBe(200)
+    expect((result.body as { status: string }).status).toBe('ok')
   })
 })

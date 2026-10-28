@@ -79,28 +79,19 @@ describe('oauth exchange', () => {
 })
 
 describe('repo listing + PR shapes (offline guards)', () => {
-  it('mintInstallationTokenFor refuses non-numeric installations without env', async () => {
+  it('mintInstallationTokenFor refuses non-numeric installations', async () => {
     const { mintInstallationTokenFor } = await import('./github.js')
-    const r = await mintInstallationTokenFor(Number.NaN)
+    const r = await mintInstallationTokenFor(Number.NaN, { appId: '1', privateKey: '' })
     assert.equal(r.ok, false)
     assert.equal((r as { reason: string }).reason, 'unknown installation')
   })
 
   it('mintInstallationTokenFor names setup, not secrets, when unconfigured', async () => {
     const { mintInstallationTokenFor } = await import('./github.js')
-    const savedApp = process.env.GITHUB_APP_ID
-    const savedKey = process.env.GITHUB_APP_PRIVATE_KEY
-    delete process.env.GITHUB_APP_ID
-    delete process.env.GITHUB_APP_PRIVATE_KEY
-    try {
-      const r = await mintInstallationTokenFor(123)
-      assert.equal(r.ok, false)
-      const text = JSON.stringify(r)
-      assert.ok(!text.includes('PRIVATE'), 'key material reached the reason')
-    } finally {
-      if (savedApp !== undefined) process.env.GITHUB_APP_ID = savedApp
-      if (savedKey !== undefined) process.env.GITHUB_APP_PRIVATE_KEY = savedKey
-    }
+    const r = await mintInstallationTokenFor(123, { appId: '', privateKey: '' })
+    assert.equal(r.ok, false)
+    const text = JSON.stringify(r)
+    assert.ok(!text.includes('PRIVATE'), 'key material reached the reason')
   })
 
   it('openInstallPr refuses a missing repo before touching the network', async () => {

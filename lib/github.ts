@@ -1,5 +1,5 @@
 import { createHmac, createSign, timingSafeEqual } from 'node:crypto'
-import { isSafeRepoPath } from '@/lib/repo-path'
+import { isSafeRepoPath } from './repo-path'
 
 /**
  * GitHub App primitives — pure functions, no framework, no store.
@@ -839,22 +839,27 @@ export function candidatePrivateKeys(v: unknown): string[] {
 }
 
 /**
- * Mint an installation token from server environment for a known
- * installation. Refuses when the App is unconfigured or the installation
- * id is not a number — both are owner-setup problems with plain reasons,
- * never 500s.
+ * Mint an installation token for a known installation.
+ *
+ * Credentials are explicit and required: the console and the installed
+ * package hold no GitHub App key, so there is no environment fallback to
+ * accidentally read. Only the broker calls this, with its own config.
  */
-export async function mintInstallationTokenFor(installationId: number): Promise<InstallationTokenResult> {
+export async function mintInstallationTokenFor(
+  installationId: number,
+  credentials: { appId: string; privateKey: string },
+): Promise<InstallationTokenResult> {
   if (!Number.isInteger(installationId) || installationId <= 0) {
     return { ok: false, reason: 'unknown installation' }
   }
-  const appId = (process.env.GITHUB_APP_ID ?? '').trim()
-  const privateKey = normalizeAppPrivateKey(process.env.GITHUB_APP_PRIVATE_KEY)
+  const appId = credentials.appId.trim()
+  const rawKey = credentials.privateKey
+  const privateKey = normalizeAppPrivateKey(rawKey)
   if (!appId || !privateKey) {
     return { ok: false, reason: 'GitHub App is not configured — install it first' }
   }
   let appJwt: string | null = null
-  for (const candidate of candidatePrivateKeys(process.env.GITHUB_APP_PRIVATE_KEY)) {
+  for (const candidate of candidatePrivateKeys(rawKey)) {
     try {
       appJwt = createAppJwt(appId, candidate)
       break

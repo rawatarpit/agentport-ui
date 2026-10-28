@@ -1,8 +1,8 @@
 import Link from 'next/link'
 import { Badge } from '@/components/stat'
 import { getLiveArtifact } from '@/lib/backend-reads'
-import { getDraftDb, getInstallationsDb, getPullRequestsDb, installationKnownDb } from '@/lib/durable-store'
-import { mintInstallationTokenFor, readPrState } from '@/lib/github'
+import { getDraftDb, getPullRequestsDb } from '@/lib/durable-store'
+import { brokerFetchServer } from '@/lib/github-broker'
 import { getCounts, getLive, getMerchant } from '@/lib/store'
 import { resolveRequestTenant } from '@/lib/tenant-server'
 
@@ -145,10 +145,9 @@ export async function OnboardingCard() {
   if (tenant.active.status !== 'active') return null
   const tenantId = tenant.active.tenantId
   const merchant = getMerchant(tenantId)
-  const [setup, rules, installations, prs, liveArtifact] = await Promise.all([
+  const [setup, rules, prs, liveArtifact] = await Promise.all([
     getDraftDb(tenantId, 'setup'),
     getDraftDb(tenantId, 'rules'),
-    getInstallationsDb(tenantId),
     getPullRequestsDb(tenantId),
     getLiveArtifact(tenantId),
   ])
@@ -156,35 +155,32 @@ export async function OnboardingCard() {
   const prOpened = prs.length > 0
   const live = liveArtifact !== null
 
-  // Revalidate before calling an installation connected. Only a successful
-  // mint is proof; a revoked install or an App/network failure is not a green
-  // step. The row stays in the durable store so the panel can retry.
+  // Liveness truth comes from the broker, which is the only component with
+  // the App key. The console never mints; a revoked install or an unmerged
+  // PR is reported as missing, never inferred from a stale row.
   let installed = false
-  for (const inst of installations) {
-    const minted = await mintInstallationTokenFor(inst.installationId)
-    if (minted.ok) {
-      installed = true
-      break
-    }
-  }
-
-  // Has any recorded pull request actually merged? Read live through a
-  // fresh installation token — the record only says one was opened. A PR
-  // record whose installation is no longer linked is skipped before mint,
-  // exactly as /api/github/pr does; a stale row is not authority.
   let merged = false
   try {
+    const installs = await brokerFetchServer(
+      `/installations?tenantId=${encodeURIComponent(tenantId)}`,
+    )
+    if (installs.ok) {
+      const body = (await installs.json()) as { installations?: unknown }
+      installed = Array.isArray(body.installations) && body.installations.length > 0
+    }
     for (const pr of prs) {
-      if (!(await installationKnownDb(tenantId, pr.installationId))) continue
-      const minted = await mintInstallationTokenFor(pr.installationId)
-      if (!minted.ok) continue
-      const state = await readPrState({ installationToken: minted.token, repoFullName: pr.repo, prNumber: pr.number })
-      if (state.ok && state.merged) {
+      const state = await brokerFetchServer(
+        `/pr/state?tenantId=${encodeURIComponent(tenantId)}&repo=${encodeURIComponent(pr.repo)}`,
+      )
+      if (!state.ok) continue
+      const body = (await state.json()) as { pr?: { merged?: unknown } }
+      if (body.pr?.merged === true) {
         merged = true
         break
       }
     }
   } catch {
+    installed = false
     merged = false
   }
 

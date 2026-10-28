@@ -48,5 +48,7 @@ export function githubReasonText(reason: string): string {
   if (reason === 'install-start')
     return 'Could not start installation — confirm you are signed in as owner or admin, then retry. Nothing was linked.'
   if (reason === 'oauth-unconfigured') return 'Our side is not ready to receive the sign-in yet.'
+  if (reason === 'broker-unreachable')
+    return 'Our GitHub service did not answer — nothing was linked. Try again in a moment; if it persists, report it.'
   return `Something interrupted the install (${reason}). Nothing was linked.`
 }

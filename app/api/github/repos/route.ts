@@ -1,5 +1,4 @@
-import { listInstallationRepos, mintInstallationTokenFor } from '@/lib/github'
-import { installationKnownDb } from '@/lib/durable-store'
+import { brokerFetch } from '@/lib/github-broker'
 import { resolveCallerTenant } from '@/lib/tenant'
 import { readSelectedTenantId, tenantRefusalResponse } from '@/lib/tenant-server'
 import { createClient } from '@/lib/supabase/server'
@@ -12,10 +11,10 @@ async function callerTenant(): Promise<Awaited<ReturnType<typeof resolveCallerTe
   try {
     const supabase = createClient()
     const { data } = await supabase.auth.getUser()
-    const t = await resolveCallerTenant({
+    return await resolveCallerTenant({
       getUserId: async () => data.user?.id ?? null,
       selectedTenantId: readSelectedTenantId(),
-    listMemberships: async (userId: string) => {
+      listMemberships: async (userId: string) => {
         const { data: rows } = await supabase
           .from('tenant_members')
           .select('tenant_id,role,created_at')
@@ -24,7 +23,6 @@ async function callerTenant(): Promise<Awaited<ReturnType<typeof resolveCallerTe
         return (rows ?? []) as Array<{ tenant_id: string; role: string; created_at: string }>
       },
     })
-    return t
   } catch {
     return { tenantId: null, code: 'signed_out', reason: 'Sign in first — installs belong to your business.' }
   }
@@ -32,10 +30,8 @@ async function callerTenant(): Promise<Awaited<ReturnType<typeof resolveCallerTe
 
 /**
  * GET /api/github/repos?installation=<id> — repositories the installation
- * can touch. The installation must be linked to the caller's tenant
- * (durable github_installations row): an id from another tenant's install
- * is refused, not listed. GitHub then mints-or-refuses per call, so revoked
- * installs fail closed too. Names and default branches only.
+ * can touch. The broker checks the durable installation row for this tenant
+ * before minting, so another tenant's id is refused, not listed.
  */
 export async function GET(req: Request) {
   const limited = enforceRateLimit(req, 'github:read')
@@ -43,22 +39,15 @@ export async function GET(req: Request) {
 
   const t = await callerTenant()
   if (t.tenantId === null) return tenantRefusalResponse(t)
-  const tenantId = t.tenantId
   const installationId = Number(new URL(req.url).searchParams.get('installation') ?? '')
   if (!Number.isInteger(installationId) || installationId <= 0) {
-    return Response.json({ status: 'error', reason: 'No connected repo found — connect one first.' }, { status: 404 })
+    return Response.json(
+      { status: 'error', reason: 'No connected repo found — connect one first.' },
+      { status: 404 },
+    )
   }
-  const known = await installationKnownDb(tenantId, installationId)
-  if (!known) {
-    return Response.json({ status: 'error', reason: 'No connected repo found — connect one first.' }, { status: 404 })
-  }
-  const minted = await mintInstallationTokenFor(installationId)
-  if (!minted.ok) {
-    return Response.json({ status: 'error', reason: minted.reason }, { status: 503 })
-  }
-  const repos = await listInstallationRepos(minted.token)
-  if (!repos.ok) {
-    return Response.json({ status: 'error', reason: repos.reason }, { status: 502 })
-  }
-  return Response.json({ status: 'ok', repos: repos.value })
+  return brokerFetch(
+    req,
+    `/repos?tenantId=${encodeURIComponent(t.tenantId)}&installation=${installationId}`,
+  )
 }

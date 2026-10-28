@@ -1,4 +1,3 @@
-import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 
 /**
@@ -7,20 +6,19 @@ import { createClient } from '@/lib/supabase/server'
  * Replaces the lib/store.ts RAM maps for exactly these three areas — the
  * ones whose loss breaks onboarding ("installed but says connect") and PR
  * opening ("nothing to publish yet" on a fresh process). Every read and
- * every write except the verified install write goes through the session
- * client, so RLS scopes rows to the caller's own tenants; every function
- * takes an explicit tenantId AND filters on it, so a permissive policy can
- * never leak another tenant's row into this one.
+ * every write goes through the session client, so RLS scopes rows to the
+ * caller's own tenants; every function takes an explicit tenantId AND filters
+ * on it, so a permissive policy can never leak another tenant's row into this
+ * one.
  *
  * Custody: explicit column lists, ids/names/payloads/timestamps only — no
  * amounts, no PII, no tokens, no key material. Saving a draft never
  * deploys; opening a PR never merges.
  *
- * Writes to `github_installations` are the one exception to the session
- * client: `authenticated` has no INSERT/UPDATE grant, because a tenant owner
- * must not be able to claim an arbitrary GitHub installation id. Only the
- * callback, after `verifyInstallationOwnership`, calls the service-role-only
- * `record_github_install` RPC through `createAdminClient`.
+ * Installation writes are not here. The GitHub broker proves ownership and
+ * records through a narrow database role that has EXECUTE on
+ * `record_github_install` and no table grants. The console never holds a
+ * credential that can claim an installation id.
  */
 
 export type DbInstallation = {
@@ -92,35 +90,6 @@ export async function getInstallationsDb(tenantId: string): Promise<DbInstallati
       }))
   } catch {
     return []
-  }
-}
-
-export type RecordInstallationResult = 'ok' | 'attached' | 'error'
-
-/**
- * Link (or relabel) an installation after the callback proved ownership.
- * `attached` means the numeric id is already linked to a different tenant;
- * the unique index refuses the transfer and the merchant gets a specific
- * reason instead of an impossible retry.
- */
-export async function recordInstallationDb(
-  tenantId: string,
-  inst: { installationId: number; accountLogin: string; installerLogin: string | null },
-): Promise<RecordInstallationResult> {
-  try {
-    if (!Number.isInteger(inst.installationId) || inst.installationId <= 0) return 'error'
-    const db = createAdminClient()
-    const { error } = await db.rpc('record_github_install', {
-      p_tenant_id: tenantId,
-      p_installation_id: inst.installationId,
-      p_account_login: inst.accountLogin ?? '',
-      p_installer_login: inst.installerLogin,
-    })
-    if (!error) return 'ok'
-    if (error.code === '23505') return 'attached'
-    return 'error'
-  } catch {
-    return 'error'
   }
 }
 

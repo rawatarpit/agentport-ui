@@ -68,16 +68,23 @@ describe('durable-store custody guard', () => {
   })
 })
 
-describe('installation writes are server-only', () => {
-  const src = read('lib/durable-store.ts')
+describe('installation writes are broker-only', () => {
+  const store = read('lib/durable-store.ts')
+  const recorder = read('broker/src/install-recorder.ts')
 
-  it('never writes github_installations through the session client', () => {
-    expect(src).toContain("rpc('record_github_install'")
-    expect(src).not.toMatch(/from\('github_installations'\)\s*\.upsert/)
+  it('the console never writes github_installations through the session client', () => {
+    expect(store).not.toContain("rpc('record_github_install'")
+    expect(store).not.toMatch(/from\('github_installations'\)\s*\.(upsert|insert|update)/)
   })
 
-  it('uses the service-role admin client in exactly one place', () => {
-    expect((src.match(/createAdminClient\(\)/g) ?? []).length).toBe(1)
+  it('the console holds no service-role path for installs', () => {
+    expect(store).not.toContain('createAdminClient')
+  })
+
+  it('the broker records through the schema-qualified narrow function only', () => {
+    expect(recorder).toContain('agentport_broker.record_github_install')
+    expect(recorder).not.toContain('SUPABASE_SERVICE_ROLE_KEY')
+    expect(recorder).not.toContain('service_role')
   })
 })
 

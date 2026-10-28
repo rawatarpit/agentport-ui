@@ -147,18 +147,27 @@ describe('canManageIntegrations', () => {
 
 describe('callback binds state and installation ownership before recording', () => {
   const here = dirname(fileURLToPath(import.meta.url))
-  const callback = readFileSync(join(here, '..', 'app/api/github/callback/route.ts'), 'utf8')
-  const pr = readFileSync(join(here, '..', 'app/api/github/pr/route.ts'), 'utf8')
+  const store = readFileSync(join(here, '..', 'broker/src/state-store.ts'), 'utf8')
+  const handlers = readFileSync(join(here, '..', 'broker/src/handlers.ts'), 'utf8')
 
-  it('requires the one-time state and the caller authorization', () => {
-    expect(callback).toContain('consumeInstallState')
-    expect(callback).toContain('bindInstallState')
-    expect(callback).toContain('verifyInstallationOwnership')
-    expect(callback).toContain('recordInstallationDb(tenantId')
+  it('consumes the one-time state and binds it to the initiating user', () => {
+    expect(store).toContain('consume(state')
+    expect(store).toContain('consumedAt')
+    expect(handlers).toContain('stateStore.consume')
+    expect(handlers).toContain('consumed.initiatedBy !== caller.userId')
   })
 
-  it('repo/PR routes re-check the durable installation row', () => {
-    expect(pr).toContain('installationKnownDb')
+  it('proves installation ownership and records only after mint verification', () => {
+    expect(handlers).toContain('verifyInstallationOwnership')
+    expect(handlers).toContain('mintInstallationTokenFor')
+    expect(handlers).toContain('recorder.record')
+    expect(handlers.indexOf('verifyInstallationOwnership')).toBeLessThan(
+      handlers.indexOf('recorder.record'),
+    )
+  })
+
+  it('repo/PR handlers re-check the durable installation row', () => {
+    expect(handlers).toContain('installationKnown')
   })
 })
 

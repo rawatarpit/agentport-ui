@@ -1,6 +1,6 @@
 import { getHome, getLatestPush, getLiveArtifact, hasAnalyticsEvents } from '@/lib/backend-reads'
-import { getInstallationsDb, getPullRequestsDb, installationKnownDb, listDraftSections } from '@/lib/durable-store'
-import { mintInstallationTokenFor, readPrState } from '@/lib/github'
+import { getPullRequestsDb, listDraftSections } from '@/lib/durable-store'
+import { brokerFetch } from '@/lib/github-broker'
 import { resolveRequestTenant, tenantRefusalResponse } from '@/lib/tenant-server'
 
 import { enforceRateLimit } from '@/lib/request-guard'
@@ -46,28 +46,33 @@ export async function GET(req: Request) {
   const rules = sections.has('rules')
   const setupReady = setup || rules
   const liveVersion = artifact?.version ?? null
-  const installations = tenantId ? await getInstallationsDb(tenantId) : []
   const prs = tenantId ? await getPullRequestsDb(tenantId) : []
 
-  // The checklist must match the dashboard: a revoked install is not
-  // "connected", and a PR row is not "merged" until GitHub says so.
+  // Liveness truth comes from the broker, not a local mint. The broker is the
+  // only component with the App key; a revoked install or an unmerged PR is
+  // reported as missing, never inferred from a stale row.
   let installed = false
-  for (const inst of installations) {
-    const minted = await mintInstallationTokenFor(inst.installationId)
-    if (minted.ok) {
-      installed = true
-      break
-    }
-  }
   let merged = false
-  for (const pr of prs) {
-    if (!tenantId || !(await installationKnownDb(tenantId, pr.installationId))) continue
-    const minted = await mintInstallationTokenFor(pr.installationId)
-    if (!minted.ok) continue
-    const state = await readPrState({ installationToken: minted.token, repoFullName: pr.repo, prNumber: pr.number })
-    if (state.ok && state.merged) {
-      merged = true
-      break
+  if (tenantId) {
+    const installs = await brokerFetch(
+      req,
+      `/installations?tenantId=${encodeURIComponent(tenantId)}`,
+    )
+    if (installs.ok) {
+      const body = (await installs.json()) as { installations?: unknown }
+      installed = Array.isArray(body.installations) && body.installations.length > 0
+    }
+    for (const pr of prs) {
+      const state = await brokerFetch(
+        req,
+        `/pr/state?tenantId=${encodeURIComponent(tenantId)}&repo=${encodeURIComponent(pr.repo)}`,
+      )
+      if (!state.ok) continue
+      const body = (await state.json()) as { pr?: { merged?: unknown } }
+      if (body.pr?.merged === true) {
+        merged = true
+        break
+      }
     }
   }
 
