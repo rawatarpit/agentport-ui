@@ -1,11 +1,12 @@
 import Link from 'next/link'
 import { Badge } from '@/components/stat'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { AgentPortLogo } from '@/components/brand/agentport-logo'
 
 export const metadata = {
-  title: 'AgentPort — Google Analytics for AI agents',
+  title: 'AgentPort — Agent analytics',
   description:
-    'See what AI agents do on your site — what they ask for, what is allowed, held, or refused — then put typed policy in front of every action. Counts and decisions, never order values.',
+    'See what AI agents do on your site — what they ask for, what is allowed, held, or refused — and put policy in front of every action. Counts and decisions, never order values.',
 }
 
 /**
@@ -151,40 +152,35 @@ export default function HomePage() {
   return (
     <div className="mx-auto w-full max-w-[1080px] px-5 py-8 sm:px-8">
       <header className="flex flex-wrap items-center justify-between gap-4">
-        <span className="flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-verdant/40 bg-verdant/10 font-display text-base text-verdant">
-            A
-          </span>
-          <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-bone-dim">
-            Agent Port
-          </span>
-        </span>
-        <div className="flex items-center gap-2">
-          <div className="w-28">
-            <ThemeToggle />
+          <Link href="/" aria-label="AgentPort home">
+            <AgentPortLogo />
+          </Link>
+          <div className="flex items-center gap-2">
+            <div className="w-28">
+              <ThemeToggle />
+            </div>
+            <Link href="/login" className="btn px-4 py-2">
+              Sign in
+            </Link>
+            <Link href="/signup" className="btn btn-primary px-4 py-2">
+              Start the founding pilot
+            </Link>
           </div>
-          <Link href="/login" className="btn px-4 py-2">
-            Sign in
-          </Link>
-          <Link href="/signup" className="btn btn-primary px-4 py-2">
-            Start the pilot
-          </Link>
-        </div>
       </header>
 
       <main className="mt-16 space-y-16 sm:mt-20 sm:space-y-20">
         {/* Hero — the category, then the two halves: see, then decide. */}
         <section className="grid items-start gap-10 lg:grid-cols-[1.05fr_0.95fr]">
           <div>
-            <p className="label">Google Analytics for AI agents</p>
+            <p className="label">Agent analytics</p>
             <h1 className="mt-3 font-display text-4xl leading-[1.08] text-bone sm:text-5xl">
               See what AI agents do on your site. Decide what they may do.
             </h1>
             <p className="prose-bone mt-5 max-w-[58ch]">
-              AgentPort measures the agents that come to act on your business —
-              chatbots, assistants, agents calling your interface — then puts a
-              policy in front of every action: what runs, what waits for you,
-              what is always refused. Counts and decisions, never order values.
+              See which agents ask for what on your site — chatbots, assistants,
+              and agents calling your interface. Put policy in front of every
+              action: what runs, what waits for you, what is always refused. Counts
+              and decisions, never order values.
             </p>
             <div className="mt-7 flex flex-wrap gap-2">
               <Link href="/signup" className="btn btn-primary px-5 py-2.5">
@@ -195,7 +191,7 @@ export default function HomePage() {
               </Link>
             </div>
             <p className="mt-5 font-mono text-[11px] text-bone-faint">
-              Free during the pilot · Counts, not money · Secrets never stored
+              Free during the founding pilot · Counts, not money · Secrets never stored
             </p>
           </div>
 
@@ -259,7 +255,7 @@ export default function HomePage() {
         <section>
           <p className="label">What you control</p>
           <h2 className="mt-3 font-display text-3xl text-bone">
-            Analytics tells you what happened. AgentPort decides before it happens.
+            Analytics tells you what happened. Policy decides before it happens.
           </h2>
           <p className="prose-bone mt-3 max-w-[68ch]">
             Four questions in plain language: above what order value should we
@@ -366,7 +362,10 @@ export default function HomePage() {
       </main>
 
       <footer className="mt-16 flex flex-wrap items-center justify-between gap-3 border-t border-ink-line py-6">
-        <p className="font-mono text-[11px] text-bone-faint">© 2026 AgentPort</p>
+        <div className="flex items-center gap-2">
+          <AgentPortLogo className="scale-90" />
+          <p className="font-mono text-[11px] text-bone-faint">© 2026 AgentPort</p>
+        </div>
         <div className="flex gap-4 font-mono text-[11px] text-bone-dim">
           <Link href="/login" className="hover:text-bone">
             Sign in
