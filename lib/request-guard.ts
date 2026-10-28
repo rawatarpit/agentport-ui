@@ -42,6 +42,7 @@ export const RATE_LIMITS = {
   'github:pr': { limit: 20, windowMs: 60_000 },
   golive: { limit: 30, windowMs: 60_000 },
   'kill-switch': { limit: 10, windowMs: 60_000 },
+  contact: { limit: 5, windowMs: 10 * 60_000 },
   'map:crawl': { limit: 5, windowMs: 5 * 60_000 },
   'publish:approve': { limit: 30, windowMs: 60_000 },
   'publish:artifact': { limit: 30, windowMs: 60_000 },

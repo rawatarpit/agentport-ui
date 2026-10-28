@@ -7,8 +7,11 @@
 #   AGENTPORT_SIGNING_SECRET  — HMAC key (server-only)
 #   NEXT_PUBLIC_SUPABASE_URL + NEXT_PUBLIC_SUPABASE_ANON_KEY — public project
 #   identifiers (anon only).
-#   SUPABASE_SERVICE_ROLE_KEY — server-only; used ONLY by the GitHub install
-#   write after ownership proof (lib/supabase/admin.ts). Never NEXT_PUBLIC_.
+#   SUPABASE_SERVICE_ROLE_KEY — server-only; used by the GitHub install
+#   write after ownership proof and by /api/contact to store pilot requests
+#   (lib/supabase/admin.ts). Never NEXT_PUBLIC_.
+#   RESEND_API_KEY — server-only; lets /api/contact email new pilot requests.
+#   Absent, the row still saves; the notification is skipped.
 #
 # NOTE: the console carries no runtime SDK dependency and decides nothing.
 # Enforcement lives in the hosted Rust governor on Agent Port's infrastructure,

@@ -2,26 +2,26 @@ import Link from 'next/link'
 import { Badge } from '@/components/stat'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { AgentPortLogo } from '@/components/brand/agentport-logo'
+import { ContactForm } from '@/components/contact-form'
 
 export const metadata = {
   title: 'AgentPort — Agent analytics',
   description:
-    'See what AI agents do on your site — what they ask for, what is allowed, held, or refused — and put policy in front of every action. Counts and decisions, never order values.',
+    'See what AI agents ask of your business, what was allowed, held, or refused — then put your policy in front of the next request. Counts and decisions, never order values.',
 }
 
 /**
  * The public front door (agentport.relayforge.in/home).
  *
- * Analytics-first, because that is the question a merchant actually opens
- * with: who is asking, for what, and did it work. Policy in front of the
- * action is the second half — decided by the hosted governor, never by this
- * page.
+ * Invite-only on purpose: the pilot is hand-held, so the call to action is a
+ * request, not a signup. The form writes a durable row (service-role route,
+ * RLS with no public policy) and notifies the founder; this page never claims
+ * an account was created.
  *
  * No invented numbers, no customer logos, no testimonials: the only
  * data-shaped element below is labelled an example, because a marketing panel
  * that reads like live customer data is the same lie as a green light on a
- * silent site. Every claim names something the product actually does — a
- * promise the console cannot keep is worse than no page at all.
+ * silent site.
  */
 
 const EXAMPLE_ROWS = [
@@ -51,17 +51,17 @@ const EXAMPLE_ROWS = [
 const PILLARS = [
   {
     title: 'Demand',
-    body: 'Who asks for what. Verified agents and unverified callers, per capability — the difference is visible before you trust either.',
+    body: 'Which agents ask for what, and which callers are verified — visible before you trust either.',
     icon: 'demand' as const,
   },
   {
     title: 'Outcome',
-    body: 'Allowed, held, refused, executed — per capability per week, with direction against the week before. One week of data renders flat, never a fake trend.',
+    body: 'Allowed, held, refused, executed. Per capability, week over week — never a fake trend from one week of rows.',
     icon: 'outcome' as const,
   },
   {
     title: 'Conversion',
-    body: 'Did the governed call succeed? Success and failure per capability, side by side with demand — never merged into an agent-level number the backend withholds.',
+    body: 'Did the call succeed? Success and failure sit beside demand, never merged into a number the backend withholds.',
     icon: 'conversion' as const,
   },
 ]
@@ -69,18 +69,18 @@ const PILLARS = [
 const STEPS = [
   {
     n: '1',
-    title: 'Install once',
-    body: 'Connect GitHub and we open one pull request that adds the agentport/ discovery package — not a runtime. Your team reviews it; you merge; your normal CI/CD deploys it. Repos that cannot take the App download the same package from the same compiler.',
+    title: 'Connect once',
+    body: 'One pull request adds the discovery package. You review it, you merge it, your CI/CD deploys it. No runtime to install.',
   },
   {
     n: '2',
-    title: 'Answer four questions',
-    body: 'Two money questions, two permission questions, in plain language. They become typed policy — what agents see, what waits for you, what is always no. Drafts until the hosted governor applies the signed artifact.',
+    title: 'Set the lines',
+    body: 'Four plain-language questions become typed policy: what runs, what waits for you, what is always no.',
   },
   {
     n: '3',
     title: 'Watch the proof',
-    body: 'Every decision lands on your ledger with its reason. Analytics counts what happened, per capability and per agent — never your order values. When a site goes quiet, the console says unknown, not green.',
+    body: 'Every decision lands on your ledger with its reason. When a site goes quiet, the console says unknown — never green.',
   },
 ]
 
@@ -110,19 +110,19 @@ const RULES = [
 const AUDIENCES = [
   {
     title: 'Local shops',
-    body: 'A customer asks a bot to buy. Below your line it runs; above it, you approve; refunds never go through an agent.',
+    body: 'A customer asks a bot to buy. Below your line it runs; above it, you approve.',
   },
   {
     title: 'D2C brands',
-    body: 'Discovery on marketplaces and search, checkout on your store — one policy, every agent, every surface.',
+    body: 'Discovery on marketplaces, checkout on your store. One policy across every agent.',
   },
   {
     title: 'Travel & bookings',
-    body: 'Itineraries change, prices move, cancellations sting. Anything that costs money waits for a human.',
+    body: 'Itineraries change and prices move. Anything that costs money waits for a human.',
   },
   {
     title: 'SaaS & platforms',
-    body: "Your customers' agents call your API. Scoped credentials, ceilings, per-agent demand, an audit trail per customer.",
+    body: "Your customers' agents call your API. Scoped credentials, ceilings, an audit trail per customer.",
   },
 ]
 
@@ -165,7 +165,7 @@ const NAV = [
   { href: '#see', label: 'What you see' },
   { href: '#control', label: 'What you control' },
   { href: '#how', label: 'How it works' },
-  { href: '#pilot', label: 'Pilot' },
+  { href: '#contact', label: 'Pilot' },
 ]
 
 const PRINCIPLES = [
@@ -202,15 +202,15 @@ export default function HomePage() {
             <Link href="/login" className="btn px-4 py-2">
               Sign in
             </Link>
-            <Link href="/signup" className="btn btn-primary px-4 py-2">
-              Start the pilot
-            </Link>
+            <a href="#contact" className="btn btn-primary px-4 py-2">
+              Request an invite
+            </a>
           </div>
         </div>
       </header>
 
       <main className="mx-auto w-full max-w-[1120px] px-5 sm:px-8">
-        {/* Hero — the category, then the two halves: see, then decide. */}
+        {/* Hero — see, then decide. */}
         <section className="relative grid items-center gap-14 py-16 sm:py-24 lg:grid-cols-[1.02fr_0.98fr]">
           <div
             aria-hidden="true"
@@ -232,26 +232,25 @@ export default function HomePage() {
               See what AI agents do on your site.{' '}
               <span className="text-verdant">Decide what they may do.</span>
             </h1>
-            <p className="prose-bone mt-6 max-w-[56ch]">
-              See which agents ask for what — chatbots, assistants, and agents
-              calling your interface. Put policy in front of every action: what
-              runs, what waits for you, what is always refused. Counts and
+            <p className="prose-bone mt-6 max-w-[54ch]">
+              Every agent request — allowed, held, or refused — in one clear
+              read. Then your policy sits in front of the next one. Counts and
               decisions, never order values.
             </p>
             <div className="mt-8 flex flex-wrap gap-2.5">
-              <Link href="/signup" className="btn btn-primary px-5 py-2.5">
-                Start the founding pilot
-              </Link>
-              <Link href="#how" className="btn px-5 py-2.5">
-                See how it works
-              </Link>
+              <a href="#contact" className="btn btn-primary px-5 py-2.5">
+                Request an invite
+              </a>
+              <a href="#see" className="btn px-5 py-2.5">
+                See the console
+              </a>
             </div>
             <ul className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[11px] text-bone-faint">
-              <li>Free during the founding pilot</li>
+              <li>Invite-only founding pilot</li>
               <li aria-hidden="true" className="text-ink-line">
                 /
               </li>
-              <li>Counts and decisions</li>
+              <li>Hand-held onboarding</li>
               <li aria-hidden="true" className="text-ink-line">
                 /
               </li>
@@ -331,12 +330,12 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* What you see — the analytics half, which is the reason to open the tool. */}
+        {/* What you see */}
         <section id="see" className="scroll-mt-24 py-16 sm:py-20">
           <SectionHeading
             eyebrow="What you see"
-            title="Every agent action, counted. Every decision, reasoned."
-            lede="The screen a merchant actually returns to: which agents ask for what, what happened, and whether it worked. No tracking pixels, no tags — the hosted governor reports decisions, not browsing."
+            title="A clear read on every agent request."
+            lede="Who asked, for what, what happened, and whether it worked — per capability and per agent. No pixels, no tags."
           />
           <div className="mt-9 grid gap-3 sm:grid-cols-3">
             {PILLARS.map((p, i) => (
@@ -360,14 +359,14 @@ export default function HomePage() {
           </p>
         </section>
 
-        {/* What you control — the half analytics alone can never have. */}
+        {/* What you control */}
         <section id="control" className="scroll-mt-24 border-t border-ink-line/60 py-16 sm:py-20">
           <div className="grid items-start gap-10 lg:grid-cols-[1.05fr_0.95fr]">
             <div>
               <SectionHeading
                 eyebrow="What you control"
-                title="Analytics tells you what happened. Policy decides before it happens."
-                lede="Four questions in plain language: above what order value should we ask you first, above what value is the answer always no, which actions need a human, what must never run. The answers become typed policy — ceilings in minor units, holds, refusals, and a kill switch evaluated before everything else."
+                title="Analytics tells you what happened. Policy decides what happens next."
+                lede="Four questions, in plain language. They become typed policy: ceilings, holds, refusals, and a kill switch evaluated first."
               />
               <div className="mt-7 flex flex-wrap gap-2 font-mono text-[11px]">
                 {['Ceilings', 'Holds for a human', 'Always refused', 'Kill switch first'].map((chip) => (
@@ -409,7 +408,7 @@ export default function HomePage() {
 
         {/* How it works */}
         <section id="how" className="scroll-mt-24 border-t border-ink-line/60 py-16 sm:py-20">
-          <SectionHeading eyebrow="How it works" title="Three steps, then the proof runs itself." />
+          <SectionHeading eyebrow="How it works" title="Live in three steps." />
           <ol className="relative mt-10 grid gap-8 lg:grid-cols-3 lg:gap-6">
             <span
               aria-hidden="true"
@@ -462,8 +461,8 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* The offer, with the terms that are actually promised. */}
-        <section id="pilot" className="scroll-mt-24 border-t border-ink-line/60 py-16 sm:py-20">
+        {/* Invite-only pilot — the request, not a signup. */}
+        <section id="contact" className="scroll-mt-24 border-t border-ink-line/60 py-16 sm:py-20">
           <div className="relative overflow-hidden rounded-xl border border-verdant/25 bg-ink-soft p-6 sm:p-10">
             <div
               aria-hidden="true"
@@ -473,43 +472,43 @@ export default function HomePage() {
                   'radial-gradient(640px 220px at 12% 0%, rgba(47,156,104,0.12), transparent 70%)',
               }}
             />
-            <div className="relative grid gap-10 lg:grid-cols-[1.05fr_0.95fr]">
+            <div className="relative grid items-start gap-10 lg:grid-cols-[0.95fr_1.05fr]">
               <div>
-                <p className="label">Founding pilot</p>
+                <p className="label">Founding pilot — by invitation</p>
                 <h2 className="mt-3 font-display text-3xl tracking-[-0.01em] text-bone sm:text-[34px]">
-                  One merchant at a time, hand-held.
+                  We onboard one merchant at a time.
                 </h2>
                 <p className="prose-bone mt-3">
-                  We are onboarding founding merchants: free, one environment, run
-                  end to end with you. Read-only the first week, one
-                  approval-gated write the next, then a policy change with its
-                  effect observed. In exchange: a friction log we may quote
-                  (anonymised on request) and a reference call.
+                  Free, one environment, run end to end with us: install, first
+                  proof, then a policy change and its effect observed. In
+                  exchange, a friction log and a reference call.
                 </p>
-                <div className="mt-6 flex flex-wrap gap-2.5">
-                  <Link href="/signup" className="btn btn-primary px-5 py-2.5">
-                    Start the founding pilot
-                  </Link>
-                  <Link href="/login" className="btn px-5 py-2.5">
+                <ul className="mt-6 grid gap-x-6 gap-y-2.5 font-mono text-[12px] text-bone-dim sm:grid-cols-2">
+                  {PILOT_TERMS.map((term) => (
+                    <li key={term} className="flex gap-2">
+                      <span aria-hidden="true" className="text-verdant">
+                        ·
+                      </span>
+                      <span>{term}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div>
+                <ContactForm />
+                <p className="mt-3 font-mono text-[11px] text-bone-faint">
+                  Already have an account?{' '}
+                  <Link href="/login" className="text-bone underline underline-offset-4">
                     Sign in
                   </Link>
-                </div>
+                </p>
               </div>
-              <ul className="grid gap-x-6 gap-y-2.5 border-t border-ink-line pt-6 font-mono text-[12px] text-bone-dim sm:grid-cols-2 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
-                {PILOT_TERMS.map((term) => (
-                  <li key={term} className="flex gap-2">
-                    <span aria-hidden="true" className="text-verdant">
-                      ·
-                    </span>
-                    <span>{term}</span>
-                  </li>
-                ))}
-              </ul>
             </div>
           </div>
         </section>
 
-        {/* Straight answers — the questions a security review would ask. */}
+        {/* Straight answers */}
         <section className="border-t border-ink-line/60 py-16 sm:py-20">
           <SectionHeading eyebrow="Straight answers" title="The questions a security review would ask." />
           <div className="mt-9 grid gap-3 sm:grid-cols-2">
@@ -559,9 +558,9 @@ export default function HomePage() {
                 <Link href="/login" className="block text-bone-dim transition-colors hover:text-bone">
                   Sign in
                 </Link>
-                <Link href="/signup" className="block text-bone-dim transition-colors hover:text-bone">
-                  Create account
-                </Link>
+                <a href="#contact" className="block text-bone-dim transition-colors hover:text-bone">
+                  Request an invite
+                </a>
               </div>
             </nav>
           </div>
