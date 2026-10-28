@@ -71,10 +71,43 @@ function requestOrigin(req: Request): string | null {
   return null
 }
 
+/**
+ * The host(s) this request actually arrived on.
+ *
+ * `new URL(req.url).origin` alone is not trustworthy behind a serverless
+ * adapter: on Netlify the URL can carry an internal or deploy-specific host
+ * while the public request was for the custom domain, which made every
+ * same-origin POST (sign-in included) fail closed with a 403. The `Host`
+ * header is what the edge routed on; `X-Forwarded-Host` is the fallback when
+ * a proxy rewrites Host. Comparing hosts — not schemes — is enough: a browser
+ * cannot forge `Host` or `Origin`, and a non-browser client has no session
+ * cookie to ride.
+ */
+function requestHosts(req: Request): string[] {
+  const hosts = new Set<string>()
+  const host = req.headers.get('host')
+  if (host) hosts.add(host.trim().toLowerCase())
+  const forwarded = req.headers.get('x-forwarded-host')
+  if (forwarded) hosts.add(forwarded.split(',')[0]!.trim().toLowerCase())
+  try {
+    hosts.add(new URL(req.url).host.toLowerCase())
+  } catch {
+    // A malformed req.url adds no candidate; the header still decides.
+  }
+  return [...hosts]
+}
+
 export function isSameOrigin(req: Request): boolean {
   const supplied = requestOrigin(req)
   if (supplied === null) return false
-  return supplied === new URL(req.url).origin
+  let suppliedUrl: URL
+  try {
+    suppliedUrl = new URL(supplied)
+  } catch {
+    return false
+  }
+  if (suppliedUrl.protocol !== 'https:' && suppliedUrl.protocol !== 'http:') return false
+  return requestHosts(req).includes(suppliedUrl.host.toLowerCase())
 }
 
 export function crossOriginResponse(): Response {

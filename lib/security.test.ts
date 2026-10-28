@@ -49,6 +49,39 @@ describe('CSRF / Origin checks', () => {
     const res = guardStateChange(request('https://console.test/api/change', { ip: '203.0.113.2' }), 'me')
     expect(res?.status).toBe(403)
   })
+
+  /**
+   * Regression: on Netlify `req.url` can carry an internal/deploy host while
+   * the public request was for the custom domain. Comparing only
+   * `new URL(req.url).origin` rejected real browser posts with a 403.
+   */
+  it('trusts the public Host header over an internal request URL', () => {
+    const req = new Request('http://localhost:3000/api/change', {
+      method: 'POST',
+      headers: { host: 'agentport.relayforge.in', origin: 'https://agentport.relayforge.in' },
+    })
+    expect(isSameOrigin(req)).toBe(true)
+    expect(guardStateChange(req, 'me')).toBeNull()
+  })
+
+  it('falls back to X-Forwarded-Host when Host was rewritten', () => {
+    const req = new Request('http://10.0.0.4/api/change', {
+      method: 'POST',
+      headers: {
+        'x-forwarded-host': 'console.test, edge.internal',
+        origin: 'https://console.test',
+      },
+    })
+    expect(isSameOrigin(req)).toBe(true)
+  })
+
+  it('rejects an Origin that matches neither the Host nor the forwarded host', () => {
+    const req = new Request('https://console.test/api/change', {
+      method: 'POST',
+      headers: { host: 'console.test', origin: 'https://evil.test' },
+    })
+    expect(isSameOrigin(req)).toBe(false)
+  })
 })
 
 describe('rate limiter', () => {
