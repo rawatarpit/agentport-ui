@@ -82,6 +82,18 @@ describe('CSRF / Origin checks', () => {
     })
     expect(isSameOrigin(req)).toBe(false)
   })
+
+  it('does not let a supplied X-Forwarded-Host override a real Host', () => {
+    const req = new Request('https://console.test/api/change', {
+      method: 'POST',
+      headers: {
+        host: 'console.test',
+        'x-forwarded-host': 'evil.test',
+        origin: 'https://evil.test',
+      },
+    })
+    expect(isSameOrigin(req)).toBe(false)
+  })
 })
 
 describe('rate limiter', () => {

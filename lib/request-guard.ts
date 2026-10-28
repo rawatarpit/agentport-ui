@@ -86,9 +86,14 @@ function requestOrigin(req: Request): string | null {
 function requestHosts(req: Request): string[] {
   const hosts = new Set<string>()
   const host = req.headers.get('host')
-  if (host) hosts.add(host.trim().toLowerCase())
-  const forwarded = req.headers.get('x-forwarded-host')
-  if (forwarded) hosts.add(forwarded.split(',')[0]!.trim().toLowerCase())
+  if (host) {
+    hosts.add(host.trim().toLowerCase())
+  } else {
+    // Only when the proxy hid the Host header: a client-supplied
+    // X-Forwarded-Host must never widen the set while a real Host exists.
+    const forwarded = req.headers.get('x-forwarded-host')
+    if (forwarded) hosts.add(forwarded.split(',')[0]!.trim().toLowerCase())
+  }
   try {
     hosts.add(new URL(req.url).host.toLowerCase())
   } catch {
