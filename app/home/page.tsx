@@ -172,6 +172,9 @@ export default function HomePage() {
         {/* Hero — the category, then the two halves: see, then decide. */}
         <section className="grid items-start gap-10 lg:grid-cols-[1.05fr_0.95fr]">
           <div>
+            <div className="mb-6 flex items-center gap-2.5">
+              <AgentPortLogo size={40} />
+            </div>
             <p className="label">Agent analytics</p>
             <h1 className="mt-3 font-display text-4xl leading-[1.08] text-bone sm:text-5xl">
               See what AI agents do on your site. Decide what they may do.
@@ -191,7 +194,7 @@ export default function HomePage() {
               </Link>
             </div>
             <p className="mt-5 font-mono text-[11px] text-bone-faint">
-              Free during the founding pilot · Counts, not money · Secrets never stored
+              Free during the founding pilot · Counts and decisions · Secrets never stored
             </p>
           </div>
 
