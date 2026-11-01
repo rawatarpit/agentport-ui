@@ -1,6 +1,10 @@
-# Add inside the governor.agentport.relayforge.in site block.
-# The console calls https://governor.agentport.relayforge.in/github/*.
-# GitHub's webhook points directly at /github/webhook.
+# Add inside the governor site block (the public broker host).
+# The console reaches it via GITHUB_BROKER_URL; GitHub's webhook points
+# directly at /github/webhook.
+#
+# Keep the host out of this file: Netlify's secrets scan matches an env var's
+# value anywhere in the repo, and a concrete production URL here fails the
+# build even though the host is public.
 handle_path /github/* {
 	reverse_proxy 127.0.0.1:8790
 }
