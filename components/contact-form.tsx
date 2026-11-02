@@ -52,8 +52,8 @@ export function ContactForm() {
       <div className="panel p-6" role="status" aria-live="polite">
         <p className="font-display text-xl text-bone">Request received.</p>
         <p className="mt-2 text-[13px] leading-relaxed text-bone-dim">
-          We read every request ourselves and reply within one business day. If
-          you added a note, it is with us.
+          We read every request ourselves and reply within one business day. We
+          will assess whether the founding pilot is a fit.
         </p>
       </div>
     )
@@ -125,8 +125,8 @@ export function ContactForm() {
 
       <div>
         <label htmlFor="contact-message" className="field-label">
-          What do your agents do?{' '}
-          <span className="font-normal text-bone-faint">(optional)</span>
+          What does your product do, and which operations might AI agents
+          perform?
         </label>
         <textarea
           id="contact-message"
@@ -135,16 +135,17 @@ export function ContactForm() {
           onChange={update('message')}
           maxLength={2000}
           rows={3}
+          aria-describedby="contact-message-help"
           placeholder="Chatbots taking orders, an assistant calling your API, checkout, refunds…"
         />
-        <p className="mt-1.5 text-[11px] text-bone-faint">
+        <p id="contact-message-help" className="mt-1.5 text-[11px] text-bone-faint">
           Please do not include card numbers, passwords, or API keys.
         </p>
       </div>
 
       <div className="flex flex-wrap items-center gap-3 pt-1">
         <button type="submit" className="btn btn-primary px-5 py-2.5" disabled={status === 'busy'}>
-          {status === 'busy' ? 'Sending…' : 'Request an invite'}
+          {status === 'busy' ? 'Sending…' : 'Request a founding pilot'}
         </button>
         {error ? (
           <span className="text-[13px] text-rust" role="alert">
