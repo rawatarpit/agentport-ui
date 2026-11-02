@@ -5,6 +5,14 @@
 # Keep the host out of this file: Netlify's secrets scan matches an env var's
 # value anywhere in the repo, and a concrete production URL here fails the
 # build even though the host is public.
+#
+# Do not compress broker responses. The console's edge fetch cannot decode
+# Caddy's zstd response, so /api/github/repos returns 502
+# "edge function invocation failed". At site level:
+#
+#   @not_broker not path /github/*
+#   encode @not_broker zstd gzip
+#
 handle_path /github/* {
 	reverse_proxy 127.0.0.1:8790
 }

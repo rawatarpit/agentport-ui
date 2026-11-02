@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { Pool } from 'pg'
 
 /**
@@ -20,14 +21,17 @@ export type InstallRecord = {
 export class InstallRecorder {
   private readonly pool: Pool | null
 
-  constructor(databaseUrl: string) {
+  constructor(databaseUrl: string, caFile?: string) {
+    // The Supabase pooler presents a Supabase Root 2021 CA chain that is not
+    // in the system trust store. Pin that CA instead of disabling verification.
+    const ca = caFile ? readFileSync(caFile, 'utf8') : undefined
     this.pool = databaseUrl
       ? new Pool({
           connectionString: databaseUrl,
           max: 2,
           idleTimeoutMillis: 30_000,
           connectionTimeoutMillis: 5_000,
-          ssl: { rejectUnauthorized: true },
+          ssl: ca ? { rejectUnauthorized: true, ca } : { rejectUnauthorized: true },
         })
       : null
   }

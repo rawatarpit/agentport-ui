@@ -19,6 +19,7 @@ export type BrokerConfig = {
   brokerToken: string
   stateFile: string
   databaseUrl: string
+  databaseCaFile: string
   workerUrl: string
   consoleOrigin: string
 }
@@ -41,6 +42,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BrokerConfig {
     brokerToken: read(env, 'GITHUB_BROKER_TOKEN'),
     stateFile: read(env, 'BROKER_STATE_FILE') || '/var/lib/agentport-github-broker/state.json',
     databaseUrl: read(env, 'BROKER_DATABASE_URL'),
+    databaseCaFile: read(env, 'BROKER_DATABASE_CA_FILE'),
     workerUrl: read(env, 'AGENTPORT_WORKER_URL'),
     consoleOrigin: read(env, 'CONSOLE_ORIGIN') || 'https://agentport.relayforge.in',
   }

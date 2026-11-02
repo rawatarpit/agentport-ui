@@ -66,7 +66,7 @@ function parseJson(raw: string): unknown {
 
 const config = loadConfig()
 const stateStore = new InstallStateStore(config.stateFile)
-const recorder = new InstallRecorder(config.databaseUrl)
+const recorder = new InstallRecorder(config.databaseUrl, config.databaseCaFile)
 
 async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = new URL(req.url ?? '/', 'http://127.0.0.1')
@@ -194,6 +194,8 @@ if (!config.githubAppPrivateKey || !config.githubClientSecret || !config.githubW
 }
 if (!config.databaseUrl) {
   console.warn('github broker has no BROKER_DATABASE_URL; installation recording will fail closed')
+} else if (!config.databaseCaFile) {
+  console.warn('github broker has no BROKER_DATABASE_CA_FILE; Supabase pooler TLS verification may fail')
 }
 
 const server = createServer((req, res) => {
