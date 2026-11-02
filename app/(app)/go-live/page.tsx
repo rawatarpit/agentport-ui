@@ -111,7 +111,7 @@ export default async function GoLivePage() {
               title="Set your site address"
               description="The public address agents and the route crawl use. It is deliberately not this console."
             >
-              <WebsiteForm current={state.siteUrl} />
+              <WebsiteForm current={state.siteUrl} onDone={() => void 0} />
             </Section>
           </section>
 
