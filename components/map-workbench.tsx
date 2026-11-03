@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import {
   parseInventory,
@@ -40,6 +41,7 @@ const SAMPLE = JSON.stringify(
 type Row = CapabilityProposal & { checked: boolean; name: string; kind: 'read' | 'write' }
 
 export function MapWorkbench() {
+  const router = useRouter()
   const [text, setText] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [buckets, setBuckets] = useState<Buckets | null>(null)
@@ -67,6 +69,7 @@ export function MapWorkbench() {
         checked: p.bucket === 'corroborated',
         name: p.name,
         kind: p.kind,
+        allowUnattended: p.allowUnattended,
       })),
     )
   }
@@ -79,8 +82,8 @@ export function MapWorkbench() {
     setRows((rs) => rs.map((r) => (r.key === key ? { ...r, name } : r)))
   }
 
-  function setKind(key: string, kind: 'read' | 'write') {
-    setRows((rs) => rs.map((r) => (r.key === key ? { ...r, kind } : r)))
+  function setUnattended(key: string, allowUnattended: boolean) {
+    setRows((rs) => rs.map((r) => (r.key === key ? { ...r, allowUnattended } : r)))
   }
 
   async function save() {
@@ -89,12 +92,32 @@ export function MapWorkbench() {
     setError(null)
     const extra = rows
       .filter((r) => r.checked)
-      .map((r) => ({ name: r.name.trim(), method: r.method, path: r.path, kind: r.kind }))
+      .map((r) => ({
+        name: r.name.trim(),
+        method: r.method,
+        path: r.path,
+        kind: r.kind,
+        allowUnattended: r.allowUnattended,
+      }))
     try {
+      // Read the current draft first: a PUT replaces the whole section, so
+      // sending `hidden: {}` here would silently wipe the merchant's field
+      // visibility choices. Refuse to save if the read fails rather than
+      // overwrite what we could not see.
+      const current = await fetch('/api/drafts/capabilities', { cache: 'no-store' })
+      if (!current.ok) {
+        setError('Could not read the current capabilities draft — refusing to save and overwrite field visibility.')
+        return
+      }
+      const currentBody = (await current.json()) as {
+        draft?: { hidden?: Record<string, string[]> } | null
+      }
+      const hidden = currentBody.draft?.hidden ?? {}
+
       const res = await fetch('/api/drafts/capabilities', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ payload: { hidden: {}, extra } }),
+        body: JSON.stringify({ payload: { hidden, extra } }),
       })
       const body = (await res.json()) as { status: string; reason?: string; errors?: string[] }
       if (body.status !== 'ok') {
@@ -104,6 +127,7 @@ export function MapWorkbench() {
       setSaved(
         `Saved ${extra.length} mapped ${extra.length === 1 ? 'capability' : 'capabilities'} to the capabilities draft. Review in Capabilities, set limits in Rules, publish from Go-live.`,
       )
+      router.refresh()
     } catch (e) {
       setError(`Could not save: ${e instanceof Error ? e.message : String(e)}`)
     } finally {
@@ -208,11 +232,15 @@ export function MapWorkbench() {
             promoting it; a used route the team forgot is how an admin endpoint becomes
             agent-reachable.
           </p>
+          <p className="mt-2 max-w-[68ch] text-[13px] text-bone-dim">
+            Every mapped write waits for you by default. Only tick <span className="text-bone">unattended</span>{' '}
+            for a route you have reviewed and whose amount and bulk limits are enough to contain it.
+          </p>
           <div className="mt-4 overflow-x-auto">
             <table className="w-full min-w-[720px] text-left text-[13px]">
               <thead>
                 <tr className="border-b border-ink-line">
-                  {['', 'Capability', 'Method', 'Path', 'Kind', 'Bucket'].map((h) => (
+                  {['', 'Capability', 'Method', 'Path', 'Kind', 'Approval', 'Bucket'].map((h) => (
                     <th key={h} scope="col" className="label px-3 py-2 font-normal">
                       {h}
                     </th>
@@ -240,16 +268,23 @@ export function MapWorkbench() {
                     </td>
                     <td className="px-3 py-2 font-mono text-[12px] text-bone-dim">{r.method}</td>
                     <td className="px-3 py-2 font-mono text-[12px] text-bone-dim">{r.path}</td>
+                    <td className="px-3 py-2 font-mono text-[12px] text-bone-dim">
+                      {r.kind}
+                    </td>
                     <td className="px-3 py-2">
-                      <select
-                        className="rounded border border-ink-line bg-ink px-2 py-1 text-[12px] text-bone"
-                        value={r.kind}
-                        onChange={(e) => setKind(r.key, e.target.value === 'write' ? 'write' : 'read')}
-                        aria-label={`Access class for ${r.key}`}
-                      >
-                        <option value="read">read</option>
-                        <option value="write">write</option>
-                      </select>
+                      {r.kind === 'write' ? (
+                        <label className="flex items-center gap-2 font-mono text-[12px] text-bone-dim">
+                          <input
+                            type="checkbox"
+                            checked={r.allowUnattended}
+                            onChange={(e) => setUnattended(r.key, e.target.checked)}
+                            aria-label={`Allow ${r.key} to run without approval`}
+                          />
+                          unattended
+                        </label>
+                      ) : (
+                        <span className="font-mono text-[12px] text-bone-faint">read-only</span>
+                      )}
                     </td>
                     <td className="px-3 py-2 font-mono text-[12px] text-bone-faint">{r.bucket}</td>
                   </tr>

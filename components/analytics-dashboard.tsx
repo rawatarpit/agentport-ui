@@ -256,9 +256,9 @@ function AgentTable({ rows }: { rows: ReturnType<typeof buildAgentRows> }) {
   return (
     <div className="panel overflow-hidden">
       <div className="border-b border-ink-line px-4 py-3">
-        <p className="label">By agent</p>
+        <p className="label">Who asked for what</p>
         <p className="mt-1 text-[12px] text-bone-faint">
-          Who asks for what. Conversion stays with its capability, never joined per agent.
+          Each agent and the capabilities it asked for. Counts only; conversion stays with its capability.
         </p>
       </div>
       {rows.length === 0 ? (
@@ -266,30 +266,40 @@ function AgentTable({ rows }: { rows: ReturnType<typeof buildAgentRows> }) {
           No agent decisions recorded yet — unknown, not zero.
         </p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[480px] text-left text-[13px]">
-            <thead>
-              <tr className="border-b border-ink-line">
-                {['Agent', 'Assurance', 'Allowed', 'Held', 'Refused'].map((h) => (
-                  <th key={h} scope="col" className="label px-4 py-2.5 font-normal">
-                    {h}
-                  </th>
+        <ul className="divide-y divide-ink-line/60">
+          {rows.slice(0, 12).map((r) => (
+            <li key={r.agent_id} className="px-4 py-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate font-mono text-[12px] text-bone">{r.agent_id}</p>
+                  <p className="mt-0.5 text-[11px] text-bone-faint">
+                    {r.assurance} · {r.total} decision{r.total === 1 ? '' : 's'}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
+                  <span className="text-verdant">allow {r.allow}</span>
+                  <span className="text-amber">held {r.held}</span>
+                  <span className="text-rust">refuse {r.deny}</span>
+                </div>
+              </div>
+              <ul className="mt-2 space-y-1">
+                {r.capabilities.map((cap) => (
+                  <li
+                    key={cap.capability}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded bg-ink/40 px-2.5 py-1.5"
+                  >
+                    <span className="font-mono text-[11px] text-bone-dim">{cap.capability}</span>
+                    <span className="flex flex-wrap gap-x-2 text-[11px] text-bone-faint">
+                      {cap.allow > 0 ? <span className="text-verdant">allow {cap.allow}</span> : null}
+                      {cap.held > 0 ? <span className="text-amber">held {cap.held}</span> : null}
+                      {cap.deny > 0 ? <span className="text-rust">refuse {cap.deny}</span> : null}
+                    </span>
+                  </li>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.slice(0, 12).map((r) => (
-                <tr key={r.agent_id} className="border-b border-ink-line/60 last:border-0">
-                  <td className="px-4 py-2.5 font-mono text-[12px] text-bone">{r.agent_id}</td>
-                  <td className="px-4 py-2.5 text-[12px] text-bone-faint">{r.assurance}</td>
-                  <td className="tabular px-4 py-2.5 text-verdant">{r.allow}</td>
-                  <td className="tabular px-4 py-2.5 text-amber">{r.held}</td>
-                  <td className="tabular px-4 py-2.5 text-rust">{r.deny}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </ul>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   )

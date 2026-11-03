@@ -50,6 +50,14 @@ export type CapabilityRow = {
   trend: 'up' | 'down' | 'flat' | 'first'
 }
 
+export type AgentCapabilityRow = {
+  capability: string
+  allow: number
+  deny: number
+  held: number
+  total: number
+}
+
 export type AgentRow = {
   agent_id: string
   assurance: 'verified' | 'unverified'
@@ -57,6 +65,7 @@ export type AgentRow = {
   deny: number
   held: number
   total: number
+  capabilities: AgentCapabilityRow[]
 }
 
 export type AnalyticsKpis = {
@@ -151,7 +160,11 @@ export function buildCapabilityRows(activity: ActivityRow[], conversion: Convers
     .sort((a, b) => b.asked + b.executed - (a.asked + a.executed))
 }
 
-/** Per-agent demand. No conversion column: the backend withholds that join. */
+/**
+ * Per-agent demand, including which capabilities each agent asked for.
+ * No conversion column: the backend withholds that join, so this table can
+ * say who asked for what and how it was decided — never who converted.
+ */
 export function buildAgentRows(demand: DemandRow[]): AgentRow[] {
   const byAgent = new Map<string, AgentRow>()
   for (const r of demand) {
@@ -162,12 +175,27 @@ export function buildAgentRows(demand: DemandRow[]): AgentRow[] {
       deny: 0,
       held: 0,
       total: 0,
+      capabilities: [],
     }
     if (r.decision === 'allow') cur.allow += 1
     else if (r.decision === 'deny') cur.deny += 1
     else cur.held += 1
     cur.total += 1
+
+    let cap = cur.capabilities.find((c) => c.capability === r.capability)
+    if (!cap) {
+      cap = { capability: r.capability, allow: 0, deny: 0, held: 0, total: 0 }
+      cur.capabilities.push(cap)
+    }
+    if (r.decision === 'allow') cap.allow += 1
+    else if (r.decision === 'deny') cap.deny += 1
+    else cap.held += 1
+    cap.total += 1
+
     byAgent.set(r.agent_id, cur)
+  }
+  for (const agent of byAgent.values()) {
+    agent.capabilities.sort((a, b) => b.total - a.total || a.capability.localeCompare(b.capability))
   }
   return [...byAgent.values()].sort((a, b) => b.total - a.total)
 }

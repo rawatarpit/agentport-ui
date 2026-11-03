@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { AgentPortLogo } from '@/components/brand/agentport-logo'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { StatusPill } from '@/components/ui/status-pill'
 
@@ -38,14 +39,19 @@ export function Topbar({
 
   return (
     <div className="sticky top-0 z-30 flex min-h-14 items-center justify-between gap-3 border-b border-ink-line bg-ink/85 py-2.5 backdrop-blur">
-      <div className="min-w-0">
-        <p className="truncate text-[13px] text-bone">
-          {businessName}
-          <span className="ml-2 font-mono text-[10px] uppercase tracking-[0.12em] text-bone-faint">{role}</span>
-        </p>
-        <p className="truncate font-mono text-[10.5px] text-bone-faint">
-          {email ?? 'not signed in'}
-        </p>
+      <div className="flex min-w-0 items-center gap-2.5">
+        <span className="shrink-0 md:hidden">
+          <AgentPortLogo size={28} markOnly />
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-[13px] text-bone">
+            {businessName}
+            <span className="ml-2 font-mono text-[10px] uppercase tracking-[0.12em] text-bone-faint">{role}</span>
+          </p>
+          <p className="truncate font-mono text-[10.5px] text-bone-faint">
+            {email ?? 'not signed in'}
+          </p>
+        </div>
       </div>
 
       <div className="flex shrink-0 items-center gap-2">

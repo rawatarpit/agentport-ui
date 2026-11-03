@@ -1,3 +1,4 @@
+import { AgentPortLogo } from '@/components/brand/agentport-logo'
 import { ThemeToggle } from '@/components/theme-toggle'
 
 /**
@@ -12,6 +13,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <main className="flex flex-1 items-center justify-center px-5 py-10">{children}</main>
       <footer className="border-t border-ink-line py-5">
         <div className="mx-auto flex max-w-md flex-col items-center gap-3">
+          <AgentPortLogo size={30} />
           <div className="w-28">
             <ThemeToggle />
           </div>

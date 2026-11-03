@@ -73,8 +73,20 @@ describe('analytics shape', () => {
       deny: 0,
       held: 1,
       total: 3,
+      capabilities: [
+        { capability: 'createOrder', allow: 1, deny: 0, held: 1, total: 2 },
+        { capability: 'searchProducts', allow: 1, deny: 0, held: 0, total: 1 },
+      ],
     })
     expect(agent && 'succeeded' in agent).toBe(false)
+  })
+
+  it('keeps each agent’s capability breakdown without inventing conversion', () => {
+    const anon = buildAgentRows(demand).find((r) => r.agent_id === 'anon')
+    expect(anon?.capabilities).toEqual([
+      { capability: 'deleteAccount', allow: 0, deny: 1, held: 0, total: 1 },
+    ])
+    expect(anon && 'succeeded' in anon.capabilities[0]).toBe(false)
   })
 
   it('filters to the latest weeks and preserves order', () => {

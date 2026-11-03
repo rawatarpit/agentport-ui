@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { AgentPortLogo } from '@/components/brand/agentport-logo'
 import { StatusPill } from '@/components/ui/status-pill'
 
 /**
@@ -82,9 +83,7 @@ export function Sidebar({
   const body = () => (
     <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto">
       <Link href="/" className="flex items-center gap-3">
-        <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-verdant/40 bg-verdant/10 font-display text-lg text-verdant">
-          A
-        </span>
+        <AgentPortLogo size={36} markOnly />
         <span>
           <span className="block font-mono text-[11px] uppercase tracking-[0.18em] text-verdant">
             Agent Port

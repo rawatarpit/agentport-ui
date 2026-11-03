@@ -5,7 +5,11 @@ export const metadata: Metadata = {
   title: 'Agent Port Console',
   description:
     'Governed agent capabilities for a business: what agents may do, what was refused, and what is waiting for a human.',
-  icons: { icon: '/icon.svg' },
+  icons: {
+    icon: '/icon.svg',
+    shortcut: '/favicon.ico',
+    apple: '/icon.svg',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

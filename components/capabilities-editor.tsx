@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { Badge } from '@/components/stat'
 
@@ -24,6 +25,28 @@ type Cap = {
   fields: string[]
   hidden: string[]
   description: string
+}
+
+/**
+ * A route-backed capability saved from Map routes. The server normalises
+ * `kind` from the HTTP method and defaults writes to held; the UI only
+ * displays that decision, it does not re-derive it.
+ */
+type ExtraCap = {
+  name: string
+  method: string
+  path: string
+  kind: 'read' | 'write'
+  allowUnattended?: boolean
+}
+
+/** An approved execution blueprint, written by publish approval. */
+export type InventoryCap = {
+  name: string
+  method: string
+  path: string
+  kind: 'read' | 'write'
+  origin: string
 }
 
 const CAPS: Cap[] = [
@@ -57,10 +80,13 @@ const CAPS: Cap[] = [
   },
 ]
 
-export function CapabilitiesEditor() {
+export function CapabilitiesEditor({ inventory = [] }: { inventory?: InventoryCap[] }) {
   const [hidden, setHidden] = useState<Record<string, string[]>>(
     Object.fromEntries(CAPS.map((c) => [c.name, c.hidden])),
   )
+  // Kept in state so saving field visibility cannot silently drop the
+  // merchant's mapped routes. The PUT replaces the whole draft section.
+  const [extra, setExtra] = useState<ExtraCap[]>([])
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -73,15 +99,19 @@ export function CapabilitiesEditor() {
     let live = true
     fetch('/api/drafts/capabilities')
       .then((r) => r.json())
-      .then((body: { draft?: { hidden?: Record<string, string[]> } | null }) => {
-        if (!live || !body.draft?.hidden) return
-        setHidden((h) => {
-          const next = { ...h }
-          for (const [cap, fields] of Object.entries(body.draft!.hidden!)) {
-            if (next[cap] && Array.isArray(fields)) next[cap] = fields.filter((f) => typeof f === 'string')
-          }
-          return next
-        })
+      .then((body: { draft?: { hidden?: Record<string, string[]>; extra?: ExtraCap[] } | null }) => {
+        if (!live || !body.draft) return
+        if (body.draft.hidden) {
+          const savedHidden = body.draft.hidden
+          setHidden((h) => {
+            const next = { ...h }
+            for (const [cap, fields] of Object.entries(savedHidden)) {
+              if (next[cap] && Array.isArray(fields)) next[cap] = fields.filter((f) => typeof f === 'string')
+            }
+            return next
+          })
+        }
+        if (Array.isArray(body.draft.extra)) setExtra(body.draft.extra)
         setSavedAt('loaded')
       })
       .catch(() => {
@@ -96,13 +126,19 @@ export function CapabilitiesEditor() {
   }, [])
 
   const save = async () => {
+    if (!loaded || loadError) {
+      setSaveError(
+        'Reload the page before saving — the current draft could not be read, so saving could overwrite mapped routes.',
+      )
+      return
+    }
     setSaving(true)
     setSaveError(null)
     try {
       const res = await fetch('/api/drafts/capabilities', {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ payload: { hidden } }),
+        body: JSON.stringify({ payload: { hidden, extra } }),
       })
       const body = (await res.json()) as { status: string; reason?: string; errors?: string[]; updatedAt?: string }
       if (body.status !== 'ok') throw new Error(body.errors?.[0] ?? body.reason ?? 'Save refused.')
@@ -139,8 +175,8 @@ export function CapabilitiesEditor() {
         </div>
         <div className="flex items-center gap-3">
           <Badge tone="idle">not published yet</Badge>
-          <button type="button" className="btn btn-primary" disabled={saving} onClick={save}>
-            {saving ? 'Saving…' : savedAt ? 'Saved as draft' : 'Save as draft'}
+          <button type="button" className="btn btn-primary" disabled={saving || !loaded || loadError} onClick={save}>
+            {saving ? 'Saving…' : !loaded ? 'Reading draft…' : savedAt ? 'Saved as draft' : 'Save as draft'}
           </button>
         </div>
       </div>
@@ -148,7 +184,83 @@ export function CapabilitiesEditor() {
         <p className="text-[13px] text-rust" role="alert">{saveError}</p>
       ) : null}
       {loadError ? (
-        <p className="text-[12px] text-rust" role="alert">Could not load your saved draft — showing defaults. Saving still works.</p>
+        <p className="text-[12px] text-rust" role="alert">
+          Could not load your saved draft. Reload before saving — saving now could overwrite mapped routes.
+        </p>
+      ) : null}
+
+      <div className="panel p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="label">Mapped routes — current draft</p>
+            <p className="mt-1 text-[13px] text-bone-dim">
+              Routes you saved from Map routes. These are the only capabilities with an
+              execution path; a catalogue entry alone is a description. Still draft until published.
+            </p>
+          </div>
+          <Link href="/map" className="btn">
+            Map routes
+          </Link>
+        </div>
+        {extra.length === 0 ? (
+          <div className="mt-4 rounded-lg border border-dashed border-ink-line bg-ink/30 p-4 text-[13px] text-bone-dim">
+            No routes in the current draft. <Link href="/map" className="text-bone underline">Map an endpoint</Link>{' '}
+            to make it executable.
+          </div>
+        ) : (
+          <ul className="mt-4 divide-y divide-ink-line/60">
+            {extra.map((e) => (
+              <li key={`${e.method} ${e.path}`} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                <div className="min-w-0">
+                  <p className="font-mono text-[12px] text-bone">{e.name}</p>
+                  <p className="mt-0.5 font-mono text-[11px] text-bone-faint">
+                    {e.method} {e.path}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge tone={e.kind === 'write' ? 'held' : 'allow'}>{e.kind}</Badge>
+                  <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-bone-faint">
+                    {e.kind === 'read' || e.allowUnattended ? 'unattended' : 'held'}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {inventory.length > 0 ? (
+        <div className="panel p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="label">Approved inventory</p>
+              <p className="mt-1 text-[13px] text-bone-dim">
+                Routes with an execution blueprint in this workspace, written when a publish was
+                approved. Approved is not the same as live — the published artifact still has to be
+                active before the governor serves them.
+              </p>
+            </div>
+            <Badge tone="allow">approved</Badge>
+          </div>
+          <ul className="mt-4 divide-y divide-ink-line/60">
+            {inventory.map((e) => (
+              <li key={`${e.method} ${e.path}`} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                <div className="min-w-0">
+                  <p className="font-mono text-[12px] text-bone">{e.name}</p>
+                  <p className="mt-0.5 font-mono text-[11px] text-bone-faint">
+                    {e.method} {e.path}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge tone={e.kind === 'write' ? 'held' : 'allow'}>{e.kind}</Badge>
+                  <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-bone-faint">
+                    {e.origin}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : null}
 
       {CAPS.map((c) => (
