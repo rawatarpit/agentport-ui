@@ -1,34 +1,30 @@
+// File: agentport‑ui/app/(app)/analytics/page.tsx
+import Link from 'next/link'
 import { AnalyticsView } from '@/components/analytics-view'
 import { EnforcingPanel } from '@/components/enforcing-panel'
+import { PageHeader } from '@/components/ui/page-header'
 
 export const dynamic = 'force-dynamic'
 
-/**
- * 5.x reading it back — the merchant comes back after a week.
- * Everything on this screen is something the hosted governor asserted: counts
- * plus the enforcing digest and its age. The ledger stays in Agent Port's
- * backend; this screen never proxies a raw row.
- */
 export default function AnalyticsPage() {
   return (
     <div className="space-y-6">
-      <div>
-        <p className="label">Evidence</p>
-        <h1 className="mt-2 font-display text-3xl text-bone">A week later</h1>
-        <p className="prose-bone mt-3 max-w-[68ch]">
-          Are refusals falling, are approvals piling up, which capability is being
-          called — and which config decided all of it. To read a single row, open
-          your own database: <span className="font-mono text-bone">agent-port ledger</span> reads
-          it without writing SQL. This screen shows counts so there is nothing to
-          redact and nothing to leak.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Evidence"
+        title="A week later"
+        description="Are refusals falling, are approvals piling up, which capability is being called — and which config decided all of it. This screen shows counts so there is nothing to redact and nothing to leak."
+        actions={
+          <Link href="/ledger" className="btn">
+            Read the ledger
+          </Link>
+        }
+      />
       <EnforcingPanel draftLabel="no draft open" />
       <AnalyticsView />
       <div className="panel p-5">
         <p className="label">Your rows are yours</p>
         <p className="mt-2 text-[13px] leading-relaxed text-bone-dim">
-          The append-only table lives in your database, under triggers that abort{' '}
+          The append‑only table lives in your database, under triggers that abort{' '}
           <span className="font-mono">UPDATE</span> and <span className="font-mono">DELETE</span>.
           If those triggers are dropped, the guarantee degrades to “the SDK never
           issues one” — weaker, and stated as the weaker one. Keep it if you stop
