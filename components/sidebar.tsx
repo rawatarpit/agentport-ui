@@ -28,6 +28,7 @@ const GROUPS = [
       { href: '/approvals', label: 'Approvals' },
       { href: '/ledger', label: 'Ledger' },
       { href: '/analytics', label: 'Analytics' },
+      { href: '/marketing-analytics', label: 'Marketing & Sales' },
       { href: '/team', label: 'Team' },
     ],
   },
