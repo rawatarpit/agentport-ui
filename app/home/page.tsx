@@ -46,15 +46,6 @@ export const metadata: Metadata = {
  * Never send an email address, an amount, or a request payload.
  */
 
-const NAV = [
-  { href: '#problem', label: 'Why' },
-  { href: '#how', label: 'How it works' },
-  { href: '#demo', label: 'Demo' },
-  { href: '#controls', label: 'Controls' },
-  { href: '#security', label: 'Security' },
-  { href: '#contact', label: 'Pilot' },
-]
-
 const SPECS = [
   { k: 'Enforcement', v: 'Before execution' },
   { k: 'Decisions', v: 'Allow · Hold · Refuse' },
@@ -63,16 +54,16 @@ const SPECS = [
 
 const PROBLEMS = [
   {
-    title: 'Limited visibility',
-    body: 'Without a consistent record, it is difficult to know which agents are interacting with your systems, what they requested, and how those requests were handled.',
+    title: 'You cannot see the work',
+    body: 'Without a consistent record, you cannot tell which agents touched your systems, what they asked for, or how each request was handled.',
   },
   {
-    title: 'No operational boundaries',
-    body: 'Authentication can identify a caller, but it does not define which business actions that caller may perform. Policy has to account for the operation and its context.',
+    title: 'Authentication is not policy',
+    body: 'A login proves who is calling. It does not decide which business actions that caller may take.',
   },
   {
-    title: 'No clear audit trail',
-    body: 'When an operation is allowed, held, or refused, the business needs a record of the decision and, where applicable, the execution outcome.',
+    title: 'The trail is incomplete',
+    body: 'When an action is allowed, held, or refused, you need the decision, the reason, and the outcome in one place.',
   },
 ]
 
@@ -80,41 +71,41 @@ const FLOW = [
   {
     n: '01',
     title: 'Discover',
-    body: 'Your business publishes capability and integration information. The manifest is advisory: compatible agents may use it, and publishing it does not force discovery.',
+    body: 'Your business publishes capability information. Compatible agents may use it; publishing does not force discovery.',
   },
   {
     n: '02',
     title: 'Verify',
-    body: 'The request reaches the governed path. The governor verifies a business-issued, short-lived, scoped credential and the available request context.',
+    body: 'The request reaches AgentPort, which checks the short-lived, scoped credential and the request context.',
   },
   {
     n: '03',
-    title: 'Evaluate',
-    body: 'The governor checks the request against your ordered policy. The decision is allow, hold, or refuse.',
+    title: 'Decide',
+    body: 'AgentPort applies your ordered policy and returns allow, hold, or refuse.',
   },
   {
     n: '04',
-    title: 'Record and execute',
-    body: 'An allowed operation proceeds through the configured path. A held operation waits for approval. Decisions and execution outcomes are recorded.',
+    title: 'Record',
+    body: 'An allowed action proceeds. A held action waits for approval. The decision and outcome are recorded.',
   },
 ]
 
 const CONTROLS = [
   {
     title: 'Ceilings',
-    body: 'Set absolute and soft limits on measurable operations. A request above an absolute ceiling is denied; a request above a soft ceiling is held for approval.',
+    body: 'Set hard and soft limits on measurable actions. Above a hard limit: refused. Above a soft limit: held for approval.',
   },
   {
     title: 'Holds',
-    body: 'Pause an operation until an authorised person approves it. A held operation does not execute while approval is pending, and approval re-evaluates policy at commit.',
+    body: 'Pause an action until an authorized person approves it. A held action does not run while approval is pending. Approval checks policy again at commit.',
   },
   {
     title: 'Refusals',
-    body: 'Block operations the business does not permit. Every refusal carries a clear reason and is recorded. Denials are decided before holds.',
+    body: 'Block actions your business does not allow. Every refusal has a reason and is recorded. Refusals are checked before holds.',
   },
   {
     title: 'Kill switch',
-    body: 'Stop the governed agent pathway: agent-initiated writes are denied and reads become audit-only. Your website and your own APIs keep running. It is evaluated first, and a publish cannot clear it.',
+    body: 'Stop agent-initiated writes and make reads audit-only. Your website and APIs keep running. It is checked first and cannot be cleared by a publish.',
   },
 ]
 
@@ -150,51 +141,51 @@ const AUDIT_ROWS = [
 
 const SECURITY = [
   {
-    title: 'Which requests',
-    body: 'Only operations integrated with and routed through AgentPort’s governance path. Ordinary site traffic and APIs you have not connected are outside the boundary.',
+    title: 'Scope',
+    body: 'Only operations connected to AgentPort. Ordinary site traffic and unconnected APIs are outside the boundary.',
   },
   {
     title: 'Caller identity',
-    body: 'A business-issued, short-lived, scoped credential, verified before policy. Being an agent is not a credential.',
+    body: 'A short-lived, scoped credential issued by your business, checked before policy. Being an agent is not a credential.',
   },
   {
-    title: 'Policy evaluation',
-    body: 'AgentPort applies ordered policy before execution: kill switch, prohibitions, ceilings, approval thresholds, rate limit. First match wins.',
+    title: 'Policy order',
+    body: 'Kill switch, prohibitions, ceilings, approval thresholds, rate limit. First match wins.',
   },
   {
-    title: 'Held operations',
-    body: 'A held request does not execute. Approval re-evaluates policy at commit and runs the operation exactly once.',
+    title: 'Held actions',
+    body: 'A held action does not run. Approval checks policy again at commit and runs the action once.',
   },
   {
     title: 'Approvals',
-    body: 'Decided through the CLI where the credential lives, not a browser button. The console displays the queue; it does not decide.',
+    body: 'Decided through the CLI where the credential lives, not a browser button. The console shows the queue; it does not decide.',
   },
   {
     title: 'Ledger',
-    body: 'Append-only rows carry capability, agent, user represented, decision, rule, reason, approval, result, redacted context, and a per-row digest. The console view omits parameters and order values.',
+    body: 'Append-only rows record capability, agent, user, decision, rule, reason, approval, result, redacted context, and a per-row digest. The console view omits parameters and order values.',
   },
   {
-    title: 'Credentials and secrets',
-    body: 'CVV, passwords, API keys, and raw credentials are never persisted. Ingestion uses a revocable per-tenant push key; AgentPort never holds a merchant database credential.',
+    title: 'Secrets',
+    body: 'CVV, passwords, API keys, and raw credentials are never stored. Ingestion uses a revocable per-tenant push key. AgentPort never holds a merchant database credential.',
   },
   {
-    title: 'Emergency disable',
-    body: 'The kill switch denies agent-initiated writes, makes reads audit-only, and leaves your website and APIs running. It is evaluated first and is never carried in a published artifact.',
+    title: 'Emergency stop',
+    body: 'The kill switch blocks agent-initiated writes, makes reads audit-only, and leaves your website and APIs running. It is checked first and is never part of a published artifact.',
   },
 ]
 
 const INTEGRATION_STEPS = [
   'Connect the repository or download the discovery package.',
-  'Identify the business operations to expose.',
-  'Integrate those operations with AgentPort’s governance path.',
-  'Configure the initial policies.',
-  'Test allow, hold, and refusal behaviour.',
-  'Review the resulting activity and audit records.',
+  'Choose the operations to expose.',
+  'Connect those operations to AgentPort.',
+  'Set the initial policies.',
+  'Test allow, hold, and refuse.',
+  'Review the activity and audit records.',
 ]
 
 const PILOT_TERMS = [
   'One environment',
-  'Assisted installation',
+  'Assisted setup',
   'A limited set of agreed capabilities',
   'Initial policy configuration',
   'A working allow / hold / refuse demonstration',
@@ -206,56 +197,39 @@ const PILOT_TERMS = [
 
 const FAQ = [
   {
-    q: 'Does AgentPort replace our API or authentication system?',
-    a: 'No. AgentPort works alongside your existing application and API infrastructure. It adds a governed path for the operations you connect to it; your authentication and authorisation responsibilities remain yours.',
+    q: 'Does AgentPort replace our API or authentication?',
+    a: 'No. It works alongside your application and API. AgentPort governs the operations you connect; authentication and authorization remain yours.',
   },
   {
-    q: 'Does publishing a manifest mean every AI agent can discover our business?',
-    a: 'No. A manifest is structured information for compatible clients and agents. Discovery depends on whether a particular agent or platform supports it and chooses to use it. The site manifest is advisory; it carries no policy decision.',
+    q: 'Does a manifest make our business discoverable by every agent?',
+    a: 'No. A manifest is information for compatible clients. Discovery depends on the agent or platform. The manifest is advisory and carries no policy decision.',
   },
   {
-    q: 'What happens when a request is held?',
-    a: 'The operation remains pending and must not execute until the required approval is completed. Approval re-evaluates policy at commit, and the decision and outcome are recorded.',
+    q: 'What happens when an action is held?',
+    a: 'It stays pending and does not run until the required approval is recorded. Approval checks policy again at commit.',
   },
   {
-    q: 'Can we decide which operations agents are allowed to perform?',
-    a: 'Yes, for the capabilities you integrate with AgentPort. Policies can allow, hold, or refuse requests according to the controls the product supports.',
+    q: 'Can we choose what agents may do?',
+    a: 'Yes, for the capabilities you connect. Policies can allow, hold, or refuse requests.',
   },
   {
     q: 'Does AgentPort store customer or transaction data?',
-    a: 'AgentPort records the decision, rule, reason, approval, execution outcome, agent identity, the user represented, redacted request context, and a per-row digest. The console view omits parameters and order values. CVV, passwords, API keys, and raw credentials are never persisted. Retention terms are agreed in the pilot.',
+    a: 'It records the decision, rule, reason, approval, outcome, agent identity, user represented, redacted context, and a per-row digest. The console view omits parameters and order values. CVV, passwords, API keys, and raw credentials are never stored. Retention is agreed in the pilot.',
   },
   {
     q: 'How long does integration take?',
-    a: 'No fixed duration is promised. Timing depends on your application, the operations you connect, and your deployment environment. The pilot is hand-held and starts with one environment and a focused set of operations.',
+    a: 'There is no fixed duration. It depends on your application, the operations you connect, and your environment. A pilot starts with one environment and a focused set of operations.',
   },
 ]
 
 export default function HomePage() {
   return (
     <div className="min-h-screen">
-      <div
-        aria-hidden="true"
-        className="h-[2px] w-full bg-gradient-to-r from-verdant/0 via-verdant/60 to-verdant/0"
-      />
-
       <header className="sticky top-0 z-40 border-b border-ink-line/60 bg-ink/85 backdrop-blur-md">
         <div className="mx-auto flex w-full max-w-[1200px] items-center justify-between gap-4 px-5 py-3.5 sm:px-8">
           <Link href="/home" aria-label="AgentPort home" className="shrink-0">
             <AgentPortLogo />
           </Link>
-
-          <nav aria-label="Primary" className="hidden items-center gap-6 lg:flex">
-            {NAV.map((item) => (
-              <a
-                key={item.href}
-                href={item.href}
-                className="font-mono text-[11px] uppercase tracking-[0.1em] text-bone-faint transition-colors hover:text-bone"
-              >
-                {item.label}
-              </a>
-            ))}
-          </nav>
 
           <div className="flex items-center gap-2">
             <div className="hidden w-24 sm:block">
@@ -274,22 +248,6 @@ export default function HomePage() {
       <main className="mx-auto w-full max-w-[1200px] px-5 sm:px-8">
         {/* Hero */}
         <section className="relative grid items-center gap-14 pb-14 pt-16 sm:pb-20 sm:pt-24 lg:grid-cols-[1.04fr_0.96fr] lg:gap-16">
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 -z-10"
-            style={{
-              backgroundImage: 'radial-gradient(rgb(var(--ink-line)) 1px, transparent 1px)',
-              backgroundSize: '24px 24px',
-              maskImage: 'radial-gradient(ellipse 65% 55% at 22% 0%, black, transparent 72%)',
-              WebkitMaskImage: 'radial-gradient(ellipse 65% 55% at 22% 0%, black, transparent 72%)',
-            }}
-          />
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute -right-52 -top-24 -z-10 hidden h-[520px] w-[520px] rounded-full lg:block"
-            style={{ background: 'radial-gradient(circle, rgba(47,156,104,0.10), transparent 62%)' }}
-          />
-
           <div className="rise">
             <div className="flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.14em] text-bone-faint">
               <span className="h-1.5 w-1.5 rounded-full bg-verdant" aria-hidden="true" />
@@ -306,12 +264,9 @@ export default function HomePage() {
             </h1>
 
             <p className="prose-bone mt-6 max-w-[54ch]">
-              As AI agents begin interacting with business systems, companies need
-              more than a way to expose APIs. They need to know who is making a
-              request, what the agent is trying to do, and whether that action
-              should be allowed. AgentPort provides a governed path for
-              agent-initiated operations, with policy enforcement and an audit
-              trail.
+              Agents can place orders, issue refunds, and change accounts.
+              AgentPort decides what they may do before they do it — and records
+              every decision.
             </p>
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -338,8 +293,8 @@ export default function HomePage() {
             </ul>
 
             <p className="mt-4 max-w-[52ch] font-mono text-[11px] leading-relaxed text-bone-faint">
-              Enforcement covers operations connected to the AgentPort path — not
-              every interaction on your site.
+              Enforcement covers only the operations you connect to AgentPort —
+              not every interaction on your site.
             </p>
           </div>
 
@@ -363,8 +318,8 @@ export default function HomePage() {
           <SectionHead
             index="01"
             eyebrow="The problem"
-            title="Giving agents access is not the same as giving them permission."
-            lede="An AI agent may find a product, create an order, change an account, or request a refund. Those operations do not carry the same risk. Businesses need to distinguish routine requests from actions that require limits, review, or refusal."
+            title="Access is not permission."
+            lede="An agent can browse products, create an order, change an account, or request a refund. Each action carries a different risk. You need to separate routine work from work that needs a limit, a review, or a refusal."
           />
           <div className="mt-12 grid gap-0 border-t border-ink-line/60 sm:grid-cols-3">
             {PROBLEMS.map((p, i) => (
@@ -379,9 +334,8 @@ export default function HomePage() {
             ))}
           </div>
           <p className="mt-8 max-w-[72ch] font-mono text-[11px] leading-relaxed text-bone-faint">
-            Identity, traffic management, business policy, and auditability are
-            related concerns, not the same one. AgentPort adds the policy and proof
-            layer for the operations connected to it.
+            Identity, traffic, policy, and audit are different problems. AgentPort
+            adds the policy and proof layer for the operations you connect.
           </p>
         </section>
 
@@ -390,8 +344,8 @@ export default function HomePage() {
           <SectionHead
             index="02"
             eyebrow="How it works"
-            title="A controlled path from agent request to business operation."
-            lede="Only calls routed through the governor are governed. The site manifest is advisory, and publishing it does not guarantee discovery by every agent."
+            title="One path from request to operation."
+            lede="Only calls routed through AgentPort are governed. The manifest is optional and does not guarantee discovery."
           />
           <ol className="mt-12 grid gap-10 sm:grid-cols-2 lg:grid-cols-4 lg:gap-8">
             {FLOW.map((step) => (
@@ -412,8 +366,8 @@ export default function HomePage() {
           <SectionHead
             index="03"
             eyebrow="Product demonstration"
-            title="See a policy decision before an operation proceeds."
-            lede="Select a sample request. The decision is illustrative; AgentPort makes the real one from the merchant’s signed policy."
+            title="See a decision before an action runs."
+            lede="Choose a sample request. The decision is illustrative; the real decision comes from your signed policy."
           />
           <div className="mt-12">
             <DecisionDemo />
@@ -425,8 +379,8 @@ export default function HomePage() {
           <SectionHead
             index="04"
             eyebrow="Governance controls"
-            title="Set the rules for what agents can do."
-            lede="Four controls, evaluated in order. Denials are decided before holds, so a human is never asked to approve the impossible."
+            title="Set the rules."
+            lede="Four controls, checked in order. Refusals happen before holds, so no one is asked to approve something impossible."
           />
           <div className="mt-12 grid gap-x-10 gap-y-0 sm:grid-cols-2">
             {CONTROLS.map((control, i) => (
@@ -448,8 +402,8 @@ export default function HomePage() {
           <SectionHead
             index="05"
             eyebrow="Activity and audit"
-            title="Understand what happened, not just how much traffic arrived."
-            lede="AgentPort records governed activity so teams can review requests, policy decisions, reasons, and execution outcomes."
+            title="See what happened."
+            lede="AgentPort records each governed request, the decision, the reason, and the execution outcome."
           />
           <div className="mt-12">
             <AuditTable />
@@ -461,8 +415,8 @@ export default function HomePage() {
           <SectionHead
             index="06"
             eyebrow="Security and boundaries"
-            title="Designed around clear enforcement boundaries."
-            lede="Only claims this implementation supports. Unverified properties are omitted."
+            title="Clear boundaries."
+            lede="What AgentPort controls — and what it does not."
           />
           <div className="mt-12 grid gap-x-10 gap-y-0 sm:grid-cols-2">
             {SECURITY.map((item, i) => (
@@ -476,8 +430,8 @@ export default function HomePage() {
             ))}
           </div>
           <p className="mt-8 max-w-[72ch] font-mono text-[11px] leading-relaxed text-bone-faint">
-            No blanket “fully secure” claim. The enforcement boundary is AgentPort’s
-            governance path; the installed package carries no decisions.
+            No blanket security claim. The boundary is AgentPort’s governance
+            path; the installed package makes no decisions.
           </p>
         </section>
 
@@ -486,8 +440,8 @@ export default function HomePage() {
           <SectionHead
             index="07"
             eyebrow="Integration"
-            title="Start with the business operations you want to govern."
-            lede="AgentPort fits alongside your existing application and API infrastructure. Start by identifying the operations AI agents may need, then connect those operations to the governed path."
+            title="Start with the operations you want to govern."
+            lede="AgentPort works alongside your application and API. Start with the operations agents need, then connect them."
           />
           <div className="mt-12 grid items-start gap-10 lg:grid-cols-[1.05fr_0.95fr]">
             <ol className="space-y-5">
@@ -511,7 +465,7 @@ export default function HomePage() {
                   One pull request on{' '}
                   <code className="font-mono text-[12px] text-bone">agentport/install</code>{' '}
                   adds the discovery package. You review and merge; your CI/CD
-                  deploys. Later changes flow through the publish channel, not
+                  deploys. Later changes go through the publish channel, not
                   another pull request.
                 </p>
                 <p>
@@ -520,11 +474,11 @@ export default function HomePage() {
                   your stack during setup.
                 </p>
                 <p>
-                  A manual download path uses the same compiler for repositories
-                  that cannot take the GitHub App.
+                  A manual download uses the same compiler for repositories that
+                  cannot use the GitHub App.
                 </p>
                 <p className="font-mono text-[11px] text-bone-faint">
-                  The installed package carries no decisions.
+                  The installed package makes no decisions.
                 </p>
               </div>
             </div>
@@ -533,30 +487,22 @@ export default function HomePage() {
 
         {/* Founding pilot */}
         <section id="contact" className="scroll-mt-24 border-t border-ink-line/60 py-16 sm:py-24">
-          <div className="relative overflow-hidden rounded-xl border border-verdant/25 bg-ink-soft p-6 sm:p-10">
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-0"
-              style={{
-                background:
-                  'radial-gradient(680px 240px at 10% -10%, rgba(47,156,104,0.13), transparent 70%)',
-              }}
-            />
-            <div className="relative grid items-start gap-12 lg:grid-cols-[0.95fr_1.05fr]">
+          <div className="rounded-xl border border-verdant/25 bg-ink-soft p-6 sm:p-10">
+            <div className="grid items-start gap-12 lg:grid-cols-[0.95fr_1.05fr]">
               <div>
                 <div className="flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.14em] text-bone-faint">
                   <span className="h-1.5 w-1.5 rounded-full bg-verdant" aria-hidden="true" />
                   Founding pilot — by invitation
                 </div>
                 <h2 className="mt-5 font-display text-[clamp(2rem,4vw,3rem)] leading-[1.02] tracking-[-0.02em] text-bone">
-                  Put AgentPort against a real business workflow.
+                  Put AgentPort against a real workflow.
                 </h2>
                 <p className="prose-bone mt-4">
-                  We are working with a small number of businesses to validate
-                  AgentPort against real agent-driven workflows. A founding pilot
-                  starts with one environment and a focused set of operations, so
-                  both teams can verify the integration, policy behaviour, and
-                  audit trail before expanding the scope.
+                  We are working with a small number of businesses to test
+                  AgentPort on real agent workflows. A pilot starts with one
+                  environment and a focused set of operations, so both teams can
+                  verify the integration, policy behavior, and audit trail before
+                  expanding.
                 </p>
                 <p className="mt-3 font-mono text-[12px] leading-relaxed text-bone-dim">
                   No AgentPort fee for selected founding-pilot participants.
@@ -591,8 +537,8 @@ export default function HomePage() {
         <section id="faq" className="scroll-mt-24 border-t border-ink-line/60 py-16 sm:py-24">
           <SectionHead
             index="08"
-            eyebrow="Straight answers"
-            title="The questions a technical buyer will ask."
+            eyebrow="FAQ"
+            title="Straight answers."
           />
           <div className="mt-12 grid gap-x-10 gap-y-0 sm:grid-cols-2">
             {FAQ.map((item) => (
@@ -616,42 +562,26 @@ export default function HomePage() {
       </main>
 
       <footer className="border-t border-ink-line">
-        <div className="mx-auto w-full max-w-[1200px] px-5 py-12 sm:px-8">
-          <div className="grid gap-10 sm:grid-cols-[1.4fr_0.6fr_0.6fr]">
-            <div>
-              <AgentPortLogo size={28} />
-              <p className="mt-4 max-w-xs text-[13px] leading-relaxed text-bone-faint">
-                AI agent governance for businesses whose agents act on their
-                behalf. Decisions, reasons, and outcomes — never order values or
-                secrets.
-              </p>
-            </div>
-            <div className="space-y-2.5 font-mono text-[12px]">
-              <p className="label">Product</p>
-              {NAV.map((item) => (
-                <a
-                  key={item.href}
-                  href={item.href}
-                  className="block text-bone-dim transition-colors hover:text-bone"
-                >
-                  {item.label}
-                </a>
-              ))}
-            </div>
-            <div className="space-y-2.5 font-mono text-[12px]">
-              <p className="label">Account</p>
-              <Link href="/login" className="block text-bone-dim transition-colors hover:text-bone">
-                Sign in
-              </Link>
-              <a href="#contact" className="block text-bone-dim transition-colors hover:text-bone">
-                Request a founding pilot
-              </a>
-            </div>
+        <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-8 px-5 py-12 sm:flex-row sm:items-start sm:justify-between sm:px-8">
+          <div>
+            <AgentPortLogo size={28} />
+            <p className="mt-4 max-w-sm text-[13px] leading-relaxed text-bone-faint">
+              AI agent governance for businesses. Decisions, reasons, and
+              outcomes — never order values or secrets.
+            </p>
           </div>
-          <div className="mt-12 flex flex-wrap items-center justify-between gap-3 border-t border-ink-line/60 pt-6 font-mono text-[11px] text-bone-faint">
-            <p>© 2026 AgentPort</p>
-            <p>Decisions and reasons, never order values.</p>
+          <div className="flex gap-8 font-mono text-[12px]">
+            <Link href="/login" className="text-bone-dim transition-colors hover:text-bone">
+              Sign in
+            </Link>
+            <a href="#contact" className="text-bone-dim transition-colors hover:text-bone">
+              Request a founding pilot
+            </a>
           </div>
+        </div>
+        <div className="mx-auto flex w-full max-w-[1200px] flex-wrap items-center justify-between gap-3 border-t border-ink-line/60 px-5 py-6 font-mono text-[11px] text-bone-faint sm:px-8">
+          <p>© 2026 AgentPort</p>
+          <p>Decisions and reasons, never order values.</p>
         </div>
       </footer>
     </div>
@@ -674,7 +604,6 @@ function SectionHead({
       <div className="flex items-center gap-3 border-t border-ink-line/70 pt-5">
         <span className="font-mono text-[11px] text-verdant">{index}</span>
         <span className="label">{eyebrow}</span>
-        <span aria-hidden="true" className="hidden h-px flex-1 bg-ink-line/60 sm:block" />
       </div>
       <div className="mt-5 grid gap-4 sm:grid-cols-[1.08fr_0.92fr] sm:items-end sm:gap-10">
         <h2 className="text-balance font-display text-[clamp(1.9rem,3.6vw,2.75rem)] leading-[1.04] tracking-[-0.02em] text-bone">
@@ -722,8 +651,8 @@ function DecisionPreview() {
       </ul>
 
       <p className="border-t border-ink-line bg-ink/40 px-4 py-3 text-[11px] leading-relaxed text-bone-faint">
-        A held request has not executed. A decision is not proof that the
-        downstream call succeeded.
+        A held request has not run. A decision is not proof that the downstream
+        call succeeded.
       </p>
     </div>
   )
@@ -732,11 +661,11 @@ function DecisionPreview() {
 /** The request path, with the ledger shown as a record rather than a step. */
 function FlowDiagram() {
   const steps = [
-    { label: 'AI agent or client', body: 'A business-issued credential' },
-    { label: 'Capability entry point', body: 'Your integration or proxy' },
-    { label: 'AgentPort governor', body: 'Policy enforcement' },
-    { label: 'Policy decision', body: 'Allow · Hold · Refuse' },
-    { label: 'Business operation', body: 'Executed only after a decision' },
+    { label: 'AI agent', body: 'Scoped credential' },
+    { label: 'Your endpoint', body: 'Integration or proxy' },
+    { label: 'AgentPort', body: 'Policy check' },
+    { label: 'Decision', body: 'Allow · Hold · Refuse' },
+    { label: 'Business action', body: 'Runs only after a decision' },
   ]
 
   return (
@@ -772,14 +701,13 @@ function FlowDiagram() {
       <div className="mt-3 rounded-md border border-dashed border-ink-line bg-ink/30 p-3">
         <p className="font-mono text-[11px] text-bone">Ledger</p>
         <p className="mt-1 text-[11px] leading-relaxed text-bone-faint">
-          Append-only record of the decision and outcome. It records; it does not
-          execute.
+          Records the decision and outcome. Does not execute.
         </p>
       </div>
 
       <p className="mt-4 font-mono text-[10px] leading-relaxed text-bone-faint">
-        Only calls routed through the governor are governed. Publishing a manifest
-        does not guarantee that every agent discovers it.
+        Only calls routed through AgentPort are governed. A manifest does not
+        guarantee discovery.
       </p>
     </div>
   )
@@ -801,11 +729,11 @@ function AuditTable() {
           <thead>
             <tr className="border-b border-ink-line font-mono text-[10px] uppercase tracking-[0.08em] text-bone-faint">
               <th className="px-4 py-2 font-normal">Time</th>
-              <th className="px-4 py-2 font-normal">Agent / caller</th>
+              <th className="px-4 py-2 font-normal">Agent</th>
               <th className="px-4 py-2 font-normal">Capability</th>
               <th className="px-4 py-2 font-normal">Decision</th>
               <th className="px-4 py-2 font-normal">Reason</th>
-              <th className="px-4 py-2 font-normal">Execution</th>
+              <th className="px-4 py-2 font-normal">Outcome</th>
             </tr>
           </thead>
           <tbody>
@@ -829,9 +757,8 @@ function AuditTable() {
       </div>
 
       <p className="border-t border-ink-line bg-ink/40 px-4 py-3 text-[11px] leading-relaxed text-bone-faint">
-        The console view omits parameters and order values. The ledger row records
-        the decision without exposing order values. A decision is not proof of
-        success; the execution outcome is recorded after the call.
+        The console view omits parameters and order values. A decision is not
+        proof of success; the outcome is recorded after the call.
       </p>
     </div>
   )
