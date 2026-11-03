@@ -8,18 +8,13 @@ export default function MapPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Discover"
-        title="Map your routes to capabilities"
-        description="Crawl your public site or paste agent-port discover, capture, or inventory output. This page reconciles corroborated, undeclared, and unused routes — you pick which endpoints become executable capabilities."
+        eyebrow="Map pages"
+        title="Which pages can agents use?"
+        description="AgentPort only acts on pages you choose. Scan your site, pick the pages, then save. Nothing is live for your visitors until you publish."
         actions={
-          <>
-            <Link href="/capabilities" className="btn btn-primary">
-              View mapped routes
-            </Link>
-            <Link href="/go-live#capabilities" className="btn">
-              Go-live step
-            </Link>
-          </>
+          <Link href="/capabilities" className="btn btn-primary">
+            Review mapped pages
+          </Link>
         }
       />
 

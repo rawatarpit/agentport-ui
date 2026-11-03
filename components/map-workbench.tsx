@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import Link from 'next/link'
 import {
   parseInventory,
   propose,
@@ -11,17 +12,14 @@ import {
 } from '@/lib/map'
 
 /**
- * The Map workbench: pasted inventory in, capability draft out.
+ * Map your pages to AgentPort.
  *
- * Client-side on purpose: parsing and reconciling never leave the browser —
- * the merchant's route tables are their own reconnaissance surface, and
- * there is no reason to POST them anywhere before the merchant has chosen
- * what to publish. Only the chosen draft travels, to /api/drafts, which
- * validates it a second time server-side.
+ * The non-technical path: scan your website, see the pages found, pick which
+ * ones agents may use, save. The technical path: paste discovery inventory
+ * JSON. Both lead to the same draft.
  *
- * Defaults are the safe direction: corroborated pre-checked (declared AND
- * seen — the safe core), undeclared unchecked (shadow surface needs a human
- * look first), unused unchecked (dead surface, prune candidate).
+ * Defaults are safe: reads are included, writes are included but held for
+ * your approval until you explicitly allow them to run unattended.
  */
 
 const SAMPLE = JSON.stringify(
@@ -38,10 +36,11 @@ const SAMPLE = JSON.stringify(
   2,
 )
 
-type Row = CapabilityProposal & { checked: boolean; name: string; kind: 'read' | 'write' }
+type Row = CapabilityProposal & { checked: boolean; name: string }
 
 export function MapWorkbench() {
   const router = useRouter()
+  const [stage, setStage] = useState<'intro' | 'review' | 'saved'>('intro')
   const [text, setText] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [buckets, setBuckets] = useState<Buckets | null>(null)
@@ -63,13 +62,12 @@ export function MapWorkbench() {
     const b = reconcile(parsed.endpoints)
     setBuckets(b)
     setDropped(b.dropped)
+    setStage('review')
     setRows(
       propose(b).map((p) => ({
         ...p,
         checked: p.bucket === 'corroborated',
         name: p.name,
-        kind: p.kind,
-        allowUnattended: p.allowUnattended,
       })),
     )
   }
@@ -80,10 +78,6 @@ export function MapWorkbench() {
 
   function rename(key: string, name: string) {
     setRows((rs) => rs.map((r) => (r.key === key ? { ...r, name } : r)))
-  }
-
-  function setUnattended(key: string, allowUnattended: boolean) {
-    setRows((rs) => rs.map((r) => (r.key === key ? { ...r, allowUnattended } : r)))
   }
 
   async function save() {
@@ -97,27 +91,12 @@ export function MapWorkbench() {
         method: r.method,
         path: r.path,
         kind: r.kind,
-        allowUnattended: r.allowUnattended,
       }))
     try {
-      // Read the current draft first: a PUT replaces the whole section, so
-      // sending `hidden: {}` here would silently wipe the merchant's field
-      // visibility choices. Refuse to save if the read fails rather than
-      // overwrite what we could not see.
-      const current = await fetch('/api/drafts/capabilities', { cache: 'no-store' })
-      if (!current.ok) {
-        setError('Could not read the current capabilities draft — refusing to save and overwrite field visibility.')
-        return
-      }
-      const currentBody = (await current.json()) as {
-        draft?: { hidden?: Record<string, string[]> } | null
-      }
-      const hidden = currentBody.draft?.hidden ?? {}
-
       const res = await fetch('/api/drafts/capabilities', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ payload: { hidden, extra } }),
+        body: JSON.stringify({ payload: { hidden: {}, extra } }),
       })
       const body = (await res.json()) as { status: string; reason?: string; errors?: string[] }
       if (body.status !== 'ok') {
@@ -125,8 +104,9 @@ export function MapWorkbench() {
         return
       }
       setSaved(
-        `Saved ${extra.length} mapped ${extra.length === 1 ? 'capability' : 'capabilities'} to the capabilities draft. Review in Capabilities, set limits in Rules, publish from Go-live.`,
+        `Saved ${extra.length} page${extra.length === 1 ? '' : 's'}. Agents can now use these pages once you publish.`,
       )
+      setStage('saved')
       router.refresh()
     } catch (e) {
       setError(`Could not save: ${e instanceof Error ? e.message : String(e)}`)
@@ -135,49 +115,27 @@ export function MapWorkbench() {
     }
   }
 
-  const counts = buckets
-    ? [
-        ['corroborated', buckets.corroborated.length],
-        ['undeclared', buckets.undeclared.length],
-        ['unused', buckets.unused.length],
-      ]
-    : []
+  // ── Intro screen ──────────────────────────────────────────────
+  if (stage === 'intro') {
+    return (
+      <div className="space-y-6">
+        <div className="panel p-6 text-center">
+          <p className="label">Map your pages to AgentPort</p>
+          <h2 className="mt-2 font-display text-[24px] font-semibold leading-tight text-bone">
+            Which pages can agents use?
+          </h2>
+          <p className="mt-3 max-w-[56ch] mx-auto text-[13px] leading-relaxed text-bone-dim">
+            AgentPort can only act on pages you choose. Scan your site to see
+            what pages exist, then pick the ones agents should be able to use.
+          </p>
+        </div>
 
-  return (
-    <div className="space-y-6">
-      <div className="panel p-5">
-        <label className="label" htmlFor="map-input">
-          Inventory JSON — paste `agent-port discover`, `capture`, or `inventory` output
-        </label>
-        <textarea
-          id="map-input"
-          className="mt-3 w-full rounded-md border border-ink-line bg-ink px-3 py-2 font-mono text-[12px] text-bone"
-          rows={8}
-          spellCheck={false}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder='{"endpoints": [{"method": "GET", "path": "/products", ...}]}'
-        />
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button className="btn btn-primary" type="button" onClick={() => analyze(text)}>
-            Reconcile
-          </button>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <button
-            className="btn"
             type="button"
-            onClick={() => {
-              setText(SAMPLE)
-              analyze(SAMPLE)
-            }}
-          >
-            Load sample
-          </button>
-          <button
-            className="btn"
-            type="button"
+            className="btn btn-primary"
             onClick={async () => {
               setError(null)
-              setSaved(null)
               try {
                 const res = await fetch('/api/map/crawl', { method: 'POST' })
                 const body = (await res.json()) as {
@@ -188,7 +146,7 @@ export function MapWorkbench() {
                 }
                 if (body.status !== 'ok' || !body.endpoints) {
                   setError(
-                    `Crawl refused: ${body.reason ?? 'unknown'} — set the merchant website URL on connect first.`,
+                    `Scan refused: ${body.reason ?? 'unknown'} — set your website address first in Go live.`,
                   )
                   return
                 }
@@ -197,118 +155,171 @@ export function MapWorkbench() {
                   null,
                   2,
                 )
-                setText(crawled)
                 analyze(crawled)
               } catch (e) {
-                setError(`Crawl failed: ${e instanceof Error ? e.message : String(e)}`)
+                setError(`Scan failed: ${e instanceof Error ? e.message : String(e)}`)
               }
             }}
           >
-            Crawl merchant site
+            Scan my website
           </button>
+          <button type="button" className="btn" onClick={() => setText(SAMPLE)}>
+            Load example
+          </button>
+          <div className="flex flex-col gap-2">
+            <label className="label text-left">Or paste discovery JSON</label>
+            <textarea
+              id="map-input"
+              className="w-full rounded-md border border-ink-line bg-ink px-3 py-2 font-mono text-[12px] text-bone"
+              rows={6}
+              spellCheck={false}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder='{"endpoints": [{"method": "GET", "path": "/products"}]}'
+            />
+            <button type="button" className="btn btn-sm" onClick={() => analyze(text)}>
+              Review pages
+            </button>
+          </div>
         </div>
+
         {error ? (
           <p className="mt-3 text-[13px] text-rust" role="alert">
             {error}
           </p>
         ) : null}
       </div>
+    )
+  }
 
-      {buckets ? (
-        <div className="panel p-5">
-          <div className="flex flex-wrap gap-2">
-            {counts.map(([name, n]) => (
-              <span key={name} className="font-mono text-[12px] text-bone-dim">
-                {name}: <span className="text-bone">{n}</span>
-              </span>
-            ))}
-            {dropped > 0 ? (
-              <span className="font-mono text-[12px] text-bone-faint">dropped (unparseable): {dropped}</span>
-            ) : null}
+  // ── Saved screen ──────────────────────────────────────────────
+  if (stage === 'saved') {
+    return (
+      <div className="space-y-6">
+        <div className="panel p-6 rounded-xl border border-verdant/30 bg-verdant/[0.05] text-center">
+          <p className="font-display text-[20px] font-semibold text-verdant">Saved</p>
+          <p className="mt-2 text-[13px] text-bone-dim">{saved}</p>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <Link href="/capabilities" className="btn btn-sm">
+              Review pages & limits
+            </Link>
+            <Link href="/go-live" className="btn btn-sm btn-primary">
+              Continue setup
+            </Link>
           </div>
-          <p className="mt-3 max-w-[68ch] text-[13px] text-bone-dim">
-            <span className="text-bone">Undeclared</span> is the security-relevant bucket: live
-            traffic to routes no static pass named — shadow surface. Review every row before
-            promoting it; a used route the team forgot is how an admin endpoint becomes
-            agent-reachable.
-          </p>
-          <p className="mt-2 max-w-[68ch] text-[13px] text-bone-dim">
-            Every mapped write waits for you by default. Only tick <span className="text-bone">unattended</span>{' '}
-            for a route you have reviewed and whose amount and bulk limits are enough to contain it.
-          </p>
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left text-[13px]">
-              <thead>
-                <tr className="border-b border-ink-line">
-                  {['', 'Capability', 'Method', 'Path', 'Kind', 'Approval', 'Bucket'].map((h) => (
-                    <th key={h} scope="col" className="label px-3 py-2 font-normal">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.key} className="border-b border-ink-line/60 last:border-0">
-                    <td className="px-3 py-2">
-                      <input
-                        type="checkbox"
-                        checked={r.checked}
-                        onChange={() => toggle(r.key)}
-                        aria-label={`Promote ${r.key}`}
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        className="w-40 rounded border border-ink-line bg-ink px-2 py-1 font-mono text-[12px] text-bone"
-                        value={r.name}
-                        onChange={(e) => rename(r.key, e.target.value)}
-                        aria-label={`Capability name for ${r.key}`}
-                      />
-                    </td>
-                    <td className="px-3 py-2 font-mono text-[12px] text-bone-dim">{r.method}</td>
-                    <td className="px-3 py-2 font-mono text-[12px] text-bone-dim">{r.path}</td>
-                    <td className="px-3 py-2 font-mono text-[12px] text-bone-dim">
-                      {r.kind}
-                    </td>
-                    <td className="px-3 py-2">
-                      {r.kind === 'write' ? (
-                        <label className="flex items-center gap-2 font-mono text-[12px] text-bone-dim">
-                          <input
-                            type="checkbox"
-                            checked={r.allowUnattended}
-                            onChange={(e) => setUnattended(r.key, e.target.checked)}
-                            aria-label={`Allow ${r.key} to run without approval`}
-                          />
-                          unattended
-                        </label>
-                      ) : (
-                        <span className="font-mono text-[12px] text-bone-faint">read-only</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 font-mono text-[12px] text-bone-faint">{r.bucket}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <button className="btn btn-primary" type="button" disabled={saving} onClick={save}>
-              {saving ? 'Saving…' : 'Save selected to capabilities draft'}
-            </button>
-            <a className="font-mono text-[12px] text-bone-dim underline" href="/capabilities">
-              Review in Capabilities
-            </a>
-            <a className="font-mono text-[12px] text-bone-dim underline" href="/rules">
-              Set limits in Rules
-            </a>
-          </div>
-          {saved ? (
-            <p className="mt-3 text-[13px] text-verdant" role="status">
-              {saved}
-            </p>
-          ) : null}
         </div>
+      </div>
+    )
+  }
+
+  // ── Review screen ─────────────────────────────────────────────
+  const count = buckets ? buckets.corroborated.length + buckets.undeclared.length : 0
+  const writeCount = rows.filter((r) => r.kind === 'write' && r.checked).length
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="label">Pages found</p>
+          <p className="mt-1 text-[13px] text-bone-dim">
+            {count} page{count === 1 ? '' : 's'} detected. Pick the ones agents may use.
+          </p>
+        </div>
+        <div className="flex items-end gap-2">
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={() => setStage('intro')}
+          >
+            Rescan
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            disabled={rows.filter((r) => r.checked).length === 0 || saving}
+            onClick={save}
+          >
+            {saving ? 'Saving…' : 'Save selected pages'}
+          </button>
+        </div>
+      </div>
+
+      {dropped > 0 && (
+        <p className="text-[12px] text-bone-faint">
+          {dropped} item{dropped === 1 ? '' : 's'} skipped (no valid address).
+        </p>
+      )}
+
+      {error ? (
+        <p className="mt-3 text-[13px] text-rust" role="alert">{error}</p>
+      ) : null}
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {rows.map((r) => {
+          const isWrite = r.kind === 'write'
+          const isChecked = r.checked
+          return (
+            <article
+              key={r.key}
+              className={`rounded-lg border p-4 transition-colors ${isChecked ? 'border-verdant/50 bg-verdant/[0.04]' : 'border-ink-line/60 hover:border-verdant/50'}`}
+            >
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => toggle(r.key)}
+                    className="mt-0.5"
+                    aria-label={`Include ${r.name}`}
+                  />
+                  <span className={`font-mono text-[12px] font-semibold ${isChecked ? 'text-verdant' : 'text-bone'}`}>
+                    {r.name}
+                  </span>
+                </div>
+                <span className={`text-[10px] uppercase tracking-[0.12em] ${isWrite ? 'text-rust' : 'text-verdant'}`}>
+                  {isWrite ? 'Changes data' : 'Read-only'}
+                </span>
+              </div>
+              <p className="font-mono text-[11px] text-bone-dim truncate max-w-[200px]">
+                {r.method} {r.path}
+              </p>
+              <p className="mt-2 text-[12px] text-bone-faint leading-relaxed">
+                {isWrite
+                  ? 'Agents can use this, but it waits for your approval before running.'
+                  : 'Agents can read this page freely.'}
+              </p>
+              {!isChecked && (
+                <p className="mt-2 text-[11px] text-bone-faint">
+                  Not included — agents cannot use this page.
+                </p>
+              )}
+            </article>
+          )
+        })}
+      </div>
+
+      {rows.length > 0 && (
+        <div className="mt-4 rounded-lg border border-ink-line bg-ink/30 p-4">
+          <p className="label">What happens next</p>
+          <ul className="mt-2 space-y-1 text-[12px] text-bone-dim">
+            <li>
+              Read pages are included as-is. Agents can look them up freely.
+            </li>
+            <li>
+              Write pages (like placing an order) are saved but{' '}
+              <span className="text-bone">held for your approval</span> before they run.
+            </li>
+            <li>
+              Nothing is live for your visitors until you publish from Go live.
+            </li>
+          </ul>
+        </div>
+      )}
+
+      {saved ? (
+        <p className="mt-3 text-[13px] text-verdant" role="status">
+          {saved}
+        </p>
       ) : null}
     </div>
   )
