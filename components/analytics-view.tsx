@@ -40,7 +40,7 @@ export async function AnalyticsView() {
         .limit(200),
       supabase
         .from('v_ledger_agent_demand')
-        .select('agent_id,assurance,capability,decision')
+        .select('agent_id,assurance,capability,decision,integration_ref')
         .eq('tenant_id', tenantId)
         .limit(500),
     ])

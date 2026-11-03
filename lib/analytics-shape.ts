@@ -28,6 +28,8 @@ export type DemandRow = {
   assurance: 'verified' | 'unverified'
   capability: string
   decision: 'allow' | 'deny' | 'require_approval'
+  /** Which integration / client app made the call. Optional — history carries NULL. */
+  integration_ref?: string | null
 }
 
 export type WeeklyPoint = {
@@ -102,7 +104,9 @@ export type AgentSourceRow = {
 export function buildAgentSourceRows(demand: DemandRow[]): AgentSourceRow[] {
   const bySource = new Map<string, AgentSourceRow>()
   for (const r of demand) {
-    const source = agentSource(r.agent_id)
+    // Prefer the server-stamped integration_ref (which integration / client
+    // app made the call), falling back to detecting the chatbot from agent_id.
+    const source = r.integration_ref ?? agentSource(r.agent_id)
     const cur = bySource.get(source) ?? {
       source,
       label: source,
@@ -124,7 +128,7 @@ export function buildAgentSourceRows(demand: DemandRow[]): AgentSourceRow[] {
   // Distinct agent count per source
   const agentsBySource = new Map<string, Set<string>>()
   for (const r of demand) {
-    const source = agentSource(r.agent_id)
+    const source = r.integration_ref ?? agentSource(r.agent_id)
     let set = agentsBySource.get(source)
     if (!set) { set = new Set(); agentsBySource.set(source, set) }
     set.add(r.agent_id)

@@ -125,6 +125,27 @@ describe('analytics shape', () => {
     expect(unknown).toMatchObject({ label: 'Unknown agent', agents: 1, allow: 0, deny: 1, held: 0, total: 1 })
   })
 
+  it('prefers integration_ref over agent_id detection', () => {
+    const rows = buildAgentSourceRows([
+      { agent_id: 'chatgpt-shopping', assurance: 'verified', capability: 'createOrder', decision: 'allow', integration_ref: 'shopify-checkout' },
+      { agent_id: 'chatgpt-support', assurance: 'unverified', capability: 'searchProducts', decision: 'deny', integration_ref: 'shopify-checkout' },
+      { agent_id: 'claude-assistant', assurance: 'verified', capability: 'checkInventory', decision: 'allow', integration_ref: 'mobile-app' },
+    ])
+    const shopify = rows.find((r) => r.source === 'shopify-checkout')
+    expect(shopify).toMatchObject({ label: 'shopify-checkout', agents: 2, allow: 1, deny: 1, held: 0, total: 2 })
+    const mobile = rows.find((r) => r.source === 'mobile-app')
+    expect(mobile).toMatchObject({ label: 'mobile-app', agents: 1, allow: 1, deny: 0, held: 0, total: 1 })
+  })
+
+  it('falls back to agent_id detection when integration_ref is absent', () => {
+    const rows = buildAgentSourceRows([
+      { agent_id: 'chatgpt-shopping', assurance: 'verified', capability: 'createOrder', decision: 'allow' },
+      { agent_id: 'chatgpt-support', assurance: 'unverified', capability: 'searchProducts', decision: 'deny', integration_ref: null },
+    ])
+    const chatgpt = rows.find((r) => r.source === 'ChatGPT')
+    expect(chatgpt).toMatchObject({ label: 'ChatGPT', agents: 2, allow: 1, deny: 1, held: 0, total: 2 })
+  })
+
   it('returns empty source rows for empty demand', () => {
     expect(buildAgentSourceRows([])).toEqual([])
   })
