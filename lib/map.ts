@@ -156,6 +156,8 @@ export type CapabilityProposal = {
   method: string
   path: string
   kind: 'read' | 'write'
+  /** Writes are held by default; only an explicit Map opt-in clears this. */
+  allowUnattended: boolean
   bucket: 'corroborated' | 'undeclared' | 'unused'
 }
 
@@ -169,6 +171,7 @@ export function propose(b: Buckets): CapabilityProposal[] {
       method: e.method,
       path: e.path,
       kind: suggestKind(e.method),
+      allowUnattended: false,
       bucket,
     })
   b.corroborated.forEach((e) => push(e, 'corroborated'))
