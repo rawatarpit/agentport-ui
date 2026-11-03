@@ -1,10 +1,13 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 import { Badge } from '@/components/stat'
 
 /**
- * Publishing, on the rules screen where the draft lives.
+ * Publishing, where the merchant can see the exact bytes they are about to
+ * sign. The panel is embedded in /go-live; /rules links here rather than
+ * owning a second publish flow.
  *
  * Shows the plain-language summary of what publishing would enact next to
  * the live version — review, then publish freely. There is deliberately no
@@ -25,6 +28,7 @@ type Status = {
 }
 
 export function GolivePanel() {
+  const router = useRouter()
   const [s, setS] = useState<Status | null>(null)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
@@ -173,6 +177,7 @@ export function GolivePanel() {
       setEnvelope('')
       await load()
       await loadVersions()
+      router.refresh()
     } catch (e) {
       setUploadErr(e instanceof Error ? e.message : 'Upload refused.')
     } finally {

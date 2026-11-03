@@ -74,6 +74,7 @@ export async function POST(req: Request) {
   // Content: stored version (rollback) or current drafts. One compiler.
   let policy: Policy
   let caps: Caps
+  let inventory: Array<{ tenant_id: string; name: string; method: string; path: string; kind: 'read' | 'write'; origin: 'mapped' }> = []
   let kindOf = knownKind
   if (body.fromVersion !== undefined) {
     const v = Number(body.fromVersion)
@@ -113,12 +114,22 @@ export async function POST(req: Request) {
     // the routes the merchant actually exposes.
     const mapped = capabilities?.payload !== undefined ? validateCapabilities(capabilities.payload) : null
     const extras = mapped?.ok ? mapped.value.extra ?? [] : []
+    if (extras.length === 0) {
+      return Response.json(
+        {
+          status: 'error',
+          reason:
+            'No routes are mapped — map at least one route on the go-live page before publishing. The catalogue alone is discovery, not a runtime.',
+        },
+        { status: 422 },
+      )
+    }
     caps = extras.map((e) => ({ name: e.name }))
-    // Persist the execution descriptors the hosted worker needs. The signed
-    // artifact names capabilities; this inventory supplies method/path/kind.
-    // Doing it before the approval row means an approval cannot exist without
-    // the descriptors the runtime will require at activation.
-    const inventory = extras.map((e) => ({
+    // The execution descriptors the hosted worker needs. The signed artifact
+    // names capabilities; this inventory supplies method/path/kind. It is
+    // written after the ceremony below, so a mistyped confirmation does not
+    // leave descriptors behind.
+    inventory = extras.map((e) => ({
       tenant_id: tenantId,
       name: e.name,
       method: e.method,
@@ -126,17 +137,6 @@ export async function POST(req: Request) {
       kind: e.kind,
       origin: 'mapped' as const,
     }))
-    if (inventory.length > 0) {
-      const { error: inventoryError } = await supabase
-        .from('agent_capabilities')
-        .upsert(inventory, { onConflict: 'tenant_id,name' })
-      if (inventoryError) {
-        return Response.json(
-          { status: 'error', reason: `Could not record the capability inventory: ${inventoryError.message}` },
-          { status: 500 },
-        )
-      }
-    }
     // Extra kinds for tiering (unknown kinds fail toward typed ceremony).
     const extraKinds = new Map<string, 'read' | 'write'>()
     for (const e of extras) extraKinds.set(e.name, e.kind)
@@ -193,6 +193,24 @@ export async function POST(req: Request) {
       { status: 'error', reason: `Confirm with {"confirm": true} to approve narrowing version ${version}.`, tier, version },
       { status: 403 },
     )
+  }
+
+  // The approval is the authority; the descriptors only become meaningful
+  // when the signed artifact activates. Write them after the ceremony and
+  // before the approval row, so a failed typed confirmation changes nothing.
+  if (inventory.length > 0) {
+    const { error: inventoryError } = await supabase
+      .from('agent_capabilities')
+      .upsert(inventory, { onConflict: 'tenant_id,name' })
+    if (inventoryError) {
+      // PostgREST errors name constraints and relations. Callers get a fixed
+      // message; the detail stays in server logs.
+      console.error('capability inventory upsert failed', inventoryError)
+      return Response.json(
+        { status: 'error', reason: 'Could not record the capability inventory. Retry; if it persists, contact support.' },
+        { status: 500 },
+      )
+    }
   }
 
   const { error } = await supabase.from('publish_approvals').insert({

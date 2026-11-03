@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { contentDigest, tierForChange } from '@/lib/publish'
+import { contentDigest, publicBaseUrlProblem, tierForChange } from '@/lib/publish'
 
 const P = (over: Record<string, unknown> = {}) => ({
   maxOrderValue: { minor: 25_000, currency: 'INR' },
@@ -65,6 +65,29 @@ describe('tierForChange', () => {
   it('unknown policy keys fail toward typed', () => {
     const up = { ...P(), previewMode: true }
     expect(tierForChange({ policy: P(), capabilities: C() }, { policy: up, capabilities: C() }, KINDS)).toBe('typed')
+  })
+})
+
+describe('publicBaseUrlProblem', () => {
+  const tenant = 'f4d7c3e1-34a4-4e78-8dfd-97f80399b055'
+  const hosted = `https://governor.agentport.relayforge.in/t/${tenant}`
+  it('accepts the tenant-scoped hosted URL with or without a trailing slash', () => {
+    expect(publicBaseUrlProblem(hosted, tenant)).toBeNull()
+    expect(publicBaseUrlProblem(`${hosted}/`, tenant)).toBeNull()
+  })
+  it('requires the value: activation succeeds but the worker refuses to boot without it', () => {
+    expect(publicBaseUrlProblem(undefined, tenant)).toContain('required')
+    expect(publicBaseUrlProblem('', tenant)).toContain('required')
+  })
+  it('refuses a different tenant path or a base origin with no tenant path', () => {
+    expect(publicBaseUrlProblem('https://governor.agentport.relayforge.in', tenant)).toContain(`/t/${tenant}`)
+    expect(publicBaseUrlProblem('https://governor.agentport.relayforge.in/t/someone-else', tenant)).toContain(`/t/${tenant}`)
+  })
+  it('refuses cleartext, credentials, query strings and fragments', () => {
+    expect(publicBaseUrlProblem(`http://governor.agentport.relayforge.in/t/${tenant}`, tenant)).toContain('https')
+    expect(publicBaseUrlProblem(`https://user:pass@governor.agentport.relayforge.in/t/${tenant}`, tenant)).toContain('credentials')
+    expect(publicBaseUrlProblem(`${hosted}?x=1`, tenant)).toContain('query')
+    expect(publicBaseUrlProblem(`${hosted}#x`, tenant)).toContain('fragment')
   })
 })
 

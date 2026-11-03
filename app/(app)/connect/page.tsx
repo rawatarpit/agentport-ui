@@ -8,6 +8,7 @@ import { GithubPanel } from '@/components/github-panel'
 import { SignupForm } from '@/components/signup-form'
 import { WebsiteForm } from '@/components/website-form'
 import { WebhookPanel } from '@/components/webhook-panel'
+import { PageHeader } from '@/components/ui/page-header'
 
 type Step = { n: string; title: string; body: string; state: 'missing' | 'done'; href?: string }
 
@@ -78,15 +79,16 @@ export default function ConnectPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="label">Front door</p>
-        <h1 className="mt-2 font-display text-3xl text-bone">Connect your business</h1>
-        <p className="prose-bone mt-3 max-w-[68ch]">
-          Two doors, one artifact. The dashboard is the front door; the manual
-          installer stays as the second door for the team with no GitHub. Both
-          produce the same committed package — the merge is the signature either way.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Diagnostics"
+        title="Connect and inspect"
+        description="GitHub callbacks, website address, webhook delivery, and the manual installer. The canonical journey is Go live; this page stays as the deep link and the diagnostic bench."
+        actions={
+          <Link href="/go-live" className="btn btn-primary">
+            Open go-live
+          </Link>
+        }
+      />
 
       <EnforcingPanel draftLabel="no draft open" />
 

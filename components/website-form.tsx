@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
 /**
@@ -10,7 +11,8 @@ import { useState } from 'react'
  * address works while developing); the server checks again, because the
  * browser is not a boundary.
  */
-export function WebsiteForm({ current, onDone }: { current: string | null; onDone: () => void }) {
+export function WebsiteForm({ current, onDone }: { current: string | null; onDone?: () => void }) {
+  const router = useRouter()
   const [url, setUrl] = useState(current ?? '')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -26,7 +28,8 @@ export function WebsiteForm({ current, onDone }: { current: string | null; onDon
       })
       const body = (await res.json()) as { status: string; reason?: string }
       if (body.status !== 'ok') throw new Error(body.reason ?? 'Refused.')
-      onDone()
+      if (onDone) onDone()
+      else router.refresh()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Refused.')
     } finally {
@@ -35,7 +38,7 @@ export function WebsiteForm({ current, onDone }: { current: string | null; onDon
   }
 
   return (
-    <div className="panel space-y-3 p-6">
+    <div className="panel space-y-3 p-5 sm:p-6">
       <p className="label">Your site address</p>
       <p className="text-[13px] leading-relaxed text-bone-dim">
         The public address assistants call — the one customers reach you at.
@@ -44,7 +47,7 @@ export function WebsiteForm({ current, onDone }: { current: string | null; onDon
       </p>
       <div className="flex flex-wrap items-center gap-3">
         <input
-          className="min-w-64 flex-1 border border-ink-line bg-transparent px-3 py-2 font-mono text-[13px] text-bone outline-none focus:border-verdant focus-visible:ring-2 focus-visible:ring-verdant/60"
+          className="input min-w-64 flex-1 font-mono text-[13px]"
           value={url}
           inputMode="url"
           placeholder="https://shop.example"
@@ -57,7 +60,9 @@ export function WebsiteForm({ current, onDone }: { current: string | null; onDon
       </div>
       {current ? (
         <p className="font-mono text-[11px] text-bone-faint">serving agents at {current}</p>
-      ) : null}
+      ) : (
+        <p className="field-help">Use the address customers reach you at, not this console.</p>
+      )}
       {err ? (
         <p className="text-[13px] text-rust" role="alert">{err}</p>
       ) : null}

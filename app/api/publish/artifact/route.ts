@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { contentDigest } from '@/lib/publish'
+import { contentDigest, publicBaseUrlProblem } from '@/lib/publish'
 import { guardStateChange } from '@/lib/request-guard'
 import { resolveCallerRole } from '@/lib/tenant'
 import { readSelectedTenantId, tenantRefusalResponse } from '@/lib/tenant-server'
@@ -97,6 +97,10 @@ export async function POST(req: Request) {
     if (value !== undefined && (typeof value !== 'string' || value.trim() === '')) {
       return Response.json({ status: 'error', reason: `Envelope ${key} must be a non-empty string when present.` }, { status: 400 })
     }
+  }
+  const publicBaseUrlIssue = publicBaseUrlProblem(art.publicBaseUrl, tenantId)
+  if (publicBaseUrlIssue !== null) {
+    return Response.json({ status: 'error', reason: publicBaseUrlIssue }, { status: 422 })
   }
   if (sig === '') {
     return Response.json({ status: 'error', reason: 'Envelope carries no signature — sign it with your merchant key first.' }, { status: 400 })

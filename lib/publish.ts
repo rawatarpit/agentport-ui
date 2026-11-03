@@ -95,6 +95,37 @@ export function tierForChange(
   return 'light'
 }
 
+/**
+ * The hosted worker routes a tenant only under `/t/<tenantId>` and refuses to
+ * boot a signed artifact that advertises any other public origin. That check
+ * happens after the bytes are stored, so a missing or wrong value turns a
+ * successful activation into a tenant that can never serve. Reject it before
+ * the artifact is written; the merchant can fix the config and re-sign without
+ * an operator touching the database.
+ */
+export function publicBaseUrlProblem(value: unknown, tenantId: string): string | null {
+  if (typeof value !== 'string' || value.trim() === '') {
+    return `Envelope publicBaseUrl is required: set it to the hosted governor URL ending in /t/${tenantId}, then re-sign.`
+  }
+  let parsed: URL
+  try {
+    parsed = new URL(value.trim())
+  } catch {
+    return 'Envelope publicBaseUrl is not an absolute URL.'
+  }
+  if (parsed.protocol !== 'https:' && parsed.hostname !== 'localhost' && parsed.hostname !== '127.0.0.1') {
+    return 'Envelope publicBaseUrl must use https.'
+  }
+  if (parsed.username || parsed.password || parsed.search || parsed.hash) {
+    return 'Envelope publicBaseUrl must not carry credentials, a query or a fragment.'
+  }
+  const expected = `/t/${encodeURIComponent(tenantId)}`
+  if (parsed.pathname.replace(/\/+$/, '') !== expected) {
+    return `Envelope publicBaseUrl must be the tenant URL ending in ${expected}; got ${parsed.pathname || '/'}. Re-sign the config with the right publicBaseUrl.`
+  }
+  return null
+}
+
 /** Stable digest binding an approval to exact bytes. Key order lied once. */
 export function contentDigest(obj: unknown): string {
   const stable = (v: unknown): unknown => {

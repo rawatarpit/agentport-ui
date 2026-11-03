@@ -1,4 +1,6 @@
+import Link from 'next/link'
 import { SetupWizard } from '@/components/setup-wizard'
+import { PageHeader } from '@/components/ui/page-header'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,16 +14,16 @@ export const dynamic = 'force-dynamic'
 export default function SetupPage() {
   return (
     <div className="space-y-6">
-      <div>
-        <p className="label">Get started</p>
-          <h1 className="mt-2 font-display text-3xl text-bone">Four questions</h1>
-          <p className="prose-bone mt-3 max-w-[68ch]">
-            These answers become your first safety rules: what agents may do on
-            their own, what waits for your approval, and what is always
-            refused. Two minutes, plain words, no jargon — and everything can
-            be changed later. Nothing here takes effect until you publish it.
-          </p>
-      </div>
+      <PageHeader
+        eyebrow="Get started"
+        title="Four questions"
+        description="These answers become your first safety rules: what agents may do on their own, what waits for your approval, and what is always refused. Two minutes, plain words, no jargon — and nothing takes effect until you publish it."
+        actions={
+          <Link href="/go-live" className="btn btn-primary">
+            Open go-live
+          </Link>
+        }
+      />
 
       <SetupWizard />
     </div>

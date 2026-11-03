@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { Badge } from '@/components/stat'
 
@@ -30,6 +31,7 @@ function toMinor(v: string): number | null {
 }
 
 export function RulesEditor() {
+  const router = useRouter()
   const [d, setD] = useState<Draft>(DEFAULTS)
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -100,6 +102,7 @@ export function RulesEditor() {
       const body = (await res.json()) as { status: string; reason?: string; errors?: string[]; updatedAt?: string }
       if (body.status !== 'ok') throw new Error(body.errors?.[0] ?? body.reason ?? 'Save refused.')
       setSavedAt(body.updatedAt ?? 'saved')
+      router.refresh()
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : 'Save refused.')
     } finally {

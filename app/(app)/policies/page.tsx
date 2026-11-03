@@ -1,4 +1,5 @@
 import { Badge } from '@/components/stat'
+import { PageHeader } from '@/components/ui/page-header'
 import { KillSwitchPanel } from '@/components/kill-switch-panel'
 import { getLivePolicy } from '@/lib/backend-reads'
 import { demoModeEnabled } from '@/lib/demo-gate'
@@ -89,15 +90,11 @@ export default async function PoliciesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="label">AUTHORIZE</p>
-        <h1 className="mt-2 font-display text-3xl text-bone">Business-controlled policy</h1>
-        <p className="prose-bone mt-3 max-w-[68ch]">
-          The merchant owns this. An agent is never trusted because it is an AI
-          agent; it is trusted because the business issued it a credential with
-          named scopes, and these rules decide what that credential may do.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Authorize"
+        title="Business-controlled policy"
+        description="The merchant owns this. An agent is never trusted because it is an AI agent; it is trusted because the business issued it a credential with named scopes, and these rules decide what that credential may do."
+      />
 
       <div className="panel hidden overflow-x-auto md:block">
         <table className="w-full min-w-[760px] text-left text-[13px]">

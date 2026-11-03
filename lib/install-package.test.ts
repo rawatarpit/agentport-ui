@@ -106,9 +106,21 @@ describe('buildInstallPackageFrom', () => {
     expect(paths).toContain('agentport/config.json')
     expect(paths).toContain('agentport/publish.mjs')
     expect(paths).toContain('agentport/verify.mjs')
+    const publish = r.value.files.find((f) => f.path === 'agentport/publish.mjs')
     const verify = r.value.files.find((f) => f.path === 'agentport/verify.mjs')
+    const readme = r.value.files.find((f) => f.path === 'agentport/README.md')
+    expect(publish?.content).toContain('config.manifestUrl')
+    expect(publish?.content).toContain('live.endpoints')
+    expect(publish?.content).toContain('Token endpoint')
+    expect(publish?.content).toContain('autoIssue')
+    expect(publish?.content).toContain("createHash('sha256').update(text)")
+    expect(publish?.content).not.toContain('copyFileSync')
+    expect(publish?.content).not.toContain("readFileSync(join(here, 'llms.txt')")
     expect(verify?.content).toContain("live.business !== config.business")
+    expect(verify?.content).toContain('published manifest does not match the hosted governor selection')
+    expect(verify?.content).not.toContain('manifestSha256')
     expect(verify?.content).not.toContain('live.baseUrl !== config.workerUrl')
+    expect(readme?.content).toContain('hosted governor is the')
     expect(paths).toContain('public/.well-known/agent.json')
     expect(paths).toContain('public/.well-known/agent-access.html')
     expect(paths).toContain('public/llms.txt')
@@ -119,8 +131,45 @@ describe('buildInstallPackageFrom', () => {
       baseUrl: 'https://governor.agentport.dev/t/tenant-1',
     })
     expect(r.value.manifest).not.toHaveProperty('emergencyKillSwitch')
+    expect((r.value.manifest.capabilities as unknown[]).length).toBe(0)
     expect(r.value.config).not.toHaveProperty('signingSecret')
     expect(r.value.config).not.toHaveProperty('serviceRoleKey')
+  })
+
+  it('matches the SDK manifest vocabulary and holds mapped writes', () => {
+    const r = buildInstallPackageFrom({
+      ...base,
+      drafts: {
+        setup: { ceilingMinor: 25000, hardCeilingMinor: 100000, alwaysAsk: false, forbidRefunds: true },
+        capabilities: {
+          hidden: {},
+          extra: [
+            { name: 'createShipment', method: 'POST', path: '/shipments', kind: 'write' },
+            { name: 'getShipment', method: 'GET', path: '/shipments/:id', kind: 'read' },
+          ],
+        },
+      },
+    })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    const manifest = r.value.manifest as {
+      capabilities: Array<Record<string, unknown>>
+      policies: Record<string, unknown>
+      authentication: Record<string, unknown>
+      errorContract: Array<{ reason: string; detail: string }>
+    }
+    expect(manifest.capabilities.map((c) => c.name)).toEqual(['createShipment', 'getShipment'])
+    const shipment = manifest.capabilities.find((c) => c.name === 'createShipment')
+    expect(shipment).toMatchObject({ access: 'write', requiresApproval: true, input: null })
+    expect(shipment).not.toHaveProperty('hiddenFields')
+    expect(manifest.policies).toHaveProperty('forbidden', ['requestRefund'])
+    expect(manifest.policies).not.toHaveProperty('forbiddenCapabilities')
+    expect(manifest.authentication).toMatchObject({ scheme: 'bearer', header: 'Authorization' })
+    expect(manifest.authentication).not.toHaveProperty('required')
+    expect(manifest.errorContract).toEqual(
+      expect.arrayContaining([{ reason: 'identity_unverified', detail: expect.any(String) }]),
+    )
+    expect(manifest.errorContract.some((e) => e.reason === 'handler_error')).toBe(false)
   })
 
   it('keeps a monorepo package self-contained under its own root', () => {

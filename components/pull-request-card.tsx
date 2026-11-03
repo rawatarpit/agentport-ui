@@ -52,7 +52,7 @@ export function PullRequestCard() {
             Could not check pull requests: {pr.reason}
           </p>
         </div>
-        <Link href="/connect" className="btn">Check connection</Link>
+        <Link href="/go-live#github" className="btn">Check connection</Link>
       </div>
     )
   }
@@ -81,7 +81,7 @@ export function PullRequestCard() {
           No pull request yet — there is nothing to review until GitHub is connected.
         </p>
       </div>
-      <Link href="/#connect-github" className="btn btn-primary">Connect GitHub</Link>
+      <Link href="/go-live#github" className="btn btn-primary">Connect GitHub</Link>
     </div>
   )
 }

@@ -58,7 +58,17 @@ export type CapabilitiesDraft = {
    * below, compiled into LiveCapability beside the known ones. Additive —
    * absence changes nothing.
    */
-  extra?: Array<{ name: string; method: string; path: string; kind: 'read' | 'write' }>
+  extra?: Array<{
+    name: string
+    method: string
+    path: string
+    kind: 'read' | 'write'
+    /**
+     * A write may run without a human only when the merchant explicitly
+     * opts in for that route. Absent means held; a read is unaffected.
+     */
+    allowUnattended?: boolean
+  }>
 }
 
 export type SetupDraft = {
@@ -109,7 +119,13 @@ export function validateCapabilities(p: unknown): { ok: true; value: Capabilitie
   // entry for a mapped capability is legitimate, checked for shape only
   // (no known-fields table exists for a discovered route).
   const extraNames = new Set<string>()
-  const extra: Array<{ name: string; method: string; path: string; kind: 'read' | 'write' }> = []
+  const extra: Array<{
+    name: string
+    method: string
+    path: string
+    kind: 'read' | 'write'
+    allowUnattended?: boolean
+  }> = []
   const extraRaw = v.extra
   if (extraRaw !== undefined) {
     if (!Array.isArray(extraRaw)) {
@@ -124,7 +140,7 @@ export function validateCapabilities(p: unknown): { ok: true; value: Capabilitie
           !['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(r.method) ||
           typeof r.path !== 'string' ||
           !r.path.startsWith('/') ||
-          (r.kind !== 'read' && r.kind !== 'write')
+          r.path.length > 512
         ) {
           errors.push('Each extra needs {name, method, path, kind: read|write} in valid shapes.')
           continue
@@ -133,8 +149,24 @@ export function validateCapabilities(p: unknown): { ok: true; value: Capabilitie
           errors.push(`Extra capability "${r.name}" collides — rename it or drop it.`)
           continue
         }
+        if (r.allowUnattended !== undefined && typeof r.allowUnattended !== 'boolean') {
+          errors.push(`"${r.name}" needs allowUnattended to be true or false.`)
+          continue
+        }
+        // The method is the authority. A caller-supplied `kind` cannot
+        // downgrade DELETE/POST/PUT/PATCH to a read that runs unattended;
+        // GET and HEAD are the only methods that can be read-only.
+        const kind = r.method === 'GET' || r.method === 'HEAD' ? 'read' : 'write'
         extraNames.add(r.name)
-        extra.push({ name: r.name, method: r.method, path: r.path, kind: r.kind })
+        extra.push({
+          name: r.name,
+          method: r.method,
+          path: r.path,
+          kind,
+          // Reads are already unattended. A write is held unless the merchant
+          // made the opt-in explicit for this exact route.
+          allowUnattended: kind === 'write' && r.allowUnattended === true,
+        })
       }
     }
   }
@@ -238,7 +270,13 @@ export function compileLiveFrom(drafts: {
   }
 
   let hidden: Record<string, string[]> = { createOrder: ['amountMinor'] }
-  let extra: Array<{ name: string; method: string; path: string; kind: 'read' | 'write' }> = []
+  let extra: Array<{
+    name: string
+    method: string
+    path: string
+    kind: 'read' | 'write'
+    allowUnattended?: boolean
+  }> = []
   if (capsRaw) {
     const c = validateCapabilities(capsRaw)
     if (!c.ok) return { ok: false, reason: `Capabilities draft is invalid: ${c.errors[0]}` }
@@ -246,11 +284,20 @@ export function compileLiveFrom(drafts: {
     extra = c.value.extra ?? []
   }
 
+  // A mapped write has no entry in the known-capability rules, so a policy
+  // that only named `createOrder` would let a discovered `POST /ship` run
+  // unattended. Every mapped write is held until a human approves it; the
+  // merchant can narrow that later, but never by omission.
+  const mappedWrites = extra.filter((e) => e.kind === 'write' && !e.allowUnattended).map((e) => e.name)
+  const unattendedWrites = extra.filter((e) => e.kind === 'write' && e.allowUnattended).map((e) => e.name)
+  const alwaysRequireApproval = [
+    ...new Set([...(alwaysAsk ? ['createOrder'] : []), ...mappedWrites]),
+  ]
   const policy: Policy = {
     maxOrderValue: { minor: ask, currency: 'INR' },
     absoluteMaxOrderValue: { minor: never, currency: 'INR' },
     bulkOrderThreshold: { units: bulk },
-    alwaysRequireApproval: alwaysAsk ? ['createOrder'] : [],
+    alwaysRequireApproval,
     forbiddenCapabilities: forbidRefunds ? ['requestRefund'] : [],
     ceilingExempt: ['searchProducts', 'checkInventory'],
     restrictedDataClasses: ['pii'],
@@ -270,12 +317,21 @@ export function compileLiveFrom(drafts: {
     })),
   ]
 
+  const writeSummary: string[] = []
+  if (mappedWrites.length > 0) writeSummary.push(`Mapped writes wait for you: ${mappedWrites.join(', ')}.`)
+  if (unattendedWrites.length > 0) {
+    writeSummary.push(
+      `Mapped writes you allowed to run unattended: ${unattendedWrites.join(', ')}. Amount and bulk rules still apply.`,
+    )
+  }
+  if (writeSummary.length === 0) writeSummary.push('No mapped write routes — every mapped capability is read-only.')
   const summary = [
     `Orders above ${inr(ask)} wait for your approval — nothing moves until you say so.`,
     `Orders above ${inr(never)} are always refused, never held.`,
     `Baskets of more than ${bulk} items always wait for you, whatever the value.`,
     alwaysAsk ? 'Every order waits for you, even a small one.' : 'Small orders below the ask line run on their own.',
     forbidRefunds ? 'No agent may ever issue a refund — refused with a reason.' : 'Refunds follow the same ask/never lines as orders.',
+    ...writeSummary,
     capabilities
       .filter((c) => c.hiddenFields.length > 0)
       .map((c) => `${c.name}: hidden from agents — ${c.hiddenFields.join(', ')}.`)

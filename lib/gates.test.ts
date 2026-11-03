@@ -62,6 +62,51 @@ describe('validateCapabilities', () => {
     expect(v.ok).toBe(true)
   })
 
+  it('derives write-ness from the method, never from a caller-supplied kind', () => {
+    const v = validateCapabilities({
+      hidden: {},
+      extra: [{ name: 'purgeCustomer', method: 'DELETE', path: '/customers/:id', kind: 'read' }],
+    })
+    expect(v.ok).toBe(true)
+    if (v.ok) expect(v.value.extra?.[0].kind).toBe('write')
+  })
+
+  it('accepts an explicit per-route unattended opt-in for a write', () => {
+    const v = validateCapabilities({
+      hidden: {},
+      extra: [{ name: 'reindexCatalog', method: 'POST', path: '/catalog/reindex', kind: 'write', allowUnattended: true }],
+    })
+    expect(v.ok).toBe(true)
+    if (v.ok) expect(v.value.extra?.[0]).toMatchObject({ kind: 'write', allowUnattended: true })
+  })
+
+  it('does not let a read carry an unattended flag', () => {
+    const v = validateCapabilities({
+      hidden: {},
+      extra: [{ name: 'getCatalog', method: 'GET', path: '/catalog', kind: 'read', allowUnattended: true }],
+    })
+    expect(v.ok).toBe(true)
+    if (v.ok) expect(v.value.extra?.[0].allowUnattended).toBe(false)
+  })
+
+  it('refuses a non-boolean unattended flag', () => {
+    expect(
+      validateCapabilities({
+        hidden: {},
+        extra: [{ name: 'reindexCatalog', method: 'POST', path: '/catalog/reindex', kind: 'write', allowUnattended: 'yes' }],
+      }).ok,
+    ).toBe(false)
+  })
+
+  it('refuses paths the database cannot store', () => {
+    expect(
+      validateCapabilities({
+        hidden: {},
+        extra: [{ name: 'getLong', method: 'GET', path: '/' + 'a'.repeat(512), kind: 'read' }],
+      }).ok,
+    ).toBe(false)
+  })
+
   it('refuses extras that collide, misname, or misshape', () => {
     expect(
       validateCapabilities({ hidden: {}, extra: [{ name: 'createOrder', method: 'GET', path: '/x', kind: 'read' }] }).ok,

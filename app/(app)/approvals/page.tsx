@@ -1,4 +1,6 @@
+import Link from 'next/link'
 import { Badge } from '@/components/stat'
+import { PageHeader } from '@/components/ui/page-header'
 import { listHolds } from '@/lib/console-reads'
 import { resolveRequestTenant } from '@/lib/tenant-server'
 
@@ -65,20 +67,21 @@ export default async function ApprovalsPage() {
   }
   return (
     <div className="space-y-6">
-      <div>
-        <p className="label">The human gate</p>
-        <h1 className="mt-2 font-display text-3xl text-bone">Waiting on you</h1>
-        <p className="prose-bone mt-3 max-w-[68ch]">
-          Writes an agent wanted but policy would not authorise unattended. None of
-          these have run. A held request is a request authorised to wait, not one
-          that already executed.
+      <PageHeader
+        eyebrow="The human gate"
+        title="Waiting on you"
+        description="Writes an agent wanted but policy would not authorise unattended. None of these have run. A held request is a request authorised to wait, not one that already executed."
+        actions={
+          <Link href="/go-live#rules" className="btn">
+            Review the rules
+          </Link>
+        }
+      />
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge tone="idle">durable queue</Badge>
+        <p className="font-mono text-[11px] text-bone-faint">
+          member-scoped holds — commit with agent-port approve, merchant-side
         </p>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Badge tone="idle">durable queue</Badge>
-          <p className="font-mono text-[11px] text-bone-faint">
-            member-scoped holds — commit with agent-port approve, merchant-side
-          </p>
-        </div>
       </div>
 
       {failed ? (

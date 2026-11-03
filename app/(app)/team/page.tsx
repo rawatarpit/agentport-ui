@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { PageHeader } from '@/components/ui/page-header'
 
 type Member = { user_id: string; role: string; created_at: string }
 
@@ -77,16 +78,11 @@ export default function TeamPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="label">Team</p>
-        <h1 className="mt-2 font-display text-3xl text-bone">Who else can do this</h1>
-        <p className="prose-bone mt-3 max-w-[68ch]">
-          Owners manage everything; admins can invite people; viewers can only
-          look. Nobody can give themselves a bigger role, and the last owner
-          cannot be removed — this screen shows those refusals plainly, in
-          words, instead of hiding the buttons and leaving you guessing.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Team"
+        title="Who else can do this"
+        description="Owners manage everything; admins can invite people; viewers can only look. Nobody can give themselves a bigger role, and the last owner cannot be removed — those refusals are shown plainly, not hidden behind disabled buttons."
+      />
 
       <div className="panel p-5">
         <p className="label">Members</p>

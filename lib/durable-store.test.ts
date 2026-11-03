@@ -13,6 +13,73 @@ describe('compileLiveFrom (durable-drafts path)', () => {
     const r = compileLiveFrom({})
     expect(r.ok).toBe(false)
   })
+
+  it('holds every mapped write, even when the merchant did not ask for it', () => {
+    const r = compileLiveFrom({
+      setup: { ceilingMinor: 25000, hardCeilingMinor: 100000, alwaysAsk: false, forbidRefunds: true },
+      capabilities: {
+        hidden: {},
+        extra: [
+          { name: 'createShipment', method: 'POST', path: '/shipments', kind: 'write' },
+          { name: 'getShipment', method: 'GET', path: '/shipments/:id', kind: 'read' },
+        ],
+      },
+    })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.compiled.policy.alwaysRequireApproval).toContain('createShipment')
+    expect(r.compiled.policy.alwaysRequireApproval).not.toContain('getShipment')
+    expect(r.compiled.policy.alwaysRequireApproval).not.toContain('createOrder')
+    expect(r.compiled.summary).toContain('Mapped writes wait for you: createShipment.')
+  })
+
+  it('runs a mapped write unattended only when the route opts in', () => {
+    const r = compileLiveFrom({
+      setup: { ceilingMinor: 25000, hardCeilingMinor: 100000, alwaysAsk: false, forbidRefunds: true },
+      capabilities: {
+        hidden: {},
+        extra: [
+          { name: 'reindexCatalog', method: 'POST', path: '/catalog/reindex', kind: 'write', allowUnattended: true },
+          { name: 'createShipment', method: 'POST', path: '/shipments', kind: 'write' },
+        ],
+      },
+    })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.compiled.policy.alwaysRequireApproval).not.toContain('reindexCatalog')
+    expect(r.compiled.policy.alwaysRequireApproval).toContain('createShipment')
+    expect(
+      r.compiled.summary.some((line) => line.includes('Mapped writes you allowed to run unattended: reindexCatalog.')),
+    ).toBe(true)
+    expect(r.compiled.summary).toContain('Mapped writes wait for you: createShipment.')
+  })
+
+  it('holds a destructive method even when the draft labels it read', () => {
+    const r = compileLiveFrom({
+      setup: { ceilingMinor: 25000, hardCeilingMinor: 100000, alwaysAsk: false, forbidRefunds: true },
+      capabilities: {
+        hidden: {},
+        extra: [{ name: 'purgeCustomer', method: 'DELETE', path: '/customers/:id', kind: 'read' }],
+      },
+    })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.compiled.policy.alwaysRequireApproval).toContain('purgeCustomer')
+  })
+
+  it('still holds createOrder when the merchant asks for every order to wait', () => {
+    const r = compileLiveFrom({
+      setup: { ceilingMinor: 25000, hardCeilingMinor: 100000, alwaysAsk: true, forbidRefunds: true },
+      capabilities: {
+        hidden: {},
+        extra: [{ name: 'createShipment', method: 'POST', path: '/shipments', kind: 'write' }],
+      },
+    })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.compiled.policy.alwaysRequireApproval).toEqual(['createOrder', 'createShipment'])
+  })
+
   it('builds a discovery package, not a policy file', () => {
     const r = buildInstallPackageFrom({
       drafts: {
@@ -44,6 +111,16 @@ describe('compileLiveFrom (durable-drafts path)', () => {
       workerUrl: 'https://governor.agentport.dev',
     })
     expect(r.ok).toBe(false)
+  })
+})
+
+describe('publish path requires a route-backed inventory', () => {
+  const route = read('app/api/publish/approve/route.ts')
+
+  it('refuses before approval when no route is mapped', () => {
+    expect(route).toContain('No routes are mapped')
+    expect(route).toContain('extras.length === 0')
+    expect(route).not.toContain('caps = KNOWN_CAPABILITIES')
   })
 })
 

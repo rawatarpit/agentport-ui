@@ -1,10 +1,19 @@
 // File: agentport‑ui/app/api/analytics/route.ts
 import { NextResponse } from 'next/server'
 import { resolveRequestTenant, type RequestTenant } from '@/lib/tenant-server'
+import {
+  aggregateFallback,
+  type FallbackActivityRow,
+  type FallbackDemandRow,
+} from '@/lib/analytics-fallback'
 
 type CapActRow = { capability: string; asked: number | null; executed: number | null }
-type ConvRow = { decision: string }
-type DemandRow = { agent_id: string; asked: number | null; executed: number | null }
+type DemandRow = {
+  agent_id: string
+  assurance: string
+  capability: string
+  decision: string
+}
 
 /**
  * Server-side fallback for the Evidence screen.
@@ -20,35 +29,15 @@ async function fetchAnalytics(supabase: RequestTenant['supabase'], tenantId: str
     .select('capability,asked,executed')
     .eq('tenant_id', tenantId)
 
-  const { data: conv } = await supabase
-    .from('v_ledger_conversion')
-    .select('decision')
-    .eq('tenant_id', tenantId)
-
   const { data: demand } = await supabase
     .from('v_ledger_agent_demand')
-    .select('agent_id,asked,executed')
+    .select('agent_id,assurance,capability,decision')
     .eq('tenant_id', tenantId)
 
-  const askedByCap: Record<string, number> = {}
-  const executedByCap: Record<string, number> = {}
-  ;(capAct as CapActRow[] | null)?.forEach((r) => {
-    askedByCap[r.capability] = (askedByCap[r.capability] || 0) + (r.asked ?? 0)
-    executedByCap[r.capability] = (executedByCap[r.capability] || 0) + (r.executed ?? 0)
-  })
-
-  const outcomeCounts: Record<string, number> = {}
-  ;(conv as ConvRow[] | null)?.forEach((r) => {
-    outcomeCounts[r.decision] = (outcomeCounts[r.decision] || 0) + 1
-  })
-
-  const agentDemand = ((demand as DemandRow[] | null) || []).map((r) => ({
-    agent_id: r.agent_id,
-    asked: r.asked ?? 0,
-    executed: r.executed ?? 0,
-  }))
-
-  return { askedByCap, executedByCap, outcomeCounts, agentDemand }
+  return aggregateFallback(
+    capAct as FallbackActivityRow[] | null,
+    demand as FallbackDemandRow[] | null,
+  )
 }
 
 export async function GET(req: Request) {

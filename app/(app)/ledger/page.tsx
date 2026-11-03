@@ -1,4 +1,6 @@
+import Link from 'next/link'
 import { Badge } from '@/components/stat'
+import { PageHeader } from '@/components/ui/page-header'
 import { configHash } from '@/lib/agentport'
 import { listDecisions } from '@/lib/console-reads'
 import type { LedgerEntry } from '@/lib/contracts'
@@ -49,15 +51,16 @@ export default async function LedgerPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="label">PROVE</p>
-        <h1 className="mt-2 font-display text-3xl text-bone">Agent Activity Ledger</h1>
-        <p className="prose-bone mt-3 max-w-[68ch]">
-          Every call an agent has made, including the ones that were refused. A
-          refusal you cannot explain is a control the agent will route around, so
-          denials are recorded with the rule that fired.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="Prove"
+        title="Agent activity ledger"
+        description="Every call an agent has made, including the ones that were refused. A refusal you cannot explain is a control the agent will route around, so denials are recorded with the rule that fired."
+        actions={
+          <Link href="/analytics" className="btn">
+            Read analytics
+          </Link>
+        }
+      />
 
       {failed ? (
         <p className="text-[13px] text-rust" role="alert">

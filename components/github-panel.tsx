@@ -167,8 +167,8 @@ export function GithubPanel({
       ) : null}
       {prBlockedReason ? (
         <p className="text-[13px] leading-relaxed text-amber">
-          <a href="/setup" className="text-bone underline underline-offset-4">Set your starter rules</a>{' '}
-          first — the install PR adds a discovery package generated from them.
+          <a href="/go-live" className="text-bone underline underline-offset-4">Finish the earlier steps</a>{' '}
+          first — the install PR adds a discovery package generated from your rules and mapped routes.
         </p>
       ) : null}
 
