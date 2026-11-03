@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  agentSource,
   buildAgentRows,
+  buildAgentSourceRows,
   buildCapabilityRows,
   buildKpis,
   buildWeeklySeries,
@@ -97,5 +99,33 @@ describe('analytics shape', () => {
       '2026-11-03',
       '2026-11-03',
     ])
+  })
+
+  it('classifies agent sources', () => {
+    expect(agentSource('chatgpt-shopping')).toBe('ChatGPT')
+    expect(agentSource('claude-assistant')).toBe('Claude')
+    expect(agentSource('gpt-copilot')).toBe('GPT')
+    expect(agentSource('gemini-bot')).toBe('Gemini')
+    expect(agentSource('copilot-agent')).toBe('Copilot')
+    expect(agentSource('anon')).toBe('Unknown agent')
+  })
+
+  it('groups demand by source', () => {
+    const rows = buildAgentSourceRows([
+      { agent_id: 'chatgpt-shopping', assurance: 'verified', capability: 'createOrder', decision: 'allow' },
+      { agent_id: 'chatgpt-support', assurance: 'unverified', capability: 'searchProducts', decision: 'deny' },
+      { agent_id: 'claude-assistant', assurance: 'verified', capability: 'checkInventory', decision: 'allow' },
+      { agent_id: 'anon', assurance: 'unverified', capability: 'deleteAccount', decision: 'deny' },
+    ])
+    const chatgpt = rows.find((r) => r.source === 'ChatGPT')
+    expect(chatgpt).toMatchObject({ label: 'ChatGPT', agents: 2, allow: 1, deny: 1, held: 0, total: 2 })
+    const claude = rows.find((r) => r.source === 'Claude')
+    expect(claude).toMatchObject({ label: 'Claude', agents: 1, allow: 1, deny: 0, held: 0, total: 1 })
+    const unknown = rows.find((r) => r.source === 'Unknown agent')
+    expect(unknown).toMatchObject({ label: 'Unknown agent', agents: 1, allow: 0, deny: 1, held: 0, total: 1 })
+  })
+
+  it('returns empty source rows for empty demand', () => {
+    expect(buildAgentSourceRows([])).toEqual([])
   })
 })

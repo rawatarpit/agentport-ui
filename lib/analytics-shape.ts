@@ -76,6 +76,66 @@ export type AnalyticsKpis = {
   agents: number
 }
 
+/** Friendly label for where an agent/chatbot came from. */
+export function agentSource(agentId: string): string {
+  const lower = agentId.toLowerCase()
+  if (lower.includes('chatgpt')) return 'ChatGPT'
+  if (lower.includes('claude')) return 'Claude'
+  if (lower.includes('gpt')) return 'GPT'
+  if (lower.includes('gemini')) return 'Gemini'
+  if (lower.includes('copilot')) return 'Copilot'
+  return 'Unknown agent'
+}
+
+export type AgentSourceRow = {
+  source: string
+  label: string
+  agents: number
+  allow: number
+  deny: number
+  held: number
+  total: number
+}
+
+/** Group demand by agent source so the merchant can see where traffic
+ *  comes from — e.g. how much is ChatGPT vs unverified bots. */
+export function buildAgentSourceRows(demand: DemandRow[]): AgentSourceRow[] {
+  const bySource = new Map<string, AgentSourceRow>()
+  for (const r of demand) {
+    const source = agentSource(r.agent_id)
+    const cur = bySource.get(source) ?? {
+      source,
+      label: source,
+      agents: 0,
+      allow: 0,
+      deny: 0,
+      held: 0,
+      total: 0,
+    }
+    const agentSeen = new Set<string>()
+    // Count distinct agents per source only once per demand row set —
+    // we track agents separately below.
+    if (r.decision === 'allow') cur.allow += 1
+    else if (r.decision === 'deny') cur.deny += 1
+    else cur.held += 1
+    cur.total += 1
+    bySource.set(source, cur)
+  }
+  // Distinct agent count per source
+  const agentsBySource = new Map<string, Set<string>>()
+  for (const r of demand) {
+    const source = agentSource(r.agent_id)
+    let set = agentsBySource.get(source)
+    if (!set) { set = new Set(); agentsBySource.set(source, set) }
+    set.add(r.agent_id)
+  }
+  for (const [source, agents] of agentsBySource) {
+    const row = bySource.get(source)
+    if (row) row.agents = agents.size
+  }
+  return [...bySource.values()].sort((a, b) => b.total - a.total)
+}
+
 function num(v: number | null | undefined): number {
   return typeof v === 'number' && Number.isFinite(v) ? v : 0
 }
