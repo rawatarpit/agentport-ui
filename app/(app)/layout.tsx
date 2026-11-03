@@ -2,6 +2,7 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { Sidebar } from '@/components/sidebar'
 import { Topbar } from '@/components/topbar'
+import { getShellState } from '@/lib/go-live'
 import { sanitizeNextPath } from '@/lib/redirect'
 import { resolveRequestTenant } from '@/lib/tenant-server'
 
@@ -20,11 +21,20 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect(`/select-workspace?next=${encodeURIComponent(next)}`)
   }
 
+  const shell = await getShellState(tenant.active.tenantId)
+
   return (
-    <div className="mx-auto flex min-h-screen max-w-[1280px]">
-      <Sidebar />
+    <div className="console min-h-screen">
+      <div className="mx-auto flex min-h-screen max-w-[1440px]">
+        <Sidebar businessName={shell.businessName} published={shell.published} />
       <div className="flex min-w-0 flex-1 flex-col px-5 sm:px-8">
-        <Topbar email={tenant.email} />
+        <Topbar
+          email={tenant.email}
+          businessName={shell.businessName}
+          published={shell.published}
+          role={tenant.active.membership.role}
+          siteUrl={shell.siteUrl}
+        />
         <main className="flex-1 py-8 sm:py-10">{children}</main>
         <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-ink-line py-6">
           <p className="font-mono text-[11px] text-bone-faint">
@@ -33,6 +43,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </p>
           <p className="font-mono text-[11px] text-bone-faint/60">draft is never live · held is never executed</p>
         </footer>
+      </div>
       </div>
     </div>
   )

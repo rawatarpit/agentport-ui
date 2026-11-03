@@ -36,11 +36,11 @@ export function Callout({
 }) {
   return (
     <div
-      className={`rounded-lg border p-4 sm:p-5 ${TONES[tone]}`}
+      className={`rounded-xl border p-4 sm:p-5 ${TONES[tone]}`}
       role={tone === 'warning' || tone === 'danger' ? 'alert' : 'status'}
     >
       {title ? (
-        <p className={`font-mono text-[10.5px] uppercase tracking-[0.14em] ${LABELS[tone]}`}>{title}</p>
+        <p className={`font-sans text-[10.5px] font-semibold uppercase tracking-[0.08em] ${LABELS[tone]}`}>{title}</p>
       ) : null}
       <div className={`text-[13px] leading-relaxed text-bone-dim ${title ? 'mt-2' : ''}`}>{children}</div>
       {action ? <div className="mt-3 flex flex-wrap items-center gap-2">{action}</div> : null}

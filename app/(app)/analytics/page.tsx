@@ -12,7 +12,7 @@ export default function AnalyticsPage() {
       <PageHeader
         eyebrow="Evidence"
         title="A week later"
-        description="Are refusals falling, are approvals piling up, which capability is being called — and which config decided all of it. This screen shows counts so there is nothing to redact and nothing to leak."
+        description="See what agents asked for, what was refused or held, and what executed — by week, capability, and agent. Hover the chart or click a capability to filter. Counts only; nothing to redact."
         actions={
           <Link href="/ledger" className="btn">
             Read the ledger

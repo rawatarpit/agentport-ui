@@ -23,7 +23,7 @@ export function PageHeader({
     <header className="flex flex-col gap-5 border-b border-ink-line pb-6 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0 max-w-[68ch]">
         <p className="label">{eyebrow}</p>
-        <h1 className="mt-2 font-display text-[34px] leading-[1.08] tracking-[-0.02em] text-bone sm:text-[40px]">
+        <h1 className="mt-2 font-display text-[30px] font-semibold leading-[1.1] tracking-[-0.02em] text-bone sm:text-[34px]">
           {title}
         </h1>
         {description ? <p className="prose-bone mt-3">{description}</p> : null}

@@ -31,11 +31,59 @@
   --amber: 192 138 46;
   --rust: 180 85 58;
 }
+
+/*
+ * Console theme: neutral, data-first surfaces for the signed-in product.
+ * The marketing site keeps the warm paper palette; the console shifts to the
+ * cool, high-contrast language analytics tools use. `--font-display` becomes
+ * sans-serif inside the console so headings and numbers stop competing with
+ * the data.
+ */
+.console {
+  --font-display: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --ink: 248 250 252;
+  --ink-soft: 255 255 255;
+  --ink-line: 226 232 240;
+  --bone: 15 23 42;
+  --bone-dim: 51 65 85;
+  --bone-faint: 100 116 139;
+  --verdant: 22 163 74;
+  --verdant-soft: 21 128 61;
+  --amber: 217 119 6;
+  --rust: 220 38 38;
+  background: rgb(var(--ink));
+  color: rgb(var(--bone));
+}
+
+.dark .console {
+  --ink: 9 12 18;
+  --ink-soft: 17 24 39;
+  --ink-line: 31 41 55;
+  --bone: 241 245 249;
+  --bone-dim: 203 213 225;
+  --bone-faint: 148 163 184;
+  --verdant: 34 197 94;
+  --verdant-soft: 22 163 74;
+  --amber: 245 158 11;
+  --rust: 248 113 113;
+}
 html,
 body {
   background: rgb(var(--ink));
   color: rgb(var(--bone));
   -webkit-font-smoothing: antialiased;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+* {
+  scroll-margin-top: 1.5rem;
+}
+
+input[type='checkbox'] {
+  accent-color: rgb(var(--verdant));
 }
 
 /* Quiet depth behind everything: a faint top glow, never a gradient wash. */
@@ -51,19 +99,37 @@ body {
   .panel {
     @apply rounded-lg border border-ink-line bg-ink-soft;
   }
+  /* The card a decision lives in. Slightly stronger than .panel so a page
+     can keep quiet chrome around the thing the merchant must read. */
+  .panel-strong {
+    @apply rounded-lg border border-ink-line bg-ink-soft shadow-[0_1px_0_rgb(var(--bone)/0.03)_inset];
+  }
+  .panel-muted {
+    @apply rounded-lg border border-ink-line/70 bg-ink/30;
+  }
   .label {
     @apply font-mono text-[11px] uppercase tracking-[0.14em] text-bone-faint;
   }
   .prose-bone {
     @apply text-[15px] leading-[1.7] text-bone-dim;
   }
+  .link {
+    @apply underline decoration-ink-line underline-offset-4 transition-colors hover:text-bone hover:decoration-verdant;
+  }
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-md border border-ink-line px-4 py-2
       font-mono text-[12px] text-bone-dim transition-colors hover:border-verdant
       hover:text-bone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-verdant/60;
   }
+  .btn-sm {
+    @apply px-3 py-1.5 text-[11px];
+  }
+  .btn-quiet {
+    @apply border-transparent text-bone-faint hover:border-ink-line hover:bg-ink/40 hover:text-bone;
+  }
   .btn-primary {
-    @apply border-verdant/50 bg-verdant/10 text-bone hover:bg-verdant/20;
+    @apply border-verdant/70 bg-verdant text-ink shadow-[0_1px_0_rgba(255,255,255,0.08)_inset]
+      hover:border-verdant hover:bg-verdant-soft hover:text-ink;
   }
   .btn-danger {
     @apply border-rust/50 text-rust hover:bg-rust/10;
@@ -73,6 +139,9 @@ body {
   .field-label {
     @apply mb-2 block text-[13px] font-medium text-bone;
   }
+  .field-help {
+    @apply mt-1 text-[12px] leading-relaxed text-bone-faint;
+  }
   .input {
     @apply w-full rounded-md border border-ink-line bg-ink/60 px-3 py-2.5 text-[14px]
       text-bone placeholder:text-bone-faint/60 outline-none transition-colors
@@ -81,6 +150,32 @@ body {
   /* Auth shell: one centered column, generous air, brand on top. */
   .auth-card {
     @apply panel w-full max-w-md space-y-5 p-8;
+  }
+
+  /* GA/Umami-style console surfaces: white cards, softer borders, denser labels. */
+  .console .panel {
+    @apply rounded-xl border border-ink-line bg-ink-soft shadow-[0_1px_2px_rgba(15,23,42,0.04)];
+  }
+  .console .panel-strong {
+    @apply rounded-xl border border-ink-line bg-ink-soft shadow-[0_1px_2px_rgba(15,23,42,0.04)];
+  }
+  .console .panel-muted {
+    @apply rounded-xl border border-ink-line/70 bg-ink/40;
+  }
+  .console .label {
+    @apply font-sans text-[11px] font-medium uppercase tracking-[0.08em] text-bone-faint;
+  }
+  .console .btn {
+    @apply rounded-lg border-ink-line bg-ink-soft;
+  }
+  .console .btn-primary {
+    @apply border-verdant bg-verdant text-white hover:bg-verdant-soft hover:text-white;
+  }
+  .console .btn-quiet {
+    @apply bg-transparent;
+  }
+  .console .input {
+    @apply rounded-lg border-ink-line bg-ink-soft;
   }
 }
 

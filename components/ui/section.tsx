@@ -22,7 +22,7 @@ export function Section({
     <section className={`space-y-3 ${className}`}>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="font-display text-[22px] leading-tight text-bone">{title}</h2>
+          <h2 className="font-display text-[18px] font-semibold leading-tight text-bone">{title}</h2>
           {description ? <p className="mt-1 text-[13px] leading-relaxed text-bone-dim">{description}</p> : null}
         </div>
         {action ? <div className="flex shrink-0 flex-wrap items-center gap-2">{action}</div> : null}

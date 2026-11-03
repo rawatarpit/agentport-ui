@@ -25,7 +25,7 @@ export function StatusPill({
 }) {
   return (
     <span
-      className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 font-mono text-[10.5px] uppercase tracking-[0.12em] ${TONES[tone]} ${className}`}
+      className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 font-sans text-[10.5px] font-medium uppercase tracking-[0.06em] ${TONES[tone]} ${className}`}
     >
       <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-current" />
       {children}

@@ -2,74 +2,85 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { StatusPill } from '@/components/ui/status-pill'
 
 /**
- * Wayfinding, kept short on purpose: seven items cover the whole product.
- * Everything else (setup wizard, capabilities detail, demo chat) stays
- * routable and linked from where it is used — a sidebar is for going
- * places daily, not for inventorying routes. Setup progress folds away
- * when done instead of nagging.
+ * Wayfinding is the product's table of contents, not its checklist.
+ *
+ * "Go live" is first because that is the job; the other groups are what you
+ * operate once it is done. Map routes sits next to Capabilities because a
+ * mapped route is the only thing that becomes an executable capability — the
+ * catalogue alone is not a runtime. Setup remains a shortcut, not a
+ * competing flow.
  */
-const PRIMARY = [
-  { href: '/', label: 'Overview' },
-  { href: '/#connect-github', label: 'Connect repo' },
-  { href: '/rules', label: 'Rules' },
-  { href: '/ledger', label: 'Ledger' },
-  { href: '/approvals', label: 'Approvals' },
-  { href: '/analytics', label: 'Analytics' },
-  { href: '/team', label: 'Team' },
+const GROUPS = [
+  {
+    label: 'Workspace',
+    items: [
+      { href: '/', label: 'Overview' },
+      { href: '/go-live', label: 'Go live' },
+    ],
+  },
+  {
+    label: 'Operate',
+    items: [
+      { href: '/approvals', label: 'Approvals' },
+      { href: '/ledger', label: 'Ledger' },
+      { href: '/analytics', label: 'Analytics' },
+      { href: '/team', label: 'Team' },
+    ],
+  },
+  {
+    label: 'Govern',
+    items: [
+      { href: '/rules', label: 'Rules' },
+      { href: '/policies', label: 'Limits & stop' },
+    ],
+  },
+  {
+    label: 'Build',
+    items: [
+      { href: '/map', label: 'Map routes' },
+      { href: '/capabilities', label: 'Capabilities' },
+    ],
+  },
 ]
 
-const MORE = [
-  { href: '/setup', label: 'Get started' },
-  { href: '/capabilities', label: 'Capabilities' },
-  { href: '/policies', label: 'Limits & stop' },
-]
-
-export function Sidebar() {
+export function Sidebar({
+  businessName,
+  published,
+}: {
+  businessName: string
+  published: boolean
+}) {
   const path = usePathname()
-  const [setupDone, setSetupDone] = useState<boolean | null>(null)
 
-  useEffect(() => {
-    let live = true
-    fetch('/api/connect')
-      .then((r) => r.json())
-      .then((body: { status: string; steps?: Array<{ n: string; state: string }> }) => {
-        if (!live || body.status !== 'ok' || !body.steps) return
-        const wanted = new Set(['1', '2', '3', '4'])
-        const mine = body.steps.filter((s) => wanted.has(s.n))
-        setSetupDone(mine.length > 0 && mine.every((s) => s.state === 'done'))
-      })
-      .catch(() => {})
-    return () => {
-      live = false
-    }
-  }, [])
-
-  const item = (href: string, label: string, done?: boolean) => {
-    const active = path === href
+  const item = (href: string, label: string) => {
+    const active = href === '/' ? path === '/' : path === href || path.startsWith(`${href}/`)
     return (
       <Link
         key={href}
         href={href}
         aria-current={active ? 'page' : undefined}
-        className={`flex items-center justify-between rounded-md px-2 py-2 font-mono text-[12.5px] transition-colors ${
+        className={`flex items-center justify-between rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors ${
           active
-            ? 'border-l-2 border-verdant bg-verdant/10 text-bone'
-            : 'border-l-2 border-transparent text-bone-dim hover:bg-ink-soft hover:text-bone'
+            ? 'bg-verdant/10 text-bone'
+            : 'text-bone-dim hover:bg-ink-soft hover:text-bone'
         }`}
       >
         <span>{label}</span>
-        {done ? <span aria-hidden="true" className="text-[11px] text-verdant">✓</span> : null}
+        {href === '/go-live' && !published ? (
+          <span className="font-mono text-[9.5px] uppercase tracking-[0.12em] text-amber">setup</span>
+        ) : null}
+        {href === '/go-live' && published ? (
+          <span aria-hidden="true" className="text-[11px] text-verdant">✓</span>
+        ) : null}
       </Link>
     )
   }
 
-  const onMoreRoute = ['/setup', '/capabilities', '/policies'].includes(path)
-
-  const body = (mobile: boolean) => (
-    <div className={`flex ${mobile ? '' : 'min-h-0 flex-1 flex-col gap-5 overflow-y-auto'} flex-col gap-5`}>
+  const body = () => (
+    <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto">
       <Link href="/" className="flex items-center gap-3">
         <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-verdant/40 bg-verdant/10 font-display text-lg text-verdant">
           A
@@ -82,45 +93,43 @@ export function Sidebar() {
         </span>
       </Link>
 
-      <nav aria-label="Primary">
-        <ul className="space-y-0.5">
-          {PRIMARY.slice(0, 2).map((l) => (
-            <li key={l.href}>{item(l.href, l.label, l.href === '/#connect-github' && setupDone === true)}</li>
-          ))}
-        </ul>
+      <nav aria-label="Console" className="space-y-5">
+        {GROUPS.map((group) => (
+          <div key={group.label}>
+            <p className="label px-2.5">{group.label}</p>
+            <ul className="mt-1 space-y-0.5">
+              {group.items.map((l) => (
+                <li key={l.href}>{item(l.href, l.label)}</li>
+              ))}
+            </ul>
+          </div>
+        ))}
       </nav>
 
-      <nav aria-label="Manage">
-        <p className="label px-2">Run</p>
-        <ul className="mt-1 space-y-0.5">
-          {PRIMARY.slice(2).map((l) => (
-            <li key={l.href}>{item(l.href, l.label)}</li>
-          ))}
-        </ul>
-      </nav>
-
-      <details open={onMoreRoute || undefined}>
-        <summary className="cursor-pointer rounded-md px-2 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-bone-faint hover:text-bone" aria-label="More pages">
-          More
-        </summary>
-        <ul className="mt-1 space-y-0.5">
-          {MORE.map((l) => (
-            <li key={l.href}>{item(l.href, l.label)}</li>
-          ))}
-        </ul>
-      </details>
+      <div className="mt-auto space-y-3 border-t border-ink-line pt-4">
+        <div className="px-1">
+          <p className="label">Workspace</p>
+          <p className="mt-1 truncate text-[12.5px] text-bone">{businessName}</p>
+          <div className="mt-2">
+            <StatusPill tone={published ? 'live' : 'draft'}>{published ? 'Live' : 'Not live'}</StatusPill>
+          </div>
+        </div>
+        <Link href="/setup" className="block px-1 font-mono text-[11px] text-bone-faint hover:text-bone">
+          Setup wizard →
+        </Link>
+      </div>
     </div>
   )
 
   return (
     <>
-      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col gap-2 overflow-hidden border-r border-ink-line px-4 py-6 md:flex">
-        {body(false)}
+      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-ink-line bg-ink-soft/60 px-3 py-6 md:flex">
+        {body()}
       </aside>
       <div className="border-b border-ink-line px-5 py-4 md:hidden">
         <details>
           <summary className="btn w-full cursor-pointer justify-center">Menu</summary>
-          <div className="mt-4">{body(true)}</div>
+          <div className="mt-4 max-h-[70vh] overflow-y-auto">{body()}</div>
         </details>
       </div>
     </>
