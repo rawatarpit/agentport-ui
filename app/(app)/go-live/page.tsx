@@ -8,10 +8,11 @@ import { PullRequestCard } from '@/components/pull-request-card'
 import { RulesEditor } from '@/components/rules-editor'
 import { WebsiteForm } from '@/components/website-form'
 import { Callout } from '@/components/ui/callout'
+import { EmptyState } from '@/components/ui/empty-state'
 import { PageHeader } from '@/components/ui/page-header'
 import { Section } from '@/components/ui/section'
 import { StepRail } from '@/components/ui/step-rail'
-import { getGoLiveState } from '@/lib/go-live'
+import { getGoLiveState, type GoLiveState } from '@/lib/go-live'
 import { normaliseWorkerUrl } from '@/lib/install-package'
 import { resolveRequestTenant } from '@/lib/tenant-server'
 
@@ -22,54 +23,69 @@ function externalHref(url: string): string {
 }
 
 /**
- * One page for the only journey that matters: a public site, a mapped route,
- * a rule, a merged discovery package, a signed artifact, and a worker that
- * actually answers. The old flow split this across overview, connect, rules,
- * and an unlinked map screen, which is how a tenant reached "GitHub connected"
- * with an empty capability inventory.
+ * Go-live journey, rebuilt to never crash SSR.
+ *
+ * Every data fetch is wrapped in try/catch. If the database, the broker, or
+ * any downstream dependency is unavailable, the page still renders — showing
+ * honest empty states instead of a server error. A merchant can still see
+ * their site, read what's missing, and act on what they can.
  */
 export default async function GoLivePage() {
-  const tenant = await resolveRequestTenant()
-  if (tenant.active.status !== 'active') redirect('/select-workspace')
+  let tenant: Awaited<ReturnType<typeof resolveRequestTenant>>
+  try {
+    tenant = await resolveRequestTenant()
+  } catch {
+    // Session layer is down — cannot determine workspace. Redirect to picker
+    // so the user can re-establish their session.
+    redirect('/select-workspace')
+  }
 
-  const state = await getGoLiveState(tenant.active.tenantId, {
-    checkGithub: true,
-    role: tenant.active.membership.role,
-  })
+  if (!tenant || tenant.active.status !== 'active') {
+    redirect('/select-workspace')
+  }
 
-  const worker = normaliseWorkerUrl(process.env.AGENTPORT_WORKER_URL ?? '', state.tenantId)
+  // Fetch go-live state with full error isolation. If anything here fails —
+  // database, broker, env — we degrade gracefully rather than crash SSR.
+  let state: GoLiveState | null = null
+  try {
+    state = await getGoLiveState(tenant.active.tenantId, {
+      checkGithub: true,
+      role: tenant.active.membership?.role,
+    })
+  } catch {
+    state = null
+  }
+
+  const worker = state
+    ? normaliseWorkerUrl(process.env.AGENTPORT_WORKER_URL ?? '', state.tenantId)
+    : { ok: false, url: null }
   const canonicalUrl = worker.ok ? `${worker.url}/.well-known/agent.json` : null
   const invokeUrl = worker.ok ? `${worker.url}/.well-known/agent/invoke` : null
-  const canManage = state.role === 'owner' || state.role === 'admin'
-  const rulesReady = state.drafts.rules || state.drafts.setup
-  const prBlockedReason =
-    state.draftMapped === 0
-      ? 'Map at least one route first — the PR carries route-backed capabilities, not the catalogue.'
-      : !rulesReady
-        ? 'Set your starter rules first — the discovery package is generated from them.'
-        : null
 
   return (
     <div className="space-y-8">
+      {/* ── Header ── */}
       <PageHeader
         eyebrow="Go live"
-        title={state.published ? 'Your governor is published' : 'From site to serving'}
+        title={state?.published ? 'Your governor is published' : 'From site to serving'}
         description={
-          state.published
-            ? 'The artifact is stored. The last check is the canonical manifest: a stored signature is not proof a worker is serving this tenant.'
-            : 'One path from your public site to a hosted governor that can answer. Every step writes durable state; a saved draft is never live.'
+          state?.published
+            ? 'The artifact is stored. Run the canonical check below before you tell an agent integrator the address — and if it returns 502, the worker has no active runtime for this tenant yet.'
+            : state
+              ? 'One path from your public site to a hosted governor that can answer. Every step writes durable state; a saved draft is never live.'
+              : 'Could not load your go-live state. The database may be temporarily unavailable — try reloading.'
         }
         actions={
           <>
             <Link href="/" className="btn">
               Overview
             </Link>
-            {state.siteUrl ? (
+            {state?.siteUrl ? (
               <a href={externalHref(state.siteUrl)} target="_blank" rel="noreferrer" className="btn">
                 Open site
               </a>
             ) : null}
-            {!state.published && state.nextStep ? (
+            {!state?.published && state?.nextStep ? (
               <a href={`#${state.nextStep.id}`} className="btn btn-primary">
                 {state.nextStep.actionLabel}
               </a>
@@ -78,7 +94,8 @@ export default async function GoLivePage() {
         }
       />
 
-      {state.published ? (
+      {/* ── Callout ── */}
+      {state?.published ? (
         <Callout tone="success" title={`Published v${state.liveArtifact?.version}`}>
           <p>
             The signed artifact is stored. Run the canonical check below before you tell an
@@ -89,7 +106,7 @@ export default async function GoLivePage() {
             <a href="#verify" className="link">Verify discovery</a>
           </p>
         </Callout>
-      ) : state.nextStep ? (
+      ) : state?.nextStep ? (
         <Callout tone={state.phase === 'not-started' ? 'info' : 'warning'} title="Next">
           <p>
             <span className="text-bone">{state.nextStep.title}.</span> {state.nextStep.summary}
@@ -100,21 +117,38 @@ export default async function GoLivePage() {
             </a>
           </p>
         </Callout>
+      ) : state === null ? (
+        <Callout tone="danger" title="Could not load go-live state">
+          <p>
+            The go-live state could not be read from the database. This is usually temporary —
+            try reloading. If it keeps failing, contact support.
+          </p>
+        </Callout>
       ) : null}
 
+      {/* ── Steps ── */}
       <div className="grid gap-8 lg:grid-cols-[250px_minmax(0,1fr)]">
-        <StepRail steps={state.steps} />
+        <StepRail steps={state?.steps ?? []} />
 
         <div className="min-w-0 space-y-12">
+          {/* Site */}
           <section id="site" className="scroll-mt-24">
             <Section
               title="Set your site address"
               description="The public address agents and the route crawl use. It is deliberately not this console."
             >
-              <WebsiteForm current={state.siteUrl} onDone={() => void 0} />
+              {state ? (
+                <WebsiteForm current={state.siteUrl} onDone={() => void 0} />
+              ) : (
+                <EmptyState
+                  title="Cannot load site form"
+                  body="Go-live state is unavailable. Reload to retry."
+                />
+              )}
             </Section>
           </section>
 
+          {/* Capabilities */}
           <section id="capabilities" className="scroll-mt-24 space-y-4">
             <Section
               title="Map what agents can call"
@@ -129,6 +163,7 @@ export default async function GoLivePage() {
             </Section>
           </section>
 
+          {/* Rules */}
           <section id="rules" className="scroll-mt-24">
             <Section
               title="Set the lines"
@@ -142,15 +177,33 @@ export default async function GoLivePage() {
             </Section>
           </section>
 
+          {/* GitHub */}
           <section id="github" className="scroll-mt-24">
             <Section
               title="Connect the site repository"
               description="GitHub install, repository pick, and install PR. You merge; nothing here can merge for you."
             >
-              <GithubPanel canManage={canManage} prBlockedReason={prBlockedReason} />
+              {state ? (
+                <GithubPanel
+                  canManage={state.role === 'owner' || state.role === 'admin'}
+                  prBlockedReason={
+                    state.draftMapped === 0
+                      ? 'Map at least one route first — the PR carries route-backed capabilities, not the catalogue.'
+                      : !state.drafts.rules && !state.drafts.setup
+                        ? 'Set your starter rules first — the discovery package is generated from them.'
+                        : null
+                  }
+                />
+              ) : (
+                <EmptyState
+                  title="Cannot load GitHub panel"
+                  body="Go-live state is unavailable. Reload to retry."
+                />
+              )}
             </Section>
           </section>
 
+          {/* Pull Request */}
           <section id="pull-request" className="scroll-mt-24">
             <Section
               title="Open the install PR"
@@ -160,6 +213,7 @@ export default async function GoLivePage() {
             </Section>
           </section>
 
+          {/* Publish */}
           <section id="publish" className="scroll-mt-24">
             <Section
               title="Approve, sign, and activate"
@@ -169,6 +223,7 @@ export default async function GoLivePage() {
             </Section>
           </section>
 
+          {/* Verify */}
           <section id="verify" className="scroll-mt-24 space-y-4">
             <Section
               title="Verify discovery"
