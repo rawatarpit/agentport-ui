@@ -1,4 +1,12 @@
 import { createHash, verify as verifySignature } from 'node:crypto'
+import {
+  canonicalArtifactBytes,
+  stableStringify,
+  type SignedArtifact,
+} from '@/lib/artifact-canonical'
+
+export { canonicalArtifactBytes, stableStringify }
+export type { SignedArtifact }
 
 /**
  * Publish ceremony helpers: one tier rule, one digest rule, shared by the
@@ -124,53 +132,6 @@ export function publicBaseUrlProblem(value: unknown, tenantId: string): string |
     return `Envelope publicBaseUrl must be the tenant URL ending in ${expected}; got ${parsed.pathname || '/'}. Re-sign the config with the right publicBaseUrl.`
   }
   return null
-}
-
-/**
- * Canonical bytes for a merchant-signed artifact.
- *
- * This is a deliberate copy of `stableStringify` from the SDK
- * (`agentport-sdk/src/agent.ts`). The SDK remains the author of the format;
- * this file must not grow a second one. The copy exists because the console
- * cannot import the SDK at runtime, and the alternative — verifying with a
- * different stringifier — is the exact drift the SDK comment warns about:
- * a config that verifies in one place and differs in another.
- *
- * Bump rules: if the SDK changes this function, this copy changes in the same
- * commit and the cross-package vector test in `lib/publish.test.ts` identifies
- * which one moved.
- */
-export function stableStringify(value: unknown, depth = 0): string {
-  if (depth > 8) return '"[truncated]"'
-  if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null'
-  if (Array.isArray(value)) return `[${value.map((v) => stableStringify(v, depth + 1)).join(',')}]`
-  const entries = Object.entries(value as Record<string, unknown>)
-    .filter(([, v]) => v !== undefined)
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-    .map(([k, v]) => `${JSON.stringify(k)}:${stableStringify(v, depth + 1)}`)
-  return `{${entries.join(',')}}`
-}
-
-export type SignedArtifact = {
-  tenantId: string
-  version: number
-  policy: Record<string, unknown>
-  capabilities: Array<{ name: string; hiddenFields?: string[]; [key: string]: unknown }>
-  baseUrl?: string
-  publicBaseUrl?: string
-}
-
-export function canonicalArtifactBytes(artifact: SignedArtifact): string {
-  const fields: Record<string, unknown> = {
-    tenantId: artifact.tenantId,
-    version: artifact.version,
-    policy: artifact.policy,
-    capabilities: artifact.capabilities,
-  }
-  // Absent keys stay absent so v1 artifacts keep their original bytes.
-  if (artifact.baseUrl !== undefined) fields.baseUrl = artifact.baseUrl
-  if (artifact.publicBaseUrl !== undefined) fields.publicBaseUrl = artifact.publicBaseUrl
-  return stableStringify(fields)
 }
 
 export type ArtifactVerifyResult = { ok: true; artifact: SignedArtifact } | { ok: false; reason: string }

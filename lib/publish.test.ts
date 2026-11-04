@@ -79,7 +79,7 @@ describe('tierForChange', () => {
 
 describe('publicBaseUrlProblem', () => {
   const tenant = 'f4d7c3e1-34a4-4e78-8dfd-97f80399b055'
-  const hosted = `https://governor.agentport.relayforge.in/t/${tenant}`
+  const hosted = `https://governor.example.test/t/${tenant}`
   it('accepts the tenant-scoped hosted URL with or without a trailing slash', () => {
     expect(publicBaseUrlProblem(hosted, tenant)).toBeNull()
     expect(publicBaseUrlProblem(`${hosted}/`, tenant)).toBeNull()
@@ -89,12 +89,12 @@ describe('publicBaseUrlProblem', () => {
     expect(publicBaseUrlProblem('', tenant)).toContain('required')
   })
   it('refuses a different tenant path or a base origin with no tenant path', () => {
-    expect(publicBaseUrlProblem('https://governor.agentport.relayforge.in', tenant)).toContain(`/t/${tenant}`)
-    expect(publicBaseUrlProblem('https://governor.agentport.relayforge.in/t/someone-else', tenant)).toContain(`/t/${tenant}`)
+    expect(publicBaseUrlProblem('https://governor.example.test', tenant)).toContain(`/t/${tenant}`)
+    expect(publicBaseUrlProblem('https://governor.example.test/t/someone-else', tenant)).toContain(`/t/${tenant}`)
   })
   it('refuses cleartext, credentials, query strings and fragments', () => {
-    expect(publicBaseUrlProblem(`http://governor.agentport.relayforge.in/t/${tenant}`, tenant)).toContain('https')
-    expect(publicBaseUrlProblem(`https://user:pass@governor.agentport.relayforge.in/t/${tenant}`, tenant)).toContain('credentials')
+    expect(publicBaseUrlProblem(`http://governor.example.test/t/${tenant}`, tenant)).toContain('https')
+    expect(publicBaseUrlProblem(`https://user:pass@governor.example.test/t/${tenant}`, tenant)).toContain('credentials')
     expect(publicBaseUrlProblem(`${hosted}?x=1`, tenant)).toContain('query')
     expect(publicBaseUrlProblem(`${hosted}#x`, tenant)).toContain('fragment')
   })
@@ -114,7 +114,7 @@ describe('signed artifact verification', () => {
     version: 3,
     policy: { b: 2, a: [1, { y: 2, x: 1 }] },
     capabilities: [{ name: 'searchProducts' }],
-    publicBaseUrl: 'https://governor.agentport.relayforge.in/t/f4d7c3e1-34a4-4e78-8dfd-97f80399b055',
+    publicBaseUrl: 'https://governor.example.test/t/f4d7c3e1-34a4-4e78-8dfd-97f80399b055',
   }
   const { publicKey, privateKey } = generateKeyPairSync('ed25519')
   const publicKeyPem = publicKey.export({ type: 'spki', format: 'pem' }).toString()
@@ -188,5 +188,44 @@ describe('publish routes hold the boundaries', () => {
     expect(s).toContain('policy_artifacts')
     expect(s).toContain('verifySignedArtifact')
     expect(s).toContain('policy_public_key_pem')
+  })
+})
+
+describe('automatic browser publishing', () => {
+  const here = dirname(fileURLToPath(import.meta.url))
+  const read = (p: string) => readFileSync(join(here, '..', p), 'utf8')
+
+  it('approve returns the exact artifact for the browser to sign', () => {
+    const s = read('app/api/publish/approve/route.ts')
+    expect(s).toContain('artifact')
+    expect(s).toContain('publicBaseUrl')
+    expect(s).toContain('normaliseWorkerUrl')
+    expect(s).toContain('existingApproval')
+    expect(s).not.toContain('agent-port publish')
+  })
+
+  it('the publish panel signs and uploads automatically, with no envelope paste step', () => {
+    const s = read('components/golive-panel.tsx')
+    expect(s).toContain('signArtifact')
+    expect(s).toContain('ensurePublishKey')
+    expect(s).toContain('loadPublishKey')
+    expect(s).toContain('keyMatchesPin')
+    expect(s).not.toContain('Upload the signed envelope')
+    expect(s).not.toContain('agent-port publish --key')
+  })
+
+  it('browser key code never reaches for the server crypto or Supabase clients', () => {
+    const s = read('lib/browser-publish-key.ts')
+    expect(s).not.toContain("node:crypto")
+    expect(s).not.toContain('@/lib/supabase')
+    expect(s).not.toContain('SERVICE_ROLE')
+    expect(s).toContain("'use client'")
+  })
+
+  it('status exposes the public pin as known/unknown, never as a guessed empty pin', () => {
+    const s = read('app/api/publish/status/route.ts')
+    expect(s).toContain('pinnedPublicKey')
+    expect(s).toContain('pinnedPublicKeyKnown')
+    expect(s).toContain('tenant_runtime')
   })
 })

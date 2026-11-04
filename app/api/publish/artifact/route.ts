@@ -32,9 +32,10 @@ async function caller() {
 /**
  * POST /api/publish/artifact — intake for a merchant-signed envelope.
  *
- * Owner/admin only. Accepts exactly what `agent-port publish --key`
- * produced: {artifact: {tenantId, version, policy, capabilities},
- * signature}. Refused unless: the tenant matches the session, the version
+ * Owner/admin only. Accepts the browser-signed
+ * {artifact: {tenantId, version, policy, capabilities}, signature, publicKey}.
+ * The private key is generated on the merchant's device and never reaches
+ * this server. Refused unless: the tenant matches the session, the version
  * is a positive integer, policy/capabilities have the right shapes, a
  * signature is present, no kill-switch field rides along (defense in depth
  * behind the type + boundary proofs), and an approval row already covers
@@ -76,7 +77,7 @@ export async function POST(req: Request) {
   const sig = typeof body.signature === 'string' ? body.signature.trim() : ''
   const publicKey = typeof body.publicKey === 'string' ? body.publicKey.trim() : ''
   if (!art || typeof art !== 'object') {
-    return Response.json({ status: 'error', reason: 'Envelope must carry {artifact, signature} from `agent-port publish`.' }, { status: 400 })
+    return Response.json({ status: 'error', reason: 'Envelope must carry {artifact, signature, publicKey}.' }, { status: 400 })
   }
   if (art.tenantId !== tenantId) {
     return Response.json({ status: 'error', reason: 'Envelope names a different business than this login.' }, { status: 403 })
@@ -105,17 +106,17 @@ export async function POST(req: Request) {
     return Response.json({ status: 'error', reason: publicBaseUrlIssue }, { status: 422 })
   }
   if (sig === '') {
-    return Response.json({ status: 'error', reason: 'Envelope carries no signature — sign it with your merchant key first.' }, { status: 400 })
+    return Response.json({ status: 'error', reason: 'Envelope carries no signature — approve and publish again so this browser can sign it.' }, { status: 400 })
   }
   // The runtime pins the key the envelope names. Without it the worker cannot
   // verify the artifact, so accepting the bytes would only create a tenant
-  // that can never boot. `agent-port publish` always includes this field.
+  // that can never boot. The browser signing path always includes this field.
   if (!publicKey.startsWith('-----BEGIN PUBLIC KEY-----')) {
     return Response.json(
       {
         status: 'error',
         reason:
-          'Envelope carries no publicKey — re-run agent-port publish (it includes the public half automatically) and upload that envelope.',
+          'Envelope carries no publicKey — re-sign in this browser (the public half is included automatically) and retry.',
       },
       { status: 400 },
     )
@@ -141,7 +142,7 @@ export async function POST(req: Request) {
   const verified = verifySignedArtifact({ artifact: signedArtifact, signature: sig, publicKey }, { expectedTenantId: tenantId })
   if (!verified.ok) {
     return Response.json(
-      { status: 'error', reason: `Envelope signature did not verify: ${verified.reason}. Re-run agent-port publish and upload that envelope.` },
+      { status: 'error', reason: `Envelope signature did not verify: ${verified.reason}. Re-sign the approved bytes in this browser and retry.` },
       { status: 400 },
     )
   }

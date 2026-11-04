@@ -241,8 +241,8 @@ export default async function GoLivePage() {
                 <p className="label">06</p>
                 <h2 className="font-display text-[18px] font-semibold text-bone">Publish and activate</h2>
                 <p className="mt-1 text-[13px] leading-relaxed text-bone-dim">
-                  Approve the exact bytes, sign locally, upload the envelope. No GitHub? Download
-                  the installer in this step — it uses the same compiler.
+                  Approve the exact bytes; this browser signs and uploads them automatically. No GitHub?
+                  Download the installer in this step — it uses the same compiler.
                 </p>
               </div>
               <Badge tone={state.published ? 'allow' : 'idle'}>

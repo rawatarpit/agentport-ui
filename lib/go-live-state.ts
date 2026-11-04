@@ -183,8 +183,8 @@ export function deriveGoLiveState(input: GoLiveInputs): GoLiveState {
         : published
           ? `Artifact v${input.liveArtifact?.version} is stored.`
           : input.merged
-            ? 'The PR is merged — approve, sign, and upload the artifact to activate the governor.'
-            : 'Approve the exact bytes, sign locally, upload the envelope. No GitHub? Download the installer in this step.',
+            ? 'The PR is merged — approve; this browser signs and uploads the artifact to activate the governor.'
+            : 'Approve the exact bytes; this browser signs and uploads them automatically. No GitHub? Download the installer in this step.',
       publishState,
       input.liveArtifactUnknown ? 'Check status' : published ? 'Review publish' : 'Publish',
     ),

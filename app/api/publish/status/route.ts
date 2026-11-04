@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { compileLiveFrom } from '@/lib/golive'
 import { getDraftDb } from '@/lib/durable-store'
 import { resolveCallerRole } from '@/lib/tenant'
@@ -39,7 +40,27 @@ export async function GET() {
   }
   const tenantId = t.tenantId
 
-  const [rules, setup, capabilities, latest, tenant] = await Promise.all([
+  // The pin is the public half of the merchant key. It is not a secret, but
+  // tenant_runtime has no member SELECT policy, so this scoped read uses the
+  // server client after resolveCallerRole has proven membership. A failed
+  // read is `unknown`, never `no pin` — generating a key against a pin we
+  // could not see would be exactly the wrong guess.
+  const keyPin = (async (): Promise<{ known: boolean; publicKey: string | null }> => {
+    try {
+      const { data, error } = await createAdminClient()
+        .from('tenant_runtime')
+        .select('policy_public_key_pem')
+        .eq('tenant_id', tenantId)
+        .maybeSingle()
+      if (error) return { known: false, publicKey: null }
+      const value = typeof data?.policy_public_key_pem === 'string' ? data.policy_public_key_pem.trim() : ''
+      return { known: true, publicKey: value === '' ? null : value }
+    } catch {
+      return { known: false, publicKey: null }
+    }
+  })()
+
+  const [rules, setup, capabilities, latest, tenant, pin] = await Promise.all([
     getDraftDb(tenantId, 'rules'),
     getDraftDb(tenantId, 'setup'),
     getDraftDb(tenantId, 'capabilities'),
@@ -51,6 +72,7 @@ export async function GET() {
       .limit(1)
       .maybeSingle(),
     supabase.from('tenants').select('display_name').eq('tenant_id', tenantId).maybeSingle(),
+    keyPin,
   ])
 
   const compiled = compileLiveFrom({
@@ -67,10 +89,13 @@ export async function GET() {
 
   return Response.json({
     status: 'ok',
+    tenantId,
     businessName: (tenant.data?.display_name as string | undefined) ?? null,
     live,
     draft: compiled.ok ? { summary: compiled.compiled.summary } : null,
     draftError: compiled.ok ? null : compiled.reason,
     nextVersion: (live?.version ?? 0) + 1,
+    pinnedPublicKey: pin.publicKey,
+    pinnedPublicKeyKnown: pin.known,
   })
 }

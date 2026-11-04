@@ -36,12 +36,13 @@
   # (they ship in client JavaScript; RLS protects the data). GITHUB_APP_ID
   # and GITHUB_CLIENT_ID are likewise public identifiers — GitHub shows them
   # on the App settings page to anyone who can see the App, and the client
-  # ID rides in OAuth URLs. The scanner cannot tell either class from a
-  # leaked secret, so they are named here explicitly. This omits keys, never
-  # values, and changes nothing about what ships. Private key, client
-  # secret, and webhook secret are NOT omitted: if any of those ever matches
-  # a file, the build must fail.
-  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, GITHUB_APP_ID, GITHUB_CLIENT_ID"
+  # ID rides in OAuth URLs. AGENTPORT_WORKER_URL is the hosted governor
+  # origin, public by design and never a token. The scanner cannot tell
+  # these classes from a leaked secret, so they are named here explicitly.
+  # This omits keys, never values, and changes nothing about what ships.
+  # Private key, client secret, and webhook secret are NOT omitted: if any
+  # of those ever matches a file, the build must fail.
+  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, GITHUB_APP_ID, GITHUB_CLIENT_ID, AGENTPORT_WORKER_URL"
 
 # Next.js App Router needs the Essential Next.js plugin on Netlify.
 [[plugins]]

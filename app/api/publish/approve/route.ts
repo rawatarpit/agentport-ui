@@ -1,7 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { compileLiveFrom, KNOWN_CAPABILITIES, validateCapabilities } from '@/lib/golive'
 import { getDraftDb } from '@/lib/durable-store'
+import { normaliseWorkerUrl } from '@/lib/install-package'
 import { contentDigest, tierForChange } from '@/lib/publish'
+import type { SignedArtifact } from '@/lib/artifact-canonical'
 import { guardStateChange } from '@/lib/request-guard'
 import { resolveCallerRole } from '@/lib/tenant'
 import { readSelectedTenantId, tenantRefusalResponse } from '@/lib/tenant-server'
@@ -43,10 +45,11 @@ const knownKind = (name: string): 'read' | 'write' | 'unknown' =>
  * drafts — or re-presents a stored version for rollback — tiers the change
  * against the last published artifact, runs the matching ceremony (click vs
  * typed business name), and records the approval row bound to the exact
- * content digest. Nothing is distributed here: the merchant signs with
- * `agent-port publish --key` (private key never leaves their machine) and
- * the envelope arrives through /api/publish/artifact, which demands this
- * approval first.
+ * content digest. Nothing is distributed here: the response carries the
+ * artifact those bytes describe, the browser signs it with a key generated
+ * on that device, and the envelope arrives through /api/publish/artifact,
+ * which demands this approval first. The private key never reaches this
+ * server.
  */
 export async function POST(req: Request) {
   const guarded = guardStateChange(req, 'publish:approve')
@@ -67,7 +70,7 @@ export async function POST(req: Request) {
   }
   const { data: tenantRow } = await supabase
     .from('tenants')
-    .select('display_name')
+    .select('display_name,website_url')
     .eq('tenant_id', tenantId)
     .maybeSingle()
 
@@ -167,11 +170,83 @@ export async function POST(req: Request) {
 
   const tier = tierForChange(prev, { policy, capabilities: caps }, kindOf)
   // The approval binds the policy and capability set, not the transport
-  // origin. `baseUrl` is validated against the registered website at upload
-  // time, and the runtime reads the origin from the activation row, so
-  // including it here would make an envelope without a signed baseUrl fail
-  // to match the approval it was issued for.
+  // origin. The artifact returned to the browser also carries baseUrl and
+  // publicBaseUrl because they are signed bytes; the digest deliberately
+  // excludes them, so a later origin change does not invalidate the policy
+  // approval. Upload still checks baseUrl against the registered website.
   const digest = contentDigest({ tenantId, version, policy, capabilities: caps })
+
+  // Automatic publishing signs in the merchant's browser, so the artifact it
+  // signs must be complete before the approval is recorded. The upstream
+  // origin and the worker's tenant URL are server-owned values; a missing one
+  // is a named refusal now, not an approval that can never be uploaded.
+  const websiteUrl =
+    typeof tenantRow?.website_url === 'string' && tenantRow.website_url.trim() !== ''
+      ? tenantRow.website_url.trim()
+      : null
+  if (websiteUrl === null) {
+    return Response.json(
+      { status: 'error', reason: 'Set the business website URL before publishing — the runtime needs an upstream origin.' },
+      { status: 422 },
+    )
+  }
+  const worker = normaliseWorkerUrl(process.env.AGENTPORT_WORKER_URL ?? '', tenantId)
+  if (!worker.ok) {
+    return Response.json(
+      { status: 'error', reason: `Automatic publishing needs the hosted governor URL. ${worker.reason}` },
+      { status: 422 },
+    )
+  }
+  const artifact: SignedArtifact = {
+    tenantId,
+    version,
+    policy,
+    capabilities: caps,
+    baseUrl: websiteUrl,
+    publicBaseUrl: worker.url,
+  }
+
+  // An approval is durable even when its upload never completed. If the
+  // content digest still matches, return the same artifact for signing
+  // instead of trying to insert the same version again (which would be a
+  // permanent 409 for a merchant who reloaded after a network failure).
+  // A mismatched digest is a different change; it must not reuse the
+  // ceremony that approved other bytes.
+  const { data: existingApproval, error: existingApprovalError } = await supabase
+    .from('publish_approvals')
+    .select('digest,risk_tier')
+    .eq('tenant_id', tenantId)
+    .eq('version', version)
+    .maybeSingle()
+  if (existingApprovalError) {
+    console.error('existing publish approval read failed', existingApprovalError)
+    return Response.json(
+      { status: 'error', reason: 'Could not read the existing approval. Retry; if it persists, contact support.' },
+      { status: 502 },
+    )
+  }
+  if (existingApproval) {
+    if (existingApproval.digest !== digest) {
+      return Response.json(
+        {
+          status: 'error',
+          reason: `Version ${version} was already approved for different bytes and was never uploaded. Restore that content or ask support to discard the approval before publishing a new version.`,
+          version,
+        },
+        { status: 409 },
+      )
+    }
+    return Response.json({
+      status: 'ok',
+      tenantId,
+      version,
+      tier: typeof existingApproval.risk_tier === 'string' ? existingApproval.risk_tier : tier,
+      digest,
+      artifact,
+      reused: true,
+      next: `Version ${version} is already approved. This browser will sign and upload the exact bytes now.`,
+    })
+  }
 
   // Ceremony: typed needs the business name spelled out (blast radius =
   // kill-switch-class); light needs an explicit true (never a default).
@@ -239,6 +314,7 @@ export async function POST(req: Request) {
     version,
     tier,
     digest,
-    next: `Sign exactly these bytes: agent-port publish --key merchant-private.pem --public-key merchant-public.pem --version ${version} (key never leaves your machine), then upload the envelope.`,
+    artifact,
+    next: `Approved version ${version}. This browser will sign and upload the exact bytes now.`,
   })
 }
