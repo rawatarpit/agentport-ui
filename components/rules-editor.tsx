@@ -7,17 +7,11 @@ import { Badge } from '@/components/stat'
 import { EmptyState } from '@/components/ui/empty-state'
 
 /**
- * Rules editor — rebuilt to be capability-aware.
+ * Rules editor — rebuilt as an Excel-like grid.
  *
- * Reads your mapped capabilities from the capabilities draft (what you saved
- * from Map routes) and lets you set a rule for each one individually:
- *   • Allow freely — runs unattended
- *   • Ask first — held for your approval before it runs
- *   • Always refuse — blocked, never executes
- *
- * Amount limits are optional and apply to all write capabilities equally.
- * Nothing here is live: the badge reads `not published yet` until you publish
- * from Go-live.
+ * Every row is a mapped capability. Every column is a setting.
+ * Click any cell to edit. Nothing is live until you publish from Go-live.
+ * No JSON, no code — just rows and columns like Excel.
  */
 
 type CapabilityDraft = {
@@ -59,6 +53,8 @@ export function RulesEditor() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [loadError, setLoadError] = useState(false)
+  // Which cell is being edited (capability name -> 'rule' | 'askAbove' | 'neverAbove' | 'bulkUnits')
+  const [editingCell, setEditingCell] = useState<{ capability: string; field: string } | null>(null)
 
   // Load the saved capabilities draft and rules draft.
   useEffect(() => {
@@ -82,7 +78,6 @@ export function RulesEditor() {
           forbiddenCapabilities?: string[]
         } | null
 
-        // Build per-capability rules from the saved draft.
         const alwaysRequire = new Set(rulesBodyParsed?.alwaysRequireApproval ?? [])
         const forbidden = new Set(rulesBodyParsed?.forbiddenCapabilities ?? [])
 
@@ -144,7 +139,6 @@ export function RulesEditor() {
       const alwaysRequireApproval = drafts.rules.filter((r) => r.rule === 'hold').map((r) => r.capability)
       const forbiddenCapabilities = drafts.rules.filter((r) => r.rule === 'refuse').map((r) => r.capability)
 
-      // Save capabilities draft (mapped routes) — unchanged.
       const capsRes = await fetch('/api/drafts/capabilities', { cache: 'no-store' })
       if (!capsRes.ok) {
         setSaveError('Could not read current capabilities draft — refusing to overwrite.')
@@ -153,7 +147,6 @@ export function RulesEditor() {
       const capsBody = await capsRes.json()
       const currentExtra = capsBody.draft?.extra ?? []
 
-      // Save rules draft.
       const rulesRes = await fetch('/api/drafts/rules', {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
@@ -180,7 +173,6 @@ export function RulesEditor() {
 
   const ready = errors.length === 0
 
-  // Generated configuration — reviewable, not live.
   const alwaysRequireList = drafts.rules.filter((r) => r.rule === 'hold').map((r) => r.capability)
   const forbiddenList = drafts.rules.filter((r) => r.rule === 'refuse').map((r) => r.capability)
 
@@ -201,145 +193,180 @@ export function RulesEditor() {
     return lines.join('\n')
   }, [ready, ask, never, bulk, drafts.amount.askAbove, drafts.amount.neverAbove, alwaysRequireList, forbiddenList])
 
+  const ruleOptions: { value: Rule; label: string }[] = [
+    { value: 'allow', label: 'Allow freely' },
+    { value: 'hold', label: 'Hold for approval' },
+    { value: 'refuse', label: 'Refuse outright' },
+  ]
+
   return (
     <div className="space-y-4">
+      {/* Header */}
       <div className="panel flex flex-wrap items-center justify-between gap-3 p-4">
         <div>
-          <p className="label">Draft</p>
+          <p className="label">Rules per mapped capability</p>
           <p className="mt-1 text-[13px] text-bone-dim">
-            {savedAt
-              ? 'Draft saved. Nothing changed for your visitors yet.'
-              : 'Unsaved draft. Nothing here affects your visitors.'}
+            Click any cell to edit. Click a rule to change it. Nothing is live until you publish.
           </p>
-          <p className="mt-1 font-mono text-[11px] text-bone-faint">
-            {drafts.capabilities.length} mapped capability{drafts.capabilities.length === 1 ? '' : 's'} loaded from Map routes.
-          </p>
-          {loadError ? (
-            <p className="mt-1 text-[12px] text-rust" role="alert">
-              Could not load your saved draft — editing from defaults. Saving still works.
+          {drafts.capabilities.length === 0 ? (
+            <p className="mt-1 text-[12px] text-bone-faint">
+              No mapped capabilities yet.{' '}
+              <Link href="/map" className="text-bone underline underline-offset-2 hover:underline-offset-4">
+                Map routes first
+              </Link>
+              , then come back here.
             </p>
           ) : null}
         </div>
         <Badge tone="idle">not published yet</Badge>
       </div>
 
-      {/* Mapped capabilities with per-capability rules */}
-      <div className="panel space-y-3 p-6">
-        <p className="label">Rules per mapped capability</p>
-        <p className="mt-1 text-[12px] text-bone-faint">
-          Set a rule for each capability you mapped. Read capabilities run unattended by default; writes are held by default.
-        </p>
+      {/* Excel-style grid */}
+      <div className="panel overflow-hidden">
         {drafts.capabilities.length === 0 ? (
           <EmptyState
             title="No mapped capabilities yet"
-            body="Go to Map routes and save some endpoints first. Then come back here to set limits."
+            body="Go to Map routes and save some endpoints first. Then come back here to set limits for each one."
             action={<Link href="/map" className="btn btn-primary">Map routes</Link>}
           />
         ) : (
-          <div className="space-y-2">
-            {drafts.capabilities.map((cap) => {
-              const current = drafts.rules.find((r) => r.capability === cap.name)?.rule ?? 'allow'
-              return (
-                <div key={cap.name} className="flex items-center justify-between gap-3 p-3 rounded border border-ink-line/60 bg-ink/30">
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono text-[12px] text-bone">{cap.name}</span>
-                    <span className="font-mono text-[11px] text-bone-faint">{cap.method} {cap.path}</span>
-                    <Badge tone={cap.kind === 'write' ? 'held' : 'allow'}>{cap.kind}</Badge>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <label className="cursor-pointer flex items-center gap-2 px-3 py-1.5 rounded border transition-colors {current === 'allow' ? 'border-verdant/40 bg-verdant/5' : 'border-ink-line/40 hover:border-verdant/40'}">
-                      <input
-                        type="radio"
-                        name={`rule-${cap.name}`}
-                        value="allow"
-                        checked={current === 'allow'}
-                        onChange={() => setRule(cap.name, 'allow')}
-                      />
-                      Allow
-                    </label>
-                    <label className="cursor-pointer flex items-center gap-2 px-3 py-1.5 rounded border transition-colors {current === 'hold' ? 'border-amber/40 bg-amber/5' : 'border-ink-line/40 hover:border-amber/40'}">
-                      <input
-                        type="radio"
-                        name={`rule-${cap.name}`}
-                        value="hold"
-                        checked={current === 'hold'}
-                        onChange={() => setRule(cap.name, 'hold')}
-                      />
-                      Hold
-                    </label>
-                    <label className="cursor-pointer flex items-center gap-2 px-3 py-1.5 rounded border transition-colors {current === 'refuse' ? 'border-rust/40 bg-rust/5' : 'border-ink-line/40 hover:border-rust/40'}">
-                      <input
-                        type="radio"
-                        name={`rule-${cap.name}`}
-                        value="refuse"
-                        checked={current === 'refuse'}
-                        onChange={() => setRule(cap.name, 'refuse')}
-                      />
-                      Refuse
-                    </label>
-                  </div>
-                </div>
-              )
-            })}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-[13px]">
+              <thead>
+                <tr className="border-b border-ink-line bg-ink/20">
+                  <th key="cap" className="label px-4 py-3 font-normal">
+                    Capability
+                  </th>
+                  <th key="method" className="label px-4 py-3 font-normal">
+                    Method
+                  </th>
+                  <th key="path" className="label px-4 py-3 font-normal">
+                    Path
+                  </th>
+                  <th key="kind" className="label px-4 py-3 font-normal">
+                    Type
+                  </th>
+                  <th key="rule" className="label px-4 py-3 font-normal">
+                    Rule
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {drafts.capabilities.map((cap) => {
+                  const current = drafts.rules.find((r) => r.capability === cap.name)?.rule ?? 'allow'
+                  const isEditing = editingCell?.capability === cap.name && editingCell.field === 'rule'
+                  return (
+                    <tr key={cap.name} className="border-b border-ink-line/60 hover:bg-ink/5 last:border-0">
+                      <td className="px-4 py-3 font-mono text-[12px] text-bone">
+                        {cap.name}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-[11px] text-bone-dim">
+                        {cap.method}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-[12px] text-bone-dim truncate max-w-[200px]">
+                        {cap.path}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Badge tone={cap.kind === 'write' ? 'held' : 'allow'}>{cap.kind}</Badge>
+                      </td>
+                      <td className="px-4 py-3">
+                        {isEditing ? (
+                          <select
+                            value={current}
+                            onChange={(e) => setRule(cap.name, (e.target.value as Rule))}
+                            onBlur={() => setEditingCell(null)}
+                            className="w-full border border-ink-line rounded px-3 py-2 text-[12px] font-mono text-bone outline-none focus:border-verdant focus-visible:ring-1 focus-visible:ring-verdant/50"
+                          >
+                            {ruleOptions.map((o) => (
+                              <option key={o.value} value={o.value}>
+                                {o.label}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setEditingCell({ capability: cap.name, field: 'rule' })}
+                            className="flex items-center justify-between w-full px-3 py-2 rounded border border-ink-line bg-transparent text-[12px] text-bone hover:bg-ink/30 transition-colors"
+                          >
+                            <span>{current === 'allow' ? 'Allow freely' : current === 'hold' ? 'Hold for approval' : 'Refuse outright'}</span>
+                            <span className="text-bone-faint">↓</span>
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
 
-      {/* Amount limits (optional, apply to all write capabilities) */}
-      <details className="panel p-6">
-        <summary className="cursor-pointer text-[13px] text-bone-dim">
-          Amount limits <span className="font-mono text-[11px] text-bone-faint">— optional; apply to all write capabilities</span>
-        </summary>
-        <div className="mt-4 space-y-5">
+      {/* Amount limits */}
+      <div className="panel p-6">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="label">Amount limits (optional)</p>
+            <p className="mt-1 text-[12px] text-bone-faint">
+              Apply to all write capabilities. Leave blank to skip.
+            </p>
+          </div>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-3">
           <div>
             <label className="block text-[14px] text-bone" htmlFor="rules-ask">
-              Ask me first above this order value
+              Ask me first above (₹)
             </label>
-            <p className="mt-1 text-[12px] text-bone-faint">Anything below this runs on its own. Above it, nothing happens until you approve it.</p>
             <div className="mt-2 flex items-center gap-2">
-              <span aria-hidden="true" className="font-display text-xl text-bone-faint">₹</span>
               <input
                 id="rules-ask"
-                className="w-36 border border-ink-line bg-transparent px-3 py-2 font-display text-xl text-bone outline-none focus:border-verdant focus-visible:ring-2 focus-visible:ring-verdant/60"
+                className="w-40 border border-ink-line bg-transparent px-3 py-2 font-mono text-xl text-bone outline-none focus:border-verdant focus-visible:ring-2 focus-visible:ring-verdant/60"
                 value={drafts.amount.askAbove}
                 inputMode="decimal"
                 onChange={(e) => setAmount('askAbove', e.target.value)}
               />
             </div>
+            {drafts.amount.askAbove !== '' && ask === null && (
+              <p className="mt-1 text-[11px] text-rust">Enter a valid number.</p>
+            )}
           </div>
           <div>
             <label className="block text-[14px] text-bone" htmlFor="rules-never">
-              Always refuse above this order value
+              Always refuse above (₹)
             </label>
-            <p className="mt-1 text-[12px] text-bone-faint">Never held, never queued — simply refused with the reason the agent can read.</p>
             <div className="mt-2 flex items-center gap-2">
-              <span aria-hidden="true" className="font-display text-xl text-bone-faint">₹</span>
               <input
                 id="rules-never"
-                className="w-36 border border-ink-line bg-transparent px-3 py-2 font-display text-xl text-bone outline-none focus:border-verdant focus-visible:ring-2 focus-visible:ring-verdant/60"
+                className="w-40 border border-ink-line bg-transparent px-3 py-2 font-mono text-xl text-bone outline-none focus:border-verdant focus-visible:ring-2 focus-visible:ring-verdant/60"
                 value={drafts.amount.neverAbove}
                 inputMode="decimal"
                 onChange={(e) => setAmount('neverAbove', e.target.value)}
               />
             </div>
+            {drafts.amount.neverAbove !== '' && never === null && (
+              <p className="mt-1 text-[11px] text-rust">Enter a valid number.</p>
+            )}
           </div>
           <div>
             <label className="block text-[14px] text-bone" htmlFor="rules-bulk">
               Hold orders with more than this many items
             </label>
-            <p className="mt-1 text-[12px] text-bone-faint">Volume control, independent of value — a cheap basket of many units still gets looked at.</p>
             <div className="mt-2 flex items-center gap-2">
               <input
                 id="rules-bulk"
-                className="w-36 border border-ink-line bg-transparent px-3 py-2 font-display text-xl text-bone outline-none focus:border-verdant focus-visible:ring-2 focus-visible:ring-verdant/60"
+                className="w-40 border border-ink-line bg-transparent px-3 py-2 font-mono text-xl text-bone outline-none focus:border-verdant focus-visible:ring-2 focus-visible:ring-verdant/60"
                 value={drafts.amount.bulkUnits}
                 inputMode="numeric"
                 onChange={(e) => setAmount('bulkUnits', e.target.value)}
               />
             </div>
+            {drafts.amount.bulkUnits !== '' && (!Number.isInteger(bulk) || bulk <= 0) && (
+              <p className="mt-1 text-[11px] text-rust">Enter a whole number greater than zero.</p>
+            )}
           </div>
         </div>
-      </details>
+      </div>
 
       {errors.length > 0 && (
         <div className="panel border-rust/40 p-5" role="alert">
@@ -351,7 +378,14 @@ export function RulesEditor() {
       )}
 
       <div className="panel p-6">
-        <p className="label">Generated code — reviewable</p>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="label">Generated code — reviewable</p>
+            <p className="mt-1 text-[12px] text-bone-faint">
+              This is what gets published. Review it before you save.
+            </p>
+          </div>
+        </div>
         <pre tabIndex={0} aria-label="Generated configuration preview" className="mt-3 overflow-x-auto border border-ink-line bg-ink/40 p-4 font-mono text-[12px] leading-relaxed text-bone-dim">
           {generated ?? 'Fix the problems above to see the output.'}
         </pre>
