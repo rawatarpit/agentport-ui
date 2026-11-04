@@ -38,7 +38,16 @@ export async function GET(req: Request) {
   const home = tenantId ? await getHome(tenantId) : null
   const push = tenantId ? await getLatestPush(tenantId) : null
   const analytics = tenantId ? await hasAnalyticsEvents(tenantId) : false
-  const artifact = tenantId ? await getLiveArtifact(tenantId) : null
+  let artifact: Awaited<ReturnType<typeof getLiveArtifact>> = null
+  if (tenantId) {
+    try {
+      artifact = await getLiveArtifact(tenantId)
+    } catch {
+      // The connect read cannot prove a version on failure. Leave it null
+      // (missing) rather than turning this endpoint into a 500.
+      artifact = null
+    }
+  }
 
   const sections = tenantId ? await listDraftSections(tenantId) : new Set<string>()
   const setup = sections.has('setup')

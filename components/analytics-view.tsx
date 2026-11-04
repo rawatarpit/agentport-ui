@@ -38,8 +38,13 @@ export async function AnalyticsView() {
         .eq('tenant_id', tenantId)
         .order('window_start', { ascending: false })
         .limit(200),
+      // Demand is read from the console projection, not the legacy
+      // v_ledger_agent_demand view: authenticated has no grant on
+      // ledger_entries.integration_ref, so that view errors for every
+      // merchant. The projection carries the same four fields this screen
+      // uses and is the boundary the rest of the console already trusts.
       supabase
-        .from('v_ledger_agent_demand')
+        .from('ledger_console_view')
         .select('agent_id,assurance,capability,decision')
         .eq('tenant_id', tenantId)
         .limit(500),

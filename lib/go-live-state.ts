@@ -40,6 +40,8 @@ export type GoLiveState = {
   draftMapped: number
   /** Approved inventory, which may outlive a cleared draft. */
   inventoryCount: number
+  /** True when the inventory read failed: the count is unknown, not zero. */
+  inventoryUnknown: boolean
   mappedCount: number
   publishable: boolean
   installed: boolean
@@ -47,6 +49,8 @@ export type GoLiveState = {
   pullRequests: DbPullRequest[]
   merged: boolean
   liveArtifact: LiveArtifactRow | null
+  /** True when the artifact read failed: published is then unknown, not false. */
+  liveArtifactUnknown: boolean
   published: boolean
   phase: 'not-started' | 'in-progress' | 'live'
   steps: GoLiveStep[]
@@ -61,10 +65,14 @@ export type GoLiveInputs = {
   drafts: { setup: boolean; rules: boolean; capabilities: boolean }
   draftMapped: number
   inventoryCount: number
+  /** Optional so fixtures that only model rows stay readable. */
+  inventoryUnknown?: boolean
   installations: DbInstallation[]
   pullRequests: DbPullRequest[]
   merged: boolean
   liveArtifact: LiveArtifactRow | null
+  /** Optional so fixtures that only model rows stay readable. */
+  liveArtifactUnknown?: boolean
 }
 
 function step(
@@ -80,11 +88,14 @@ function step(
 
 export function deriveGoLiveState(input: GoLiveInputs): GoLiveState {
   const siteUrl = input.siteUrl
+  const inventoryUnknown = input.inventoryUnknown === true
   const mappedCount = Math.max(input.draftMapped, input.inventoryCount)
   const publishable = input.draftMapped > 0 && (input.drafts.setup || input.drafts.rules)
   const rulesReady = input.drafts.setup || input.drafts.rules
   const installed = input.installations.length > 0
   const prOpened = input.pullRequests.length > 0
+  // An unknown artifact is not "unpublished". Steps may still ask the
+  // merchant to check, but no screen may render a live/false claim from it.
   const published = input.liveArtifact !== null
 
   const siteState: GoLiveStepState = siteUrl ? 'done' : 'current'
@@ -98,7 +109,13 @@ export function deriveGoLiveState(input: GoLiveInputs): GoLiveState {
   // Publish does not require GitHub: the manual installer produces the same
   // discovery package, and the hosted artifact is activated by the signed
   // envelope. The PR steps are the GitHub branch, not a gate on the governor.
-  const publishState: GoLiveStepState = published ? 'done' : publishable ? 'current' : 'blocked'
+  const publishState: GoLiveStepState = input.liveArtifactUnknown
+    ? 'current'
+    : published
+      ? 'done'
+      : publishable
+        ? 'current'
+        : 'blocked'
   // The server cannot prove the canonical URL is live without making an
   // outbound request on every page. The go-live page's DiscoveryCheck does
   // that in the browser; this step stays current until the merchant verifies.
@@ -119,11 +136,13 @@ export function deriveGoLiveState(input: GoLiveInputs): GoLiveState {
       'Map what agents can call',
       input.draftMapped > 0
         ? `${input.draftMapped} route${input.draftMapped === 1 ? '' : 's'} in the current draft.`
-        : input.inventoryCount > 0
-          ? `${input.inventoryCount} approved route${input.inventoryCount === 1 ? ' is' : 's are'} active, but the current draft is empty — map at least one to publish again.`
-          : 'Only routes you map become executable capabilities. The catalogue alone is not a runtime.',
+        : inventoryUnknown
+          ? 'The approved inventory could not be read — unknown, not zero. Check before mapping again.'
+          : input.inventoryCount > 0
+            ? `${input.inventoryCount} approved route${input.inventoryCount === 1 ? ' is' : 's are'} active, but the current draft is empty — map at least one to publish again.`
+            : 'Only routes you map become executable capabilities. The catalogue alone is not a runtime.',
       mapState,
-      mappedCount > 0 ? 'Review routes' : 'Map routes',
+      mappedCount > 0 || inventoryUnknown ? 'Review routes' : 'Map routes',
     ),
     step(
       'rules',
@@ -159,13 +178,15 @@ export function deriveGoLiveState(input: GoLiveInputs): GoLiveState {
       'publish',
       '06',
       'Publish and activate',
-      published
-        ? `Artifact v${input.liveArtifact?.version} is stored.`
-        : input.merged
-          ? 'The PR is merged — approve, sign, and upload the artifact to activate the governor.'
-          : 'Approve the exact bytes, sign locally, upload the envelope. No GitHub? Download the installer in this step.',
+      input.liveArtifactUnknown
+        ? 'The published state could not be read — unknown, not unpublished. Check status before publishing again.'
+        : published
+          ? `Artifact v${input.liveArtifact?.version} is stored.`
+          : input.merged
+            ? 'The PR is merged — approve, sign, and upload the artifact to activate the governor.'
+            : 'Approve the exact bytes, sign locally, upload the envelope. No GitHub? Download the installer in this step.',
       publishState,
-      published ? 'Review publish' : 'Publish',
+      input.liveArtifactUnknown ? 'Check status' : published ? 'Review publish' : 'Publish',
     ),
     step(
       'verify',
@@ -197,6 +218,7 @@ export function deriveGoLiveState(input: GoLiveInputs): GoLiveState {
     drafts: input.drafts,
     draftMapped: input.draftMapped,
     inventoryCount: input.inventoryCount,
+    inventoryUnknown,
     mappedCount,
     publishable,
     installed,
@@ -204,6 +226,7 @@ export function deriveGoLiveState(input: GoLiveInputs): GoLiveState {
     pullRequests: input.pullRequests,
     merged: input.merged,
     liveArtifact: input.liveArtifact,
+    liveArtifactUnknown: input.liveArtifactUnknown === true,
     published,
     phase,
     steps,

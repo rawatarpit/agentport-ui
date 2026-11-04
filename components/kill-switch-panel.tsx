@@ -1,149 +1,32 @@
-'use client'
-
-import { useCallback, useEffect, useState } from 'react'
 import { Badge } from '@/components/stat'
 
 /**
- * The emergency switch, with both directions typed.
+ * The emergency switch is merchant state, decided elsewhere.
  *
- * Engaging stops writes (reads go audit-only) the moment the live row flips;
- * releasing restores exactly what was published — the digest never changes,
- * because the policy never changed. The switch is merchant state, not policy:
- * no sync payload can carry it, and this panel is the only writer. The only
- * fast careless action in this product should be a refusal — flipping this
- * is deliberately the opposite of fast.
+ * There is no browser control here: a session cookie is not the trust path
+ * for stopping enforcement. The dashboard shows the command and the fact that
+ * closing this tab cannot flip it. Approvals and kill-switch decisions land
+ * through the hosted path; this repo only renders what that path recorded.
  */
-export function KillSwitchPanel({ demo = false }: { demo?: boolean }) {
-  const [engaged, setEngaged] = useState<boolean | null>(null)
-  const [businessName, setBusinessName] = useState<string | null>(null)
-  const [confirm, setConfirm] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [msg, setMsg] = useState<string | null>(null)
-  const [err, setErr] = useState<string | null>(null)
-
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch('/api/config')
-      const body = (await res.json()) as {
-        status: string
-        emergencyKillSwitch?: boolean
-      }
-      setEngaged(body.status === 'ok' ? (body.emergencyKillSwitch ?? false) : null)
-      const me = await fetch('/api/me')
-      const mbody = (await me.json()) as { status: string; merchant?: { businessName?: string } }
-      setBusinessName(mbody.status === 'ok' ? (mbody.merchant?.businessName ?? null) : null)
-    } catch {
-      setEngaged(null)
-    }
-  }, [])
-
-  useEffect(() => {
-    // The demo route is gated off in production; do not call it there. The
-    // local panel below does not need a server round-trip.
-    if (demo) void load()
-  }, [demo, load])
-
-  const flip = async (engage: boolean) => {
-    setBusy(true)
-    setErr(null)
-    setMsg(null)
-    try {
-      const res = await fetch('/api/kill-switch', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ engage, confirm }),
-      })
-      const body = (await res.json()) as { status: string; reason?: string; emergencyKillSwitch?: boolean }
-      if (body.status !== 'ok') throw new Error(body.reason ?? 'Refused.')
-      setEngaged(body.emergencyKillSwitch ?? engage)
-      setConfirm('')
-      setMsg(engage ? 'Engaged. Writes stop now; reads are audit-only.' : 'Released. The published policy enforces again, unchanged.')
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Refused.')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  if (!demo) {
-    return (
-      <div className="panel space-y-3 p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="label">Emergency stop</p>
-          <Badge tone="idle">hosted governor</Badge>
-        </div>
-        <p className="text-[13px] leading-relaxed text-bone-dim">
-          The stop is evaluated first by the hosted governor. It is command-only:
-          this console can show the state, but it cannot flip the switch from a
-          browser session.
-        </p>
-        <pre className="overflow-x-auto border border-ink-line bg-ink/60 p-3 font-mono text-[12px] text-bone-dim">
-          agent-port kill engage
-        </pre>
-        <p className="text-[13px] leading-relaxed text-bone-dim">
-          Releasing requires typing your business name. The switch survives restarts
-          and cannot be cleared by a publish, a rollback, or this dashboard.
-        </p>
-      </div>
-    )
-  }
-
+export function KillSwitchPanel() {
   return (
-    <div className="panel space-y-4 p-6">
+    <div className="panel space-y-3 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="label">Emergency stop</p>
-        {engaged === null ? (
-          <Badge tone="idle">nothing to stop yet</Badge>
-        ) : (
-          <Badge tone={engaged ? 'deny' : 'idle'}>{engaged ? 'stopped' : 'running normally'}</Badge>
-        )}
+        <Badge tone="idle">hosted governor</Badge>
       </div>
-
-      {engaged === null ? (
-        <p className="text-[13px] leading-relaxed text-bone-dim">
-          Nothing is live yet, so there is nothing to stop — publish first. The stop button only exists against something running.
-        </p>
-      ) : !businessName ? (
-        <p className="text-[13px] leading-relaxed text-bone-dim">
-          No account yet — create one on the <a className="text-bone underline" href="/connect">connect screen</a>. The stop only moves on your typed business name, nothing less.
-        </p>
-      ) : (
-        <>
-          <p className="text-[13px] leading-relaxed text-bone-dim">
-            {engaged
-              ? 'Stopped: nothing new runs, and looking stays available. Releasing brings back exactly what you published — nothing is re-decided.'
-              : 'Running normally under your published rules. Stopping halts everything new immediately, and it is recorded against your account.'}
-          </p>
-          <div>
-            <label className="block text-[13px] text-bone" htmlFor="kill-confirm">
-              Type <span className="font-mono">{businessName}</span> to {engaged ? 'release' : 'engage'}.
-            </label>
-            <div className="mt-2 flex flex-wrap items-center gap-3">
-              <input
-                id="kill-confirm"
-                className="w-64 border border-ink-line bg-transparent px-3 py-2 font-mono text-[13px] text-bone outline-none focus:border-rust focus-visible:ring-2 focus-visible:ring-rust/60"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                placeholder={businessName}
-              />
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={busy || confirm.trim() !== businessName}
-                onClick={() => flip(!engaged)}
-              >
-                {busy ? 'Working…' : engaged ? 'Release the switch' : 'Engage the switch'}
-              </button>
-            </div>
-          </div>
-        </>
-      )}
-
-      {msg ? <p className="text-[13px] text-bone">{msg}</p> : null}
-      {err ? (
-        <p className="text-[13px] text-rust" role="alert">{err}</p>
-      ) : null}
-      <p className="font-mono text-[11px] text-bone-faint">only you control this — publishing never changes it</p>
+      <p className="text-[13px] leading-relaxed text-bone-dim">
+        The stop is evaluated first by the hosted governor. It is command-only:
+        this console can show the state, but it cannot flip the switch from a
+        browser session.
+      </p>
+      <pre className="overflow-x-auto border border-ink-line bg-ink/60 p-3 font-mono text-[12px] text-bone-dim">
+        agent-port kill engage
+      </pre>
+      <p className="text-[13px] leading-relaxed text-bone-dim">
+        Releasing requires typing your business name. The switch survives restarts
+        and cannot be cleared by a publish, a rollback, or this dashboard.
+      </p>
     </div>
   )
 }

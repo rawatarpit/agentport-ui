@@ -195,35 +195,42 @@ export async function POST(req: Request) {
     )
   }
 
-  // The approval is the authority; the descriptors only become meaningful
-  // when the signed artifact activates. Write them after the ceremony and
-  // before the approval row, so a failed typed confirmation changes nothing.
-  if (inventory.length > 0) {
-    const { error: inventoryError } = await supabase
-      .from('agent_capabilities')
-      .upsert(inventory, { onConflict: 'tenant_id,name' })
-    if (inventoryError) {
-      // PostgREST errors name constraints and relations. Callers get a fixed
-      // message; the detail stays in server logs.
-      console.error('capability inventory upsert failed', inventoryError)
-      return Response.json(
-        { status: 'error', reason: 'Could not record the capability inventory. Retry; if it persists, contact support.' },
-        { status: 500 },
-      )
-    }
-  }
-
-  const { error } = await supabase.from('publish_approvals').insert({
-    tenant_id: tenantId,
-    version,
-    approver_role: t.role,
-    risk_tier: tier,
-    digest,
+  // One transaction: the approval row and the capability inventory commit
+  // together or not at all. A two-step write could leave descriptors that no
+  // approval covers after a failure between them — the exact drift this RPC
+  // exists to remove. The function is security invoker; publish_approvals RLS
+  // still requires owner/admin and approved_by = auth.uid().
+  const { error } = await supabase.rpc('agentport_record_publish_approval', {
+    p_tenant_id: tenantId,
+    p_version: version,
+    p_risk_tier: tier,
+    p_digest: digest,
+    p_inventory: inventory.length > 0 ? inventory : null,
   })
   if (error) {
+    console.error('publish approval RPC failed', error)
+    const code = (error as { code?: string }).code
+    if (code === '23505') {
+      return Response.json(
+        { status: 'error', reason: 'Version already approved — reload versions and approve the next one.' },
+        { status: 409 },
+      )
+    }
+    if (code === '42501') {
+      return Response.json(
+        { status: 'error', reason: 'Only the owner or an admin can approve a publish.' },
+        { status: 403 },
+      )
+    }
+    if (code === '22023') {
+      return Response.json(
+        { status: 'error', reason: 'The approval payload was rejected by the database. Reload and try again.' },
+        { status: 422 },
+      )
+    }
     return Response.json(
-      { status: 'error', reason: 'Version already approved — reload versions and approve the next one.' },
-      { status: 409 },
+      { status: 'error', reason: 'Could not record the approval. Retry; if it persists, contact support.' },
+      { status: 500 },
     )
   }
   return Response.json({

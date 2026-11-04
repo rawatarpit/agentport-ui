@@ -25,6 +25,10 @@ type DemandRow = {
   assurance: 'verified' | 'unverified'
   capability: string
   decision: 'allow' | 'deny' | 'require_approval'
+  /** The settled outcome, if the row has one. Null for a hold/denial. */
+  result: 'ok' | 'error' | null
+  /** The rule that fired, or an empty string when none was recorded. */
+  rule: string
 }
 
 type CapabilityRow = {
@@ -97,10 +101,12 @@ export type MarketingAnalytics = {
   }>
   weekly: Array<{
     week: string
-    requests: number
-    agents: number
-    executed: number
-    held: number
+    /** Null when any row in the week has an unknown count for that metric. */
+    requests: number | null
+    /** Null when the stored rows cannot prove distinct agents for the week. */
+    agents: number | null
+    executed: number | null
+    held: number | null
   }>
   funnel: Array<{
     step: string
@@ -141,9 +147,12 @@ async function fetchMarketingAnalytics(
         .eq('tenant_id', tenantId)
         .order('window_start', { ascending: false })
         .limit(200),
+      // See components/analytics-view: v_ledger_agent_demand is not readable
+      // by authenticated. ledger_console_view carries the same demand fields
+      // plus the settled result and the rule that fired.
       supabase
-        .from('v_ledger_agent_demand')
-        .select('agent_id,assurance,capability,decision')
+        .from('ledger_console_view')
+        .select('agent_id,assurance,capability,decision,result,rule')
         .eq('tenant_id', tenantId)
         .limit(1000),
       supabase
@@ -174,6 +183,12 @@ async function fetchMarketingAnalytics(
         .limit(1),
     ])
 
+  // The three ledger views are the evidence. If one cannot be read, return
+  // the unknown sentinel (null KPIs) rather than a screen of zeroes.
+  if (activityRes.error || conversionRes.error || demandRes.error) {
+    throw new Error('analytics read failed')
+  }
+
   const activity = (activityRes.data ?? []) as ActivityRow[]
   const conversion = (conversionRes.data ?? []) as ConversionRow[]
   const demand = (demandRes.data ?? []) as DemandRow[]
@@ -202,21 +217,9 @@ async function fetchMarketingAnalytics(
     if (r.decision === 'allow') cur.allowed += 1
     else if (r.decision === 'deny') cur.refused += 1
     else cur.held += 1
-  }
-
-  // Merge executed counts from activity by capability→source approximation
-  // (activity doesn't carry source; distribute by matching capability→source)
-  const capToSource = new Map<string, string>()
-  for (const r of demand) {
-    const source = resolveSource(r)
-    if (!capToSource.has(r.capability)) capToSource.set(r.capability, source)
-  }
-  const executedBySource = new Map<string, number>()
-  for (const r of activity) {
-    const source = capToSource.get(r.capability)
-    if (source) {
-      executedBySource.set(source, (executedBySource.get(source) ?? 0) + (typeof r.executed === 'number' ? r.executed : 0))
-    }
+    // Executed means this row settled ok. Never distribute another row's
+    // execution count across a source: that is inference, not a measurement.
+    if (r.decision === 'allow' && r.result === 'ok') cur.executed += 1
   }
 
   const sources = [...bySource.entries()]
@@ -228,7 +231,7 @@ async function fetchMarketingAnalytics(
       allowed: c.allowed,
       held: c.held,
       refused: c.refused,
-      executed: executedBySource.get(source) ?? 0,
+      executed: c.executed,
     }))
     .sort((a, b) => b.requests - a.requests)
 
@@ -295,33 +298,36 @@ async function fetchMarketingAnalytics(
     .sort((a, b) => b.requests - a.requests)
 
   // --- Weekly trend ---
+  // A null in any row makes that week's total unknown. Adding a known number
+  // to an unknown one and printing the sum is the null-to-zero bug.
+  const add = (total: number | null, value: number | null): number | null =>
+    total === null || typeof value !== 'number' ? null : total + value
+
   const byWeek = new Map<string, {
-    requests: number
-    agents: Set<string>
-    executed: number
-    held: number
+    requests: number | null
+    executed: number | null
+    held: number | null
   }>()
 
   for (const r of activity) {
     let cur = byWeek.get(r.window_start)
     if (!cur) {
-      cur = { requests: 0, agents: new Set(), executed: 0, held: 0 }
+      cur = { requests: 0, executed: 0, held: 0 }
       byWeek.set(r.window_start, cur)
     }
-    cur.requests += typeof r.asked === 'number' ? r.asked : 0
-    cur.executed += typeof r.executed === 'number' ? r.executed : 0
-    cur.held += typeof r.held === 'number' ? r.held : 0
+    cur.requests = add(cur.requests, r.asked)
+    cur.executed = add(cur.executed, r.executed)
+    cur.held = add(cur.held, r.held)
   }
 
-  const totalAgentsForWeekly = new Set(demand.map((d) => d.agent_id)).size
-  const weekCount = byWeek.size
-  const agentsPerWeek = weekCount > 0 ? Math.floor(totalAgentsForWeekly / weekCount) : 0
-
+  // The activity view has no per-week agent identity. The old version divided
+  // the all-time agent count by the number of weeks, which is not a stored
+  // count. `null` is the honest answer until a row can prove it.
   const weekly = [...byWeek.entries()]
     .map(([week, c]) => ({
       week,
       requests: c.requests,
-      agents: agentsPerWeek,
+      agents: null,
       executed: c.executed,
       held: c.held,
     }))
@@ -344,7 +350,11 @@ async function fetchMarketingAnalytics(
   const byDecision = new Map<string, number>()
   for (const d of demand) {
     if (d.decision === 'deny' || d.decision === 'require_approval') {
-      byDecision.set(d.decision, (byDecision.get(d.decision) ?? 0) + 1)
+      // Group by the rule the row names. Falling back to the decision is
+      // honest only when no rule was recorded; calling a decision a "reason"
+      // is what the old screen did.
+      const key = d.rule || 'unrecorded rule'
+      byDecision.set(key, (byDecision.get(key) ?? 0) + 1)
     }
   }
   const refusalReasons = [...byDecision.entries()]
@@ -375,6 +385,7 @@ async function fetchMarketingAnalytics(
     if (r.decision === 'allow') cur.allowed += 1
     else if (r.decision === 'deny') cur.refused += 1
     else cur.held += 1
+    if (r.decision === 'allow' && r.result === 'ok') cur.executed += 1
     cur.capabilities.add(r.capability)
   }
 
@@ -387,7 +398,7 @@ async function fetchMarketingAnalytics(
       allowed: c.allowed,
       held: c.held,
       refused: c.refused,
-      executed: executedBySource.get(c.source) ?? 0,
+      executed: c.executed,
       capabilities: [...c.capabilities],
       lastSeen: null,
     }))
@@ -443,21 +454,11 @@ export async function GET(req: Request) {
     const data = await fetchMarketingAnalytics(tenant.supabase, tenant.active.tenantId)
     return NextResponse.json(data)
   } catch {
+    // A failed read is not an empty window. A 200 with zero/null rows makes
+    // the page render "no activity", which is a claim we cannot prove.
     return NextResponse.json(
-      {
-        kpis: {
-          totalRequests: null, totalAgents: null, totalExecuted: null,
-          totalHeld: null, totalRefused: null, activeSources: null,
-          conversionRate: null, holdRate: null,
-        },
-        sources: [],
-        capabilities: [],
-        weekly: [],
-        funnel: [],
-        refusalReasons: [],
-        agents: [],
-      },
-      { status: 200 },
+      { error: 'Marketing analytics could not be read.' },
+      { status: 503 },
     )
   }
 }

@@ -28,8 +28,10 @@ export type DbInstallation = {
   receivedAt: string
 }
 
+export type DraftSection = 'setup' | 'capabilities' | 'rules'
+
 export type DbDraft = {
-  section: 'setup' | 'capabilities' | 'rules'
+  section: DraftSection
   payload: unknown
   updatedAt: string
 }

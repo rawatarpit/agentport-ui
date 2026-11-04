@@ -219,16 +219,26 @@ export function GolivePanel() {
           <span className="font-mono text-[11px] text-bone-faint">
             live version {s.live.version}
           </span>
-        ) : (
+        ) : err ? (
+          <Badge tone="idle">unknown</Badge>
+        ) : s ? (
           <Badge tone="idle">not published</Badge>
+        ) : (
+          <Badge tone="idle">checking…</Badge>
         )}
       </div>
 
       {!s ? (
-        <p className="text-[13px] text-bone-faint">Reading publish state…</p>
+        err ? (
+          <p className="text-[13px] text-rust" role="alert">
+            The publish state could not be read. This is unknown — not unpublished.
+          </p>
+        ) : (
+          <p className="text-[13px] text-bone-faint">Reading publish state…</p>
+        )
       ) : !s.businessName ? (
         <p className="text-[13px] leading-relaxed text-bone-dim">
-          No account yet — create one on the <a className="text-bone underline" href="/connect">connect screen</a>, then come back. Publishing always happens as your business.
+          No account yet — create one on the <a className="text-bone underline" href="/setup">setup screen</a>, then come back. Publishing always happens as your business.
         </p>
       ) : s.draft ? (
         <>

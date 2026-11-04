@@ -5,8 +5,11 @@ import { createClient } from '@/lib/supabase/server'
  *
  * Every function here answers from Supabase via the session client (anon key
  * + cookies), so RLS scopes rows to the caller's own tenants. No service
- * role, no key material, no fallback to RAM — an empty/error result is
- * returned as null/false and the caller renders `unknown`/honest-empty.
+ * role, no key material, no fallback to RAM — an empty result is
+ * null/false and the caller renders `unknown`/honest-empty. Reads that
+ * answer a liveness claim (`getLiveArtifact`, `getLivePolicy`) throw on
+ * failure instead, because "nothing published" is a claim an error cannot
+ * support.
  *
  * Custody (AGENTS.md 6): explicit column lists only. The PII email column
  * and the append-auth MAC are never selected on any dashboard path —
@@ -59,26 +62,29 @@ export type LivePolicyRow = {
  * policy from drafts. A missing row is "nothing published", not "allow all".
  */
 export async function getLivePolicy(tenantId: string): Promise<LivePolicyRow | null> {
-  try {
-    const db = createClient()
-    const { data, error } = await db
-      .from('policy_artifacts')
-      .select('version, artifact, published_at')
-      .eq('tenant_id', tenantId)
-      .order('version', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    if (error || !data) return null
-    const r = data as { version: number; artifact: { policy?: unknown } | null; published_at: string }
-    if (!Number.isInteger(r.version)) return null
-    if (!r.artifact || typeof r.artifact.policy !== 'object' || r.artifact.policy === null) return null
-    return {
-      version: r.version,
-      policy: r.artifact.policy as Record<string, unknown>,
-      publishedAt: r.published_at,
-    }
-  } catch {
-    return null
+  const db = createClient()
+  const { data, error } = await db
+    .from('policy_artifacts')
+    .select('version, artifact, published_at')
+    .eq('tenant_id', tenantId)
+    .order('version', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) throw new Error('published policy read failed')
+  if (!data) return null
+  const r = data as { version: number; artifact: { policy?: unknown } | null; published_at: string }
+  if (
+    !Number.isInteger(r.version) ||
+    !r.artifact ||
+    typeof r.artifact.policy !== 'object' ||
+    r.artifact.policy === null
+  ) {
+    throw new Error('published policy row is malformed')
+  }
+  return {
+    version: r.version,
+    policy: r.artifact.policy as Record<string, unknown>,
+    publishedAt: r.published_at,
   }
 }
 
@@ -159,23 +165,25 @@ export async function hasAnalyticsEvents(tenantId: string): Promise<boolean> {
   }
 }
 
-/** Latest published artifact for the active tenant's "go live" step. Null = none. */
+/**
+ * Latest published artifact for the active tenant's "go live" step.
+ * Null = none. A failed read throws: "not published" is a claim, and an
+ * unreadable artifact table cannot support it. Callers render unknown.
+ */
 export async function getLiveArtifact(tenantId: string): Promise<LiveArtifactRow | null> {
-  try {
-    const db = createClient()
-    const { data, error } = await db
-      .from('policy_artifacts')
-      .select('tenant_id, version, published_at')
-      .eq('tenant_id', tenantId)
-      .order('version', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    if (error || !data) return null
-    const r = data as { version: number; published_at: string }
-    if (!Number.isInteger(r.version)) return null
-    if (!r.published_at || !Number.isFinite(Date.parse(r.published_at))) return null
-    return { version: r.version, publishedAt: r.published_at }
-  } catch {
-    return null
+  const db = createClient()
+  const { data, error } = await db
+    .from('policy_artifacts')
+    .select('tenant_id, version, published_at')
+    .eq('tenant_id', tenantId)
+    .order('version', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) throw new Error('published artifact read failed')
+  if (!data) return null
+  const r = data as { version: number; published_at: string }
+  if (!Number.isInteger(r.version) || !r.published_at || !Number.isFinite(Date.parse(r.published_at))) {
+    throw new Error('published artifact row is malformed')
   }
+  return { version: r.version, publishedAt: r.published_at }
 }

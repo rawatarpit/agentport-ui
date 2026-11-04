@@ -103,6 +103,30 @@ describe('deriveGoLiveState', () => {
     expect(stepState(s, 'publish')).toBe('blocked')
   })
 
+  it('carries an unknown artifact read without rendering it as unpublished', () => {
+    const s = stateOf({ liveArtifactUnknown: true })
+    expect(s.liveArtifactUnknown).toBe(true)
+    expect(s.liveArtifact).toBeNull()
+    // `published` stays a step-derivation boolean, but no screen may use it
+    // alone: liveArtifactUnknown is what makes the display say unknown.
+    expect(s.published).toBe(false)
+
+    const publish = s.steps.find((step) => step.id === 'publish')
+    expect(publish?.state).toBe('current')
+    expect(publish?.summary).toContain('could not be read')
+    expect(publish?.actionLabel).toBe('Check status')
+    expect(publish?.summary).not.toContain('Approve the exact bytes')
+  })
+
+  it('renders an unreadable inventory as unknown, not as an empty inventory', () => {
+    const s = stateOf({ siteUrl: 'https://acme.example', inventoryUnknown: true })
+    const capabilities = s.steps.find((step) => step.id === 'capabilities')
+    expect(s.inventoryUnknown).toBe(true)
+    expect(capabilities?.summary).toContain('could not be read')
+    expect(capabilities?.summary).not.toContain('Only routes you map')
+    expect(capabilities?.actionLabel).toBe('Review routes')
+  })
+
   it('sends a manual-installer publish to verify, not back to GitHub', () => {
     const s = stateOf({
       siteUrl: 'https://acme.example',

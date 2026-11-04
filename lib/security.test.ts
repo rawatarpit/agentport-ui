@@ -164,7 +164,7 @@ describe('route coverage', () => {
     expect(mutating.length).toBeGreaterThan(10)
     for (const file of mutating) {
       const src = readFileSync(file, 'utf8')
-      const hmacRoute = file.endsWith('/github/webhook/route.ts') || file.endsWith('/sync/route.ts')
+      const hmacRoute = file.endsWith('/github/webhook/route.ts')
       expect(src, `${file} must use the shared guard`).toContain(hmacRoute ? 'enforceRateLimit' : 'guardStateChange')
     }
   })

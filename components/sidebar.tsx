@@ -53,7 +53,7 @@ export function Sidebar({
   published,
 }: {
   businessName: string
-  published: boolean
+  published: boolean | null
 }) {
   const path = usePathname()
 
@@ -71,11 +71,14 @@ export function Sidebar({
         }`}
       >
         <span>{label}</span>
-        {href === '/go-live' && !published ? (
+        {href === '/go-live' && published === false ? (
           <span className="font-mono text-[9.5px] uppercase tracking-[0.12em] text-amber">setup</span>
         ) : null}
-        {href === '/go-live' && published ? (
+        {href === '/go-live' && published === true ? (
           <span aria-hidden="true" className="text-[11px] text-verdant">✓</span>
+        ) : null}
+        {href === '/go-live' && published === null ? (
+          <span className="font-mono text-[9.5px] uppercase tracking-[0.12em] text-bone-faint">?</span>
         ) : null}
       </Link>
     )
@@ -111,7 +114,11 @@ export function Sidebar({
           <p className="label">Workspace</p>
           <p className="mt-1 truncate text-[12.5px] text-bone">{businessName}</p>
           <div className="mt-2">
-            <StatusPill tone={published ? 'live' : 'draft'}>{published ? 'Live' : 'Not live'}</StatusPill>
+            {published === null ? (
+              <StatusPill tone="unknown">Unknown</StatusPill>
+            ) : (
+              <StatusPill tone={published ? 'live' : 'draft'}>{published ? 'Live' : 'Not live'}</StatusPill>
+            )}
           </div>
         </div>
         <Link href="/setup" className="block px-1 font-mono text-[11px] text-bone-faint hover:text-bone">

@@ -113,23 +113,6 @@ export function createMerchant(email: string, businessName: string): Merchant {
   return m
 }
 
-/** Normalise a merchant website URL or refuse it with a reason. */
-export function normaliseWebsiteUrl(v: unknown): { ok: true; url: string } | { ok: false; reason: string } {
-  if (typeof v !== 'string' || v.trim().length === 0) {
-    return { ok: false, reason: 'Give the public https:// address of your website.' }
-  }
-  let u: URL
-  try {
-    u = new URL(v.trim())
-  } catch {
-    return { ok: false, reason: 'That is not a URL — it needs a scheme and a host, e.g. https://shop.example.' }
-  }
-  if (u.protocol !== 'https:' && u.hostname !== 'localhost') {
-    return { ok: false, reason: 'The runtime endpoint must be https:// (localhost allowed for development only).' }
-  }
-  return { ok: true, url: u.toString().replace(/\/$/, '') }
-}
-
 export function setWebsiteUrl(tenantId: string, url: string): Merchant | null {
   const m = merchants.get(tenantId)
   if (!m) return null

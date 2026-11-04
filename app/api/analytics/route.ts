@@ -24,15 +24,23 @@ type DemandRow = {
  * URL and used `service_role`, which would have allowed cross-tenant reads.
  */
 async function fetchAnalytics(supabase: RequestTenant['supabase'], tenantId: string) {
-  const { data: capAct } = await supabase
+  const { data: capAct, error: activityError } = await supabase
     .from('v_ledger_capability_activity')
     .select('capability,asked,executed')
     .eq('tenant_id', tenantId)
 
-  const { data: demand } = await supabase
-    .from('v_ledger_agent_demand')
+  // ledger_console_view is the privacy projection (it omits parameters,
+  // detail, evaluated figures and error text). Demand rows come from that
+  // projection rather than v_ledger_agent_demand so this read cannot widen
+  // the columns the console shows.
+  const { data: demand, error: demandError } = await supabase
+    .from('ledger_console_view')
     .select('agent_id,assurance,capability,decision')
     .eq('tenant_id', tenantId)
+
+  // A failed read is not an empty window. Throw so GET returns the unknown
+  // sentinel instead of a fabricated zero.
+  if (activityError || demandError) throw new Error('analytics read failed')
 
   return aggregateFallback(
     capAct as FallbackActivityRow[] | null,

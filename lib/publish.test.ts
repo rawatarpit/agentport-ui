@@ -1,8 +1,17 @@
 import { describe, expect, it } from 'vitest'
+import { generateKeyPairSync, sign } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { contentDigest, publicBaseUrlProblem, tierForChange } from '@/lib/publish'
+import {
+  canonicalArtifactBytes,
+  contentDigest,
+  publicBaseUrlProblem,
+  stableStringify,
+  tierForChange,
+  verifySignedArtifact,
+  type SignedArtifact,
+} from '@/lib/publish'
 
 const P = (over: Record<string, unknown> = {}) => ({
   maxOrderValue: { minor: 25_000, currency: 'INR' },
@@ -99,6 +108,61 @@ describe('contentDigest', () => {
   })
 })
 
+describe('signed artifact verification', () => {
+  const artifact: SignedArtifact = {
+    tenantId: 'f4d7c3e1-34a4-4e78-8dfd-97f80399b055',
+    version: 3,
+    policy: { b: 2, a: [1, { y: 2, x: 1 }] },
+    capabilities: [{ name: 'searchProducts' }],
+    publicBaseUrl: 'https://governor.agentport.relayforge.in/t/f4d7c3e1-34a4-4e78-8dfd-97f80399b055',
+  }
+  const { publicKey, privateKey } = generateKeyPairSync('ed25519')
+  const publicKeyPem = publicKey.export({ type: 'spki', format: 'pem' }).toString()
+  const privateKeyPem = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString()
+  const signature = sign(null, Buffer.from(canonicalArtifactBytes(artifact), 'utf8'), privateKeyPem).toString('base64')
+
+  it('matches the SDK canonical form: sorted keys, absent optionals omitted', () => {
+    expect(
+      stableStringify({ tenantId: 't', version: 1, policy: { b: 2, a: [1, { y: 2, x: 1 }] }, capabilities: [{ name: 'search' }] }),
+    ).toBe('{"capabilities":[{"name":"search"}],"policy":{"a":[1,{"x":1,"y":2}],"b":2},"tenantId":"t","version":1}')
+    expect(canonicalArtifactBytes({ ...artifact, baseUrl: undefined })).not.toContain('baseUrl')
+  })
+
+  it('accepts a merchant signature over the exact bytes', () => {
+    const result = verifySignedArtifact(
+      { artifact, signature, publicKey: publicKeyPem },
+      { expectedTenantId: artifact.tenantId },
+    )
+    expect(result.ok).toBe(true)
+  })
+
+  it('refuses a different tenant, a tampered policy, and a different key', () => {
+    expect(
+      verifySignedArtifact({ artifact, signature, publicKey: publicKeyPem }, { expectedTenantId: 'another-tenant' }),
+    ).toEqual({ ok: false, reason: 'artifact is for another tenant' })
+    expect(
+      verifySignedArtifact(
+        { artifact: { ...artifact, policy: { ...artifact.policy, a: [1, { x: 1, y: 99 }] } }, signature, publicKey: publicKeyPem },
+        { expectedTenantId: artifact.tenantId },
+      ),
+    ).toEqual({ ok: false, reason: 'signature does not verify against the envelope key' })
+    const other = generateKeyPairSync('ed25519').publicKey.export({ type: 'spki', format: 'pem' }).toString()
+    expect(
+      verifySignedArtifact({ artifact, signature, publicKey: other }, { expectedTenantId: artifact.tenantId }),
+    ).toEqual({ ok: false, reason: 'signature does not verify against the envelope key' })
+  })
+
+  it('refuses kill-switch cargo before verifying anything', () => {
+    expect(
+      verifySignedArtifact({
+        artifact: { ...artifact, policy: { ...artifact.policy, emergencyKillSwitch: true } },
+        signature,
+        publicKey: publicKeyPem,
+      }),
+    ).toEqual({ ok: false, reason: 'artifact carries the kill switch — refused' })
+  })
+})
+
 describe('publish routes hold the boundaries', () => {
   const here = dirname(fileURLToPath(import.meta.url))
   const src = (p: string) => readFileSync(join(here, '..', 'app', 'api', 'publish', p, 'route.ts'), 'utf8')
@@ -112,10 +176,17 @@ describe('publish routes hold the boundaries', () => {
     expect(src('approve'), 'approve tier-gates').toContain('tierForChange')
     expect(src('artifact'), 'artifact demands prior approval').toContain('publish_approvals')
   })
-  it('artifact intake refuses kill-switch cargo and demands prior approval', () => {
+  it('approval and inventory commit through one atomic RPC', () => {
+    const s = src('approve')
+    expect(s).toContain('agentport_record_publish_approval')
+    expect(s, 'inventory must not be written outside the RPC').not.toContain(".from('agent_capabilities')")
+  })
+  it('artifact intake refuses kill-switch cargo, verifies the signature, and honors the key pin', () => {
     const s = src('artifact')
     expect(s).toContain('emergencyKillSwitch')
     expect(s).toContain('publish_approvals')
     expect(s).toContain('policy_artifacts')
+    expect(s).toContain('verifySignedArtifact')
+    expect(s).toContain('policy_public_key_pem')
   })
 })

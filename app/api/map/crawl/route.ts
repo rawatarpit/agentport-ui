@@ -1,7 +1,6 @@
-import { demoGuard } from '@/lib/demo-gate'
-import { getMerchant, resolveTenant } from '@/lib/store'
 import { checkHostResolvesPublic, checkTarget, parseMerchantOrigin, shapeCrawled } from '@/lib/map-crawl'
 import { guardStateChange } from '@/lib/request-guard'
+import { resolveRequestTenant, tenantRefusalResponse } from '@/lib/tenant-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,11 +22,21 @@ const OVERALL_MS = 45_000
 export async function POST(req: Request) {
   const guarded = guardStateChange(req, 'map:crawl')
   if (guarded) return guarded
-  const denied = await demoGuard()
-  if (denied) return denied
   const started = Date.now()
-  const merchant = getMerchant(resolveTenant())
-  const websiteUrl = merchant?.websiteUrl ?? null
+  const { supabase, active } = await resolveRequestTenant()
+  if (active.status !== 'active') return tenantRefusalResponse(active)
+  // The crawl target is the tenant's own registered origin, read under RLS.
+  // It is never a request parameter and never the dashboard origin.
+  const { data: tenantRow, error: tenantError } = await supabase
+    .from('tenants')
+    .select('website_url')
+    .eq('tenant_id', active.tenantId)
+    .maybeSingle()
+  if (tenantError) {
+    console.error('crawl tenant read failed', tenantError)
+    return Response.json({ status: 'error', reason: 'Could not read your site address. Retry.' }, { status: 502 })
+  }
+  const websiteUrl = (tenantRow?.website_url as string | null | undefined) ?? null
   const parsed = parseMerchantOrigin(websiteUrl)
   if (!parsed.ok) {
     return Response.json({ status: 'error', reason: parsed.reason }, { status: 409 })

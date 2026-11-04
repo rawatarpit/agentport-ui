@@ -25,7 +25,7 @@ export function Topbar({
 }: {
   email: string | null
   businessName: string
-  published: boolean
+  published: boolean | null
   role: string
   siteUrl: string | null
 }) {
@@ -56,14 +56,22 @@ export function Topbar({
 
       <div className="flex shrink-0 items-center gap-2">
         <span className="hidden sm:inline-flex">
-          <StatusPill tone={published ? 'live' : 'draft'}>{published ? 'Live' : 'Setup'}</StatusPill>
+          {published === null ? (
+            <StatusPill tone="unknown">Unknown</StatusPill>
+          ) : (
+            <StatusPill tone={published ? 'live' : 'draft'}>{published ? 'Live' : 'Setup'}</StatusPill>
+          )}
         </span>
         <div className="w-24">
           <ThemeToggle />
         </div>
         {email ? (
           <>
-            {published && siteUrl ? (
+            {published === null ? (
+              <Link href="/go-live" className="btn btn-sm btn-primary">
+                Check status
+              </Link>
+            ) : published && siteUrl ? (
               <a href={externalHref(siteUrl)} target="_blank" rel="noreferrer" className="btn btn-sm">
                 Open site
               </a>

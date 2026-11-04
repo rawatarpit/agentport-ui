@@ -35,14 +35,16 @@ export async function getGoLiveState(
   tenantId: string,
   options: { checkGithub?: boolean; role?: string } = {},
 ): Promise<GoLiveState> {
-  const [profile, setup, rules, capabilities, installations, pullRequests, liveArtifact] = await Promise.all([
+  const [profile, setup, rules, capabilities, installations, pullRequests, liveRead] = await Promise.all([
     getTenantProfileDb(tenantId),
     getDraftDb(tenantId, 'setup'),
     getDraftDb(tenantId, 'rules'),
     getDraftDb(tenantId, 'capabilities'),
     getInstallationsDb(tenantId),
     getPullRequestsDb(tenantId),
-    getLiveArtifact(tenantId),
+    getLiveArtifact(tenantId)
+      .then((row) => ({ row, unknown: false }))
+      .catch(() => ({ row: null, unknown: true })),
   ])
 
   const mapped = capabilities ? validateCapabilities(capabilities.payload) : null
@@ -53,14 +55,20 @@ export async function getGoLiveState(
   // while an edited draft that has not been approved does not create a false
   // "ready to publish" state.
   let inventoryCount = 0
+  let inventoryUnknown = false
   try {
-    const { data } = await createClient()
+    const { data, error } = await createClient()
       .from('agent_capabilities')
       .select('name')
       .eq('tenant_id', tenantId)
-    inventoryCount = Array.isArray(data) ? data.length : 0
+    if (error || !Array.isArray(data)) {
+      inventoryUnknown = true
+    } else {
+      inventoryCount = data.length
+    }
   } catch {
-    inventoryCount = 0
+    // A failed read is not an empty inventory. The rail must say unknown.
+    inventoryUnknown = true
   }
 
   let merged = false
@@ -90,17 +98,20 @@ export async function getGoLiveState(
     drafts: { setup: Boolean(setup), rules: Boolean(rules), capabilities: Boolean(capabilities) },
     draftMapped,
     inventoryCount,
+    inventoryUnknown,
     installations,
     pullRequests,
     merged,
-    liveArtifact,
+    liveArtifact: liveRead.row,
+    liveArtifactUnknown: liveRead.unknown,
   })
 }
 
 export type ShellState = {
   businessName: string
   siteUrl: string | null
-  published: boolean
+  /** Null when the artifact read failed — render "unknown", not "not live". */
+  published: boolean | null
 }
 
 /**
@@ -109,13 +120,15 @@ export type ShellState = {
  * product. Detailed state belongs on /go-live.
  */
 export async function getShellState(tenantId: string): Promise<ShellState> {
-  const [profile, liveArtifact] = await Promise.all([
+  const [profile, liveRead] = await Promise.all([
     getTenantProfileDb(tenantId),
-    getLiveArtifact(tenantId),
+    getLiveArtifact(tenantId)
+      .then((row) => ({ published: row !== null }))
+      .catch(() => ({ published: null })),
   ])
   return {
     businessName: profile?.businessName || 'Your business',
     siteUrl: profile?.websiteUrl ?? null,
-    published: liveArtifact !== null,
+    published: liveRead.published,
   }
 }

@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { contentDigest, publicBaseUrlProblem } from '@/lib/publish'
+import { contentDigest, publicBaseUrlProblem, verifySignedArtifact } from '@/lib/publish'
 import { guardStateChange } from '@/lib/request-guard'
 import { resolveCallerRole } from '@/lib/tenant'
 import { readSelectedTenantId, tenantRefusalResponse } from '@/lib/tenant-server'
@@ -40,9 +40,11 @@ async function caller() {
  * behind the type + boundary proofs), and an approval row already covers
  * this (tenant, version) — the ceremony must precede the bytes, and the
  * recorded digest must equal these bytes, or the approval covered
- * something else. Cryptographic verification stays runtime-side
- * (verifyArtifact, local merchant key); a row this route accepts but the
- * runtime cannot verify is refused there, loudly, and never enforces.
+ * something else. The signature is verified here against the envelope key
+ * AND the key is checked against the tenant's pin, so the console never
+ * stores an envelope the worker will refuse. The worker still verifies
+ * locally against the pinned key — that remains the control; this is the
+ * early, named refusal.
  */
 export async function POST(req: Request) {
   const guarded = guardStateChange(req, 'publish:artifact')
@@ -126,12 +128,54 @@ export async function POST(req: Request) {
   }
   const policy = art.policy as Record<string, unknown>
   const caps = (art.capabilities as Array<{ name: string }>).map((c) => ({ name: c.name }))
+  const signedBaseUrl = typeof art.baseUrl === 'string' ? art.baseUrl : undefined
+  const signedPublicBaseUrl = typeof art.publicBaseUrl === 'string' ? art.publicBaseUrl : undefined
+  const signedArtifact = {
+    tenantId,
+    version,
+    policy,
+    capabilities: caps,
+    ...(signedBaseUrl !== undefined ? { baseUrl: signedBaseUrl } : {}),
+    ...(signedPublicBaseUrl !== undefined ? { publicBaseUrl: signedPublicBaseUrl } : {}),
+  }
+  const verified = verifySignedArtifact({ artifact: signedArtifact, signature: sig, publicKey }, { expectedTenantId: tenantId })
+  if (!verified.ok) {
+    return Response.json(
+      { status: 'error', reason: `Envelope signature did not verify: ${verified.reason}. Re-run agent-port publish and upload that envelope.` },
+      { status: 400 },
+    )
+  }
+  // The envelope's public key is not self-registering after first activation.
+  // Check the pin before the bytes are stored so a wrong key is a named 409,
+  // not a stored artifact plus a failed activation.
+  const { data: runtimeRow, error: runtimeReadError } = await createAdminClient()
+    .from('tenant_runtime')
+    .select('policy_public_key_pem')
+    .eq('tenant_id', tenantId)
+    .maybeSingle()
+  if (runtimeReadError) {
+    console.error('runtime key pin read failed', runtimeReadError)
+    return Response.json(
+      { status: 'error', reason: 'Could not read the runtime key pin. Retry; if it persists, contact support.' },
+      { status: 502 },
+    )
+  }
+  const pinnedKey = typeof runtimeRow?.policy_public_key_pem === 'string' ? runtimeRow.policy_public_key_pem.trim() : ''
+  if (pinnedKey !== '' && pinnedKey !== publicKey) {
+    return Response.json(
+      {
+        status: 'error',
+        reason:
+          'This business already has a different pinned publishing key. Key rotation is an operator ceremony — publish with the pinned key, or ask support to rotate it.',
+      },
+      { status: 409 },
+    )
+  }
   const { data: tenantRow } = await supabase
     .from('tenants')
     .select('website_url')
     .eq('tenant_id', tenantId)
     .maybeSingle()
-  const signedBaseUrl = typeof art.baseUrl === 'string' ? art.baseUrl : undefined
   const websiteUrl =
     typeof tenantRow?.website_url === 'string' && tenantRow.website_url.trim() !== ''
       ? tenantRow.website_url
@@ -180,8 +224,11 @@ export async function POST(req: Request) {
     .select('name')
     .eq('tenant_id', tenantId)
   if (inventoryError) {
+    // Raw PostgREST text names relations and constraints. Keep it in the
+    // server log; the browser gets a fixed sentence.
+    console.error('capability inventory read failed', inventoryError)
     return Response.json(
-      { status: 'error', reason: `Could not read the capability inventory: ${inventoryError.message}` },
+      { status: 'error', reason: 'Could not read the capability inventory. Retry; if it persists, contact support.' },
       { status: 502 },
     )
   }
@@ -205,7 +252,7 @@ export async function POST(req: Request) {
       policy,
       capabilities: caps,
       ...(signedBaseUrl !== undefined ? { baseUrl: signedBaseUrl } : {}),
-      ...(typeof art.publicBaseUrl === 'string' ? { publicBaseUrl: art.publicBaseUrl } : {}),
+      ...(signedPublicBaseUrl !== undefined ? { publicBaseUrl: signedPublicBaseUrl } : {}),
     },
     signature: sig,
   })
@@ -231,16 +278,23 @@ export async function POST(req: Request) {
     },
   )
   if (activateError) {
+    console.error('runtime activation failed', activateError)
+    // The table trigger is the last line of defense against key replacement.
+    // A race can reach it after the route's pin read, so name it rather than
+    // reporting a generic activation failure.
+    const pinnedRefusal = typeof activateError.message === 'string' && activateError.message.includes('pinned')
     return Response.json(
       {
         status: 'error',
-        reason: `Artifact v${version} is stored, but runtime activation failed: ${activateError.message}`,
+        reason: pinnedRefusal
+          ? `Artifact v${version} is stored, but its public key does not match this business's pinned key. Key rotation is an operator ceremony.`
+          : `Artifact v${version} is stored, but runtime activation failed. Retry; if it persists, contact support.`,
         tenantId,
         version,
         digest,
         activated: false,
       },
-      { status: 502 },
+      { status: pinnedRefusal ? 409 : 502 },
     )
   }
   return Response.json({ status: 'ok', tenantId, version, digest, activated: true, revision })

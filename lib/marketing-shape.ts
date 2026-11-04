@@ -36,10 +36,12 @@ export type CapabilityDemandRow = {
 /** Weekly trend for marketing: requests and executions over time. */
 export type MarketingWeeklyPoint = {
   week: string
-  requests: number
-  agents: number
-  executed: number
-  held: number
+  /** Null when any row in the week has an unknown count for that metric. */
+  requests: number | null
+  /** Null when the stored rows cannot prove distinct agents for the week. */
+  agents: number | null
+  executed: number | null
+  held: number | null
 }
 
 /** Agent summary for sales: which agents are active and what they want. */
@@ -231,35 +233,34 @@ export function buildMarketingWeeklyPoints(
   // (approximate: demand has no window, so we count total agents per week
   //  from activity's distinct agent presence — but demand has no week.
   //  We'll use activity for weeks and totals, and demand for agent source.)
+  const add = (total: number | null, value: number | null): number | null =>
+    total === null || typeof value !== 'number' ? null : total + value
+
   const byWeek = new Map<string, {
-    requests: number
-    agents: Set<string>
-    executed: number
-    held: number
+    requests: number | null
+    executed: number | null
+    held: number | null
   }>()
 
   for (const r of activity) {
     let cur = byWeek.get(r.window_start)
     if (!cur) {
-      cur = { requests: 0, agents: new Set(), executed: 0, held: 0 }
+      cur = { requests: 0, executed: 0, held: 0 }
       byWeek.set(r.window_start, cur)
     }
-    cur.requests += typeof r.asked === 'number' ? r.asked : 0
-    cur.executed += typeof r.executed === 'number' ? r.executed : 0
-    cur.held += typeof r.held === 'number' ? r.held : 0
+    cur.requests = add(cur.requests, r.asked)
+    cur.executed = add(cur.executed, r.executed)
+    cur.held = add(cur.held, r.held)
   }
 
-  // Approximate agents per week from demand (demand has no week, so we
-  // distribute total distinct agents across weeks — honest about this).
-  const totalAgents = new Set(demand.map((d) => d.agent_id)).size
-  const weekCount = byWeek.size
-  const agentsPerWeek = weekCount > 0 ? Math.floor(totalAgents / weekCount) : 0
-
+  // The activity view carries no per-week agent identity. Dividing the
+  // all-time agent count by the number of weeks is not a measurement, so the
+  // week's agent count is `null` until a row can prove it.
   return [...byWeek.entries()]
     .map(([week, c]) => ({
       week,
       requests: c.requests,
-      agents: agentsPerWeek,
+      agents: null,
       executed: c.executed,
       held: c.held,
     }))

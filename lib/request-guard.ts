@@ -18,10 +18,10 @@ import {
  *    are named here, next to the routes they protect, so budgets are not
  *    scattered as magic numbers.
  *
- * Webhooks (/api/github/webhook) and the development sync receiver (/api/sync)
- * skip the Origin check: they authenticate the request itself with an HMAC,
- * not a cookie, and GitHub does not send a browser Origin. They still use the
- * limiter below their signature check, so a valid-delivery flood is bounded.
+ * The GitHub webhook (/api/github/webhook) skips the Origin check: it
+ * authenticates the request itself with an HMAC, not a cookie, and GitHub
+ * does not send a browser Origin. It still uses the limiter below its
+ * signature check, so a valid-delivery flood is bounded.
  */
 
 export const RATE_LIMITS = {
@@ -30,7 +30,6 @@ export const RATE_LIMITS = {
   'auth:reset': { limit: 5, windowMs: 15 * 60_000 },
   'auth:password': { limit: 10, windowMs: 15 * 60_000 },
   'auth:signout': { limit: 30, windowMs: 60_000 },
-  signup: { limit: 5, windowMs: 60 * 60_000 },
   workspace: { limit: 60, windowMs: 60_000 },
   drafts: { limit: 120, windowMs: 60_000 },
   me: { limit: 60, windowMs: 60_000 },
@@ -40,13 +39,10 @@ export const RATE_LIMITS = {
   'github:webhook': { limit: 300, windowMs: 60_000 },
   'github:disconnect': { limit: 20, windowMs: 60_000 },
   'github:pr': { limit: 20, windowMs: 60_000 },
-  golive: { limit: 30, windowMs: 60_000 },
-  'kill-switch': { limit: 10, windowMs: 60_000 },
   contact: { limit: 5, windowMs: 10 * 60_000 },
   'map:crawl': { limit: 5, windowMs: 5 * 60_000 },
   'publish:approve': { limit: 30, windowMs: 60_000 },
   'publish:artifact': { limit: 30, windowMs: 60_000 },
-  sync: { limit: 60, windowMs: 60_000 },
 } as const satisfies Record<string, RateLimitOptions>
 
 export type RateLimitBucket = keyof typeof RATE_LIMITS

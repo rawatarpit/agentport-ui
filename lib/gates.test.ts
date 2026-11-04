@@ -191,3 +191,31 @@ describe('seedDemoPush is never wired into the app', () => {
     expect(offenders).toEqual([])
   })
 })
+
+describe('lib/store never reaches runtime code', () => {
+  // The RAM maps are a test-only fallback. A route or component importing
+  // them reintroduces the second source of truth that once rendered demo
+  // numbers as a merchant's own. This gate walks the real tree, so the next
+  // convenience import fails the build instead of a pilot.
+  const here = dirname(fileURLToPath(import.meta.url))
+  const roots = [join(here, '..', 'app'), join(here, '..', 'components'), join(here)]
+  const offenders: string[] = []
+  const walk = (dir: string): void => {
+    for (const e of readdirSync(dir)) {
+      const p = join(dir, e)
+      if (statSync(p).isDirectory()) {
+        if (e === 'node_modules') continue
+        walk(p)
+        continue
+      }
+      if (!/\.(tsx?|mjs|cjs)$/.test(e)) continue
+      if (p.endsWith('lib/store.ts') || /\.test\.(tsx?|mjs|cjs)$/.test(e)) continue
+      const src = readFileSync(p, 'utf8')
+      if (/from\s+['"](?:@\/lib\/store|\.{1,2}\/store)['"]/.test(src)) offenders.push(p)
+    }
+  }
+  it('no app route, component or library imports the RAM store', () => {
+    for (const r of roots) walk(r)
+    expect(offenders).toEqual([])
+  })
+})

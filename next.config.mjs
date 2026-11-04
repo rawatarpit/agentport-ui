@@ -50,6 +50,18 @@ const nextConfig = {
           )
         }
       }
+
+      // Names change; the shape does not. Catch a future GitHub/broker secret
+      // given the NEXT_PUBLIC_ prefix even if it is not on the explicit list.
+      const secretShape = /^NEXT_PUBLIC_.*(SECRET|PRIVATE|TOKEN|SERVICE_ROLE|WEBHOOK|CLIENT_SECRET)/
+      for (const key of Object.keys(process.env)) {
+        if (secretShape.test(key)) {
+          throw new Error(
+            `${key} looks like a server secret with a NEXT_PUBLIC_ prefix. ` +
+              `That value would ship to every visitor. Remove the prefix and rebuild.`,
+          )
+        }
+      }
     }
     return config
   },

@@ -1,6 +1,5 @@
-import { getDraftDb, putDraftDb } from '@/lib/durable-store'
+import { getDraftDb, putDraftDb, type DraftSection } from '@/lib/durable-store'
 import { guardStateChange } from '@/lib/request-guard'
-import type { DraftSection } from '@/lib/store'
 import { validateCapabilities, validateRules, validateSetup } from '@/lib/golive'
 import { resolveCallerTenant } from '@/lib/tenant'
 import { readSelectedTenantId, tenantRefusalResponse } from '@/lib/tenant-server'
@@ -48,7 +47,7 @@ async function callerTenant(): Promise<Awaited<ReturnType<typeof resolveCallerTe
  * GET returns the saved draft or an explicit null (never a 404 that reads as
  * broken). PUT validates with the same rules the editors enforce, so a bad
  * draft cannot be smuggled past the UI — the API is the second wall, not the
- * first. Saving never deploys; only /api/golive changes what is live.
+ * first. Saving never deploys; only the publish ceremony (approve, sign, upload) changes what is live.
  * Logged-out callers get 401, never the demo tenant's rows.
  */
 export async function GET(_req: Request, { params }: { params: { section: string } }) {

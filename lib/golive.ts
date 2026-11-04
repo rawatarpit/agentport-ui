@@ -1,6 +1,4 @@
-import { createHmac } from 'node:crypto'
 import type { Policy } from '@/lib/contracts'
-import { getDraft, getLive, resolveTenant, type LiveCapability } from '@/lib/store'
 
 /**
  * Drafts in, signed live config out.
@@ -215,25 +213,18 @@ export function validateSetup(p: unknown): { ok: true; value: SetupDraft } | { o
 
 const inr = (minor: number) => `₹${(minor / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
 
+export type LiveCapability = { name: string; hiddenFields: string[] }
+
 export type Compiled = {
   policy: Policy
   capabilities: LiveCapability[]
   summary: string[]
 }
 
-/** Rules draft wins; setup answers fill gaps when no rules draft exists. */
-export function compileLive(tenantId: string): { ok: true; compiled: Compiled } | { ok: false; reason: string } {
-  return compileLiveFrom({
-    rules: getDraft(tenantId, 'rules')?.payload,
-    setup: getDraft(tenantId, 'setup')?.payload,
-    capabilities: getDraft(tenantId, 'capabilities')?.payload,
-  })
-}
-
 /**
- * Pure compile from explicit draft payloads — the durable path. RAM
- * (compileLive) and Supabase (dashboard_drafts rows) share this body, so a
- * draft means the same file whichever process answers.
+ * Pure compile from explicit draft payloads. The caller supplies the three
+ * draft sections; this function never reads a store. That is what keeps the
+ * publish path testable and keeps RAM-backed helpers out of runtime routes.
  */
 export function compileLiveFrom(drafts: {
   rules?: unknown
@@ -338,33 +329,4 @@ export function compileLiveFrom(drafts: {
       .join(' ') || 'Every field is visible to agents.',
   ]
   return { ok: true, compiled: { policy, capabilities, summary } }
-}
-
-/** Canonical bytes: sorted keys, no whitespace surprises. The digest signs these. */
-export function canonical(v: unknown): string {
-  if (v === null || typeof v !== 'object') return JSON.stringify(v) ?? 'null'
-  if (Array.isArray(v)) return `[${v.map(canonical).join(',')}]`
-  const keys = Object.keys(v as Record<string, unknown>).sort()
-  return `{${keys.map((k) => `${JSON.stringify(k)}:${canonical((v as Record<string, unknown>)[k])}`).join(',')}}`
-}
-
-/** HMAC-SHA256 over the canonical config. Secret is server-only, never leaves. */
-export function digestFor(policy: unknown, capabilities: unknown): string {
-  const secret = process.env.AGENTPORT_SIGNING_SECRET
-  if (!secret) {
-    throw new Error('AGENTPORT_SIGNING_SECRET is not set. Publishing signs the config — no signature, no publish.')
-  }
-  return createHmac('sha256', secret).update(canonical({ policy, capabilities })).digest('hex').slice(0, 32)
-}
-
-export function goliveStatus(tenantId: string = resolveTenant()) {
-  const live = getLive(tenantId)
-  const compiled = compileLive(tenantId)
-  return {
-    live: live
-      ? { version: live.version, digest: live.digest, confirmedAt: live.confirmedAt }
-      : null,
-    draft: compiled.ok ? compiled.compiled : null,
-    draftError: compiled.ok ? null : compiled.reason,
-  }
 }

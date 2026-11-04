@@ -67,7 +67,14 @@ function toEntry(r: ConsoleRow): LedgerEntry {
   }
 }
 
-/** Newest first for one explicit tenant. Never throws: callers render failed. */
+/**
+ * Newest first for one explicit tenant.
+ *
+ * A read failure throws; it never returns `[]`. An empty array is a claim
+ * that the tenant has no rows, and a dashboard that renders a failed RLS
+ * read as "no activity" is exactly the healthy-zero lie these views exist
+ * to prevent. Callers catch and render `unknown`.
+ */
 export async function listDecisions(tenantId: string, limit = 200): Promise<LedgerEntry[]> {
   const db = createClient()
   const { data, error } = await db
@@ -78,8 +85,8 @@ export async function listDecisions(tenantId: string, limit = 200): Promise<Ledg
     .eq('tenant_id', tenantId)
     .order('at', { ascending: false })
     .limit(limit)
-  if (error || !data) return []
-  return (data as ConsoleRow[]).map(toEntry)
+  if (error) throw new Error('ledger read failed')
+  return ((data ?? []) as ConsoleRow[]).map(toEntry)
 }
 
 /** Holds: require_approval rows with no later approval commit naming them. */

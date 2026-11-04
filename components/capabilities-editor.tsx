@@ -81,8 +81,11 @@ const CAPS: Cap[] = [
 ]
 
 export function CapabilitiesEditor({ inventory = [] }: { inventory?: InventoryCap[] }) {
+  // Start with nothing hidden. The old default pre-hid createOrder.amountMinor,
+  // which made the unsaved screen claim a field was already hidden from
+  // agents. Only a saved draft may say that.
   const [hidden, setHidden] = useState<Record<string, string[]>>(
-    Object.fromEntries(CAPS.map((c) => [c.name, c.hidden])),
+    Object.fromEntries(CAPS.map((c) => [c.name, []])),
   )
   // Kept in state so saving field visibility cannot silently drop the
   // merchant's mapped routes. The PUT replaces the whole draft section.
@@ -262,6 +265,15 @@ export function CapabilitiesEditor({ inventory = [] }: { inventory?: InventoryCa
           </ul>
         </div>
       ) : null}
+
+      <div className="panel p-5">
+        <p className="label">Discovery catalogue — field names only</p>
+        <p className="mt-1 text-[13px] leading-relaxed text-bone-dim">
+          These are the standard capability names an agent may be told about. They are
+          <span className="text-bone"> descriptions, not execution paths</span> — only the
+          mapped routes and approved inventory above can run.
+        </p>
+      </div>
 
       {CAPS.map((c) => (
         <div key={c.name} className="panel p-5">
