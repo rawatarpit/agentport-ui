@@ -25,18 +25,17 @@ function externalHref(url: string): string {
 /**
  * Go-live journey, rebuilt to never crash SSR.
  *
- * Every data fetch is wrapped in try/catch. If the database, the broker, or
- * any downstream dependency is unavailable, the page still renders — showing
- * honest empty states instead of a server error. A merchant can still see
- * their site, read what's missing, and act on what they can.
+ * Every data fetch and every section render is wrapped in try/catch. If the
+ * database, the broker, or any downstream dependency is unavailable, the page
+ * still renders — showing honest empty states instead of a server error. A
+ * merchant can still see their site, read what's missing, and act on what
+ * they can.
  */
 export default async function GoLivePage() {
   let tenant: Awaited<ReturnType<typeof resolveRequestTenant>>
   try {
     tenant = await resolveRequestTenant()
   } catch {
-    // Session layer is down — cannot determine workspace. Redirect to picker
-    // so the user can re-establish their session.
     redirect('/select-workspace')
   }
 
@@ -44,8 +43,7 @@ export default async function GoLivePage() {
     redirect('/select-workspace')
   }
 
-  // Fetch go-live state with full error isolation. If anything here fails —
-  // database, broker, env — we degrade gracefully rather than crash SSR.
+  // Fetch go-live state with full error isolation.
   let state: GoLiveState | null = null
   try {
     state = await getGoLiveState(tenant.active.tenantId, {
@@ -61,6 +59,38 @@ export default async function GoLivePage() {
     : { ok: false, url: null }
   const canonicalUrl = worker.ok ? `${worker.url}/.well-known/agent.json` : null
   const invokeUrl = worker.ok ? `${worker.url}/.well-known/agent/invoke` : null
+
+  const canManage = state?.role === 'owner' || state?.role === 'admin'
+
+  // Helper: wrap any section render in try/catch so one failing component
+  // cannot take down the whole page.
+  function safeSection({
+    title,
+    description,
+    children,
+    fallbackTitle,
+    fallbackBody,
+  }: {
+    title: string
+    description?: string
+    children: React.ReactNode
+    fallbackTitle: string
+    fallbackBody: string
+  }) {
+    try {
+      return (
+        <Section title={title} description={description}>
+          {children}
+        </Section>
+      )
+    } catch {
+      return (
+        <Section title={title} description={description}>
+          <EmptyState title={fallbackTitle} body={fallbackBody} />
+        </Section>
+      )
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -133,59 +163,71 @@ export default async function GoLivePage() {
         <div className="min-w-0 space-y-12">
           {/* Site */}
           <section id="site" className="scroll-mt-24">
-            <Section
-              title="Set your site address"
-              description="The public address agents and the route crawl use. It is deliberately not this console."
-            >
-              {state ? (
+            {safeSection({
+              title: 'Set your site address',
+              description: 'The public address agents and the route crawl use. It is deliberately not this console.',
+              fallbackTitle: 'Cannot load site form',
+              fallbackBody: 'Go-live state is unavailable. Reload to retry.',
+              children: state ? (
                 <WebsiteForm current={state.siteUrl} onDone={() => void 0} />
               ) : (
                 <EmptyState
                   title="Cannot load site form"
                   body="Go-live state is unavailable. Reload to retry."
                 />
-              )}
-            </Section>
+              ),
+            })}
           </section>
 
           {/* Capabilities */}
           <section id="capabilities" className="scroll-mt-24 space-y-4">
-            <Section
-              title="Map what agents can call"
-              description="A capability in the catalogue is a description. Only a route you map here has an execution path."
-            >
-              <Callout tone="info" title="Why this is not optional">
-                Publish refuses an empty capability inventory. The setup questions choose your
-                lines; this step chooses the routes those lines govern. Crawl your site, review
-                every undeclared route, and save only what you want an agent to reach.
-              </Callout>
-              <MapWorkbench />
-            </Section>
+            {safeSection({
+              title: 'Map what agents can call',
+              description: 'A capability in the catalogue is a description. Only a route you map here has an execution path.',
+              fallbackTitle: 'Cannot load map',
+              fallbackBody: 'The map workbench could not be loaded. Reload to retry.',
+              children: (
+                <>
+                  <Callout tone="info" title="Why this is not optional">
+                    Publish refuses an empty capability inventory. The setup questions choose your
+                    lines; this step chooses the routes those lines govern. Crawl your site, review
+                    every undeclared route, and save only what you want an agent to reach.
+                  </Callout>
+                  <MapWorkbench />
+                </>
+              ),
+            })}
           </section>
 
           {/* Rules */}
           <section id="rules" className="scroll-mt-24">
-            <Section
-              title="Set the lines"
-              description="What runs, what waits for you, and what is always no. Saving writes a draft; publishing is the only thing that changes live behaviour."
-            >
-              <RulesEditor />
-              <p className="mt-3 text-[12px] text-bone-faint">
-                The full rules screen has the same draft plus history:{' '}
-                <Link href="/rules" className="link">open Rules</Link>.
-              </p>
-            </Section>
+            {safeSection({
+              title: 'Set the lines',
+              description: 'What runs, what waits for you, and what is always no. Saving writes a draft; publishing is the only thing that changes live behaviour.',
+              fallbackTitle: 'Cannot load rules',
+              fallbackBody: 'The rules editor could not be loaded. Reload to retry.',
+              children: (
+                <>
+                  <RulesEditor />
+                  <p className="mt-3 text-[12px] text-bone-faint">
+                    The full rules screen has the same draft plus history:{' '}
+                    <Link href="/rules" className="link">open Rules</Link>.
+                  </p>
+                </>
+              ),
+            })}
           </section>
 
           {/* GitHub */}
           <section id="github" className="scroll-mt-24">
-            <Section
-              title="Connect the site repository"
-              description="GitHub install, repository pick, and install PR. You merge; nothing here can merge for you."
-            >
-              {state ? (
+            {safeSection({
+              title: 'Connect the site repository',
+              description: 'GitHub install, repository pick, and install PR. You merge; nothing here can merge for you.',
+              fallbackTitle: 'Cannot load GitHub panel',
+              fallbackBody: 'Go-live state is unavailable. Reload to retry.',
+              children: state ? (
                 <GithubPanel
-                  canManage={state.role === 'owner' || state.role === 'admin'}
+                  canManage={canManage}
                   prBlockedReason={
                     state.draftMapped === 0
                       ? 'Map at least one route first — the PR carries route-backed capabilities, not the catalogue.'
@@ -199,43 +241,50 @@ export default async function GoLivePage() {
                   title="Cannot load GitHub panel"
                   body="Go-live state is unavailable. Reload to retry."
                 />
-              )}
-            </Section>
+              ),
+            })}
           </section>
 
           {/* Pull Request */}
           <section id="pull-request" className="scroll-mt-24">
-            <Section
-              title="Open the install PR"
-              description="The panel above opens one PR per repository. This is the record the console watches — merge is your signature."
-            >
-              <PullRequestCard />
-            </Section>
+            {safeSection({
+              title: 'Open the install PR',
+              description: 'The panel above opens one PR per repository. This is the record the console watches — merge is your signature.',
+              fallbackTitle: 'Cannot load PR panel',
+              fallbackBody: 'The pull request panel could not be loaded. Reload to retry.',
+              children: <PullRequestCard />,
+            })}
           </section>
 
           {/* Publish */}
           <section id="publish" className="scroll-mt-24">
-            <Section
-              title="Approve, sign, and activate"
-              description="Approval records the exact bytes. The private key stays on your machine. The signed envelope is what activates the hosted governor."
-            >
-              <GolivePanel />
-            </Section>
+            {safeSection({
+              title: 'Approve, sign, and activate',
+              description: 'Approval records the exact bytes. The private key stays on your machine. The signed envelope is what activates the hosted governor.',
+              fallbackTitle: 'Cannot load publish panel',
+              fallbackBody: 'The publish panel could not be loaded. Reload to retry.',
+              children: <GolivePanel />,
+            })}
           </section>
 
           {/* Verify */}
           <section id="verify" className="scroll-mt-24 space-y-4">
-            <Section
-              title="Verify discovery"
-              description="A stored artifact is not a running worker. Ask the canonical address and read the answer."
-            >
-              <DiscoveryCheck canonicalUrl={canonicalUrl} invokeUrl={invokeUrl} />
-            </Section>
-            <Callout tone="info" title="The deployment model">
-              The files on your site are an advisory discovery snapshot. They carry no policy
-              engine, ledger, approval queue, credential, or execution path. The hosted Agent Port
-              governor decides, executes, and records every call.
-            </Callout>
+            {safeSection({
+              title: 'Verify discovery',
+              description: 'A stored artifact is not a running worker. Ask the canonical address and read the answer.',
+              fallbackTitle: 'Cannot load verification',
+              fallbackBody: 'The discovery check could not be loaded. Reload to retry.',
+              children: (
+                <>
+                  <DiscoveryCheck canonicalUrl={canonicalUrl} invokeUrl={invokeUrl} />
+                  <Callout tone="info" title="The deployment model">
+                    The files on your site are an advisory discovery snapshot. They carry no policy
+                    engine, ledger, approval queue, credential, or execution path. The hosted Agent Port
+                    governor decides, executes, and records every call.
+                  </Callout>
+                </>
+              ),
+            })}
           </section>
         </div>
       </div>
