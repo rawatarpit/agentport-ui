@@ -1,8 +1,10 @@
+'use client'
+
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Badge } from '@/components/stat'
 import { PageHeader } from '@/components/ui/page-header'
 import { Section } from '@/components/ui/section'
-import { resolveRequestTenant } from '@/lib/tenant-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,9 +31,65 @@ type ActivityRow = {
   decisionText: string
 }
 
-export default async function OverviewPage() {
-  const tenantData = await resolveRequestTenant()
-  if (!tenantData || tenantData.active.status !== 'active') {
+async function fetchTenant(): Promise<Tenant | null> {
+  try {
+    const res = await fetch('/api/me', { cache: 'no-store' })
+    if (!res.ok) return null
+    return (await res.json()) as Tenant
+  } catch {
+    return null
+  }
+}
+
+async function fetchGoLiveState(): Promise<any> {
+  try {
+    const res = await fetch('/api/golive', { cache: 'no-store' })
+    if (!res.ok) return null
+    return await res.json()
+  } catch {
+    return null
+  }
+}
+
+export default function OverviewPage() {
+  const [tenant, setTenant] = useState<Tenant | null>(null)
+  const [state, setState] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      try {
+        const t = await fetchTenant()
+        if (cancelled) return
+        setTenant(t)
+        const s = await fetchGoLiveState()
+        if (cancelled) return
+        setState(s)
+      } catch {
+        // Silently fall through
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center px-6">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-8 w-8 rounded-full border-4 border-ink-line border-t-verdant animate-spin" />
+          <p className="text-bone-dim text-sm">Loading…</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!tenant) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center px-6 pt-[18vh] text-center">
         <div>
@@ -46,22 +104,6 @@ export default async function OverviewPage() {
         </div>
       </div>
     )
-  }
-
-  const tenantId = tenantData.active.tenantId
-  const tenant: Tenant = {
-    tenantId: tenantData.active.tenantId,
-    role: tenantData.active.membership?.role ?? 'member',
-    businessName: 'Your business',
-    websiteUrl: null,
-  }
-
-  let state: any = null
-  try {
-    const res = await fetch('/api/golive', { cache: 'no-store' })
-    if (res.ok) state = await res.json()
-  } catch {
-    // Silently fall through
   }
 
   const capabilities: Capability[] = (state?.drafts?.capabilities ? state.capabilities : []).map(
@@ -134,7 +176,7 @@ export default async function OverviewPage() {
         <div className="panel p-5">
           <p className="label">Rules</p>
           <p className={`tabular mt-2 font-display text-[32px] font-semibold leading-none text-bone`}>
-            {draftsRulesCount()}
+            {0}
           </p>
           <p className="mt-2 text-[12px] text-bone-faint">Capabilities with custom rules</p>
         </div>
@@ -323,17 +365,10 @@ export default async function OverviewPage() {
           type="button"
           className="btn btn-primary"
           disabled={!published}
-          onClick={() => {
-            console.log('Publish clicked')
-          }}
         >
           {published ? 'Republish' : 'Publish now'}
         </button>
       </div>
     </div>
   )
-}
-
-function draftsRulesCount(): number {
-  return 0
 }
