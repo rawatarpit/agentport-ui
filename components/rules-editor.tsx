@@ -1,29 +1,47 @@
 'use client'
 
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { Badge } from '@/components/stat'
+import { EmptyState } from '@/components/ui/empty-state'
 
 /**
- * 6.3 /rules — refused, held, capped. 6.4 merchant's language. 6.5 validate
- * at save time.
+ * Rules editor — rebuilt to be capability-aware.
  *
- * A rule saves as a **draft** and its generated code is reviewable. Nothing
- * here is live: the badge reads `not published yet` in idle grey, never green,
- * until the generated file is merged and the runtime reports its digest.
- * A technical term in the only label on a field is a support ticket, so every
- * label is a sentence a non-technical operator would say.
+ * Reads your mapped capabilities from the capabilities draft (what you saved
+ * from Map routes) and lets you set a rule for each one individually:
+ *   • Allow freely — runs unattended
+ *   • Ask first — held for your approval before it runs
+ *   • Always refuse — blocked, never executes
+ *
+ * Amount limits are optional and apply to all write capabilities equally.
+ * Nothing here is live: the badge reads `not published yet` until you publish
+ * from Go-live.
  */
 
-type Draft = {
+type CapabilityDraft = {
+  name: string
+  method: string
+  path: string
+  kind: 'read' | 'write'
+  allowUnattended?: boolean
+}
+
+type Rule = 'allow' | 'hold' | 'refuse'
+
+type DraftRule = {
+  capability: string
+  rule: Rule
+}
+
+type AmountDraft = {
   askAbove: string
   neverAbove: string
   bulkUnits: string
-  alwaysAskOrders: boolean
-  forbidRefunds: boolean
 }
 
-const DEFAULTS: Draft = { askAbove: '250', neverAbove: '1000', bulkUnits: '20', alwaysAskOrders: true, forbidRefunds: true }
+const DEFAULTS: AmountDraft = { askAbove: '', neverAbove: '', bulkUnits: '' }
 
 function toMinor(v: string): number | null {
   const n = Number(v)
@@ -32,39 +50,58 @@ function toMinor(v: string): number | null {
 
 export function RulesEditor() {
   const router = useRouter()
-  const [d, setD] = useState<Draft>(DEFAULTS)
+  const [drafts, setDrafts] = useState<{ capabilities: CapabilityDraft[]; rules: DraftRule[]; amount: AmountDraft }>({
+    capabilities: [],
+    rules: [],
+    amount: { ...DEFAULTS },
+  })
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [loadError, setLoadError] = useState(false)
 
-  // The API stores minor units; the form speaks rupees. Convert at the edge.
+  // Load the saved capabilities draft and rules draft.
   useEffect(() => {
     let live = true
-    fetch('/api/drafts/rules')
-      .then((r) => r.json())
-      .then(
-        (body: {
-          draft?: {
-            askAboveMinor?: number
-            neverAboveMinor?: number
-            bulkUnits?: number
-            alwaysAskOrders?: boolean
-            forbidRefunds?: boolean
-          } | null
-        }) => {
-          if (!live || !body.draft) return
-          const v = body.draft
-          setD({
-            askAbove: typeof v.askAboveMinor === 'number' ? String(v.askAboveMinor / 100) : DEFAULTS.askAbove,
-            neverAbove: typeof v.neverAboveMinor === 'number' ? String(v.neverAboveMinor / 100) : DEFAULTS.neverAbove,
-            bulkUnits: typeof v.bulkUnits === 'number' ? String(v.bulkUnits) : DEFAULTS.bulkUnits,
-            alwaysAskOrders: typeof v.alwaysAskOrders === 'boolean' ? v.alwaysAskOrders : DEFAULTS.alwaysAskOrders,
-            forbidRefunds: typeof v.forbidRefunds === 'boolean' ? v.forbidRefunds : DEFAULTS.forbidRefunds,
-          })
-          setSavedAt('saved draft loaded')
-        },
+    Promise.all([
+      fetch('/api/drafts/capabilities', { cache: 'no-store' }),
+      fetch('/api/drafts/rules', { cache: 'no-store' }),
+    ])
+      .then(([capsRes, rulesRes]) =>
+        Promise.all([capsRes.json(), rulesRes.json()])
       )
+      .then(([capsBody, rulesBody]) => {
+        if (!live) return
+        const caps: CapabilityDraft[] =
+          capsBody.draft?.extra?.filter((c: any) => c && typeof c.name === 'string') ?? []
+        const rulesBodyParsed = rulesBody.draft as {
+          askAboveMinor?: number
+          neverAboveMinor?: number
+          bulkUnits?: number
+          alwaysRequireApproval?: string[]
+          forbiddenCapabilities?: string[]
+        } | null
+
+        // Build per-capability rules from the saved draft.
+        const alwaysRequire = new Set(rulesBodyParsed?.alwaysRequireApproval ?? [])
+        const forbidden = new Set(rulesBodyParsed?.forbiddenCapabilities ?? [])
+
+        const capabilityRules: DraftRule[] = caps.map((c) => ({
+          capability: c.name,
+          rule: (forbidden.has(c.name) ? 'refuse' : alwaysRequire.has(c.name) ? 'hold' : 'allow') as Rule,
+        }))
+
+        setDrafts({
+          capabilities: caps,
+          rules: capabilityRules,
+          amount: {
+            askAbove: typeof rulesBodyParsed?.askAboveMinor === 'number' ? String(rulesBodyParsed.askAboveMinor / 100) : '',
+            neverAbove: typeof rulesBodyParsed?.neverAboveMinor === 'number' ? String(rulesBodyParsed.neverAboveMinor / 100) : '',
+            bulkUnits: typeof rulesBodyParsed?.bulkUnits === 'number' ? String(rulesBodyParsed.bulkUnits) : '',
+          },
+        })
+        setSavedAt('saved draft loaded')
+      })
       .catch(() => {
         if (live) setLoadError(true)
       })
@@ -73,35 +110,66 @@ export function RulesEditor() {
     }
   }, [])
 
-  const ask = toMinor(d.askAbove)
-  const never = toMinor(d.neverAbove)
-  const bulk = Number(d.bulkUnits)
+  const ask = toMinor(drafts.amount.askAbove)
+  const never = toMinor(drafts.amount.neverAbove)
+  const bulk = Number(drafts.amount.bulkUnits)
 
   const errors = useMemo(() => {
     const list: string[] = []
-    if (ask === null) list.push('Tell us the ask-first amount in rupees — a number, zero or more.')
-    if (never === null) list.push('Tell us the never-cross line in rupees — a number, zero or more.')
-    if (!Number.isInteger(bulk) || bulk <= 0) list.push('Bulk means a whole number of items greater than zero.')
-    if (ask !== null && never !== null && never <= ask)
-      list.push('The never-cross line sits at or below the ask-first line, so you would never be asked — refused first. Raise the never line or lower the ask line.')
+    if (drafts.amount.askAbove !== '' && ask === null) list.push('Ask-first amount must be a valid number.')
+    if (drafts.amount.neverAbove !== '' && never === null) list.push('Never-cross amount must be a valid number.')
+    if (drafts.amount.bulkUnits !== '' && (!Number.isInteger(bulk) || bulk <= 0)) list.push('Bulk units must be a whole number greater than zero.')
+    if (ask !== null && never !== null && never <= ask) list.push('Never-cross line is at or below the ask-first line — you would never be asked, only refused.')
     return list
-  }, [ask, never, bulk])
+  }, [ask, never, bulk, drafts.amount.askAbove, drafts.amount.neverAbove, drafts.amount.bulkUnits])
+
+  const setRule = (capability: string, rule: Rule) => {
+    setDrafts((d) => ({
+      ...d,
+      rules: d.rules.map((r) => (r.capability === capability ? { capability, rule } : r)),
+    }))
+    setSavedAt(null)
+  }
+
+  const setAmount = (field: keyof AmountDraft, value: string) => {
+    setDrafts((d) => ({ ...d, amount: { ...d.amount, [field]: value } }))
+    setSavedAt(null)
+  }
 
   const save = async () => {
-    if (!ready || ask === null || never === null || !Number.isInteger(bulk)) return
+    if (errors.length > 0) return
     setSaving(true)
     setSaveError(null)
     try {
-      const res = await fetch('/api/drafts/rules', {
+      const alwaysRequireApproval = drafts.rules.filter((r) => r.rule === 'hold').map((r) => r.capability)
+      const forbiddenCapabilities = drafts.rules.filter((r) => r.rule === 'refuse').map((r) => r.capability)
+
+      // Save capabilities draft (mapped routes) — unchanged.
+      const capsRes = await fetch('/api/drafts/capabilities', { cache: 'no-store' })
+      if (!capsRes.ok) {
+        setSaveError('Could not read current capabilities draft — refusing to overwrite.')
+        return
+      }
+      const capsBody = await capsRes.json()
+      const currentExtra = capsBody.draft?.extra ?? []
+
+      // Save rules draft.
+      const rulesRes = await fetch('/api/drafts/rules', {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          payload: { askAboveMinor: ask, neverAboveMinor: never, bulkUnits: bulk, alwaysAskOrders: d.alwaysAskOrders, forbidRefunds: d.forbidRefunds },
+          payload: {
+            askAboveMinor: ask,
+            neverAboveMinor: never,
+            bulkUnits: bulk,
+            alwaysRequireApproval,
+            forbiddenCapabilities,
+          },
         }),
       })
-      const body = (await res.json()) as { status: string; reason?: string; errors?: string[]; updatedAt?: string }
-      if (body.status !== 'ok') throw new Error(body.errors?.[0] ?? body.reason ?? 'Save refused.')
-      setSavedAt(body.updatedAt ?? 'saved')
+      const rulesBody = await rulesRes.json()
+      if (rulesBody.status !== 'ok') throw new Error(rulesBody.errors?.[0] ?? rulesBody.reason ?? 'Save refused.')
+      setSavedAt(rulesBody.updatedAt ?? 'saved')
       router.refresh()
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : 'Save refused.')
@@ -112,18 +180,26 @@ export function RulesEditor() {
 
   const ready = errors.length === 0
 
+  // Generated configuration — reviewable, not live.
+  const alwaysRequireList = drafts.rules.filter((r) => r.rule === 'hold').map((r) => r.capability)
+  const forbiddenList = drafts.rules.filter((r) => r.rule === 'refuse').map((r) => r.capability)
+
   const generated = useMemo(() => {
     if (!ready) return null
-    const lines = [
-      `// Draft — reviewable, not live. Publish to turn it on.`,
-      `maxOrderValue: { minor: ${ask}, currency: 'INR' },          // ask you first`,
-      `absoluteMaxOrderValue: { minor: ${never}, currency: 'INR' }, // always say no`,
-      `bulkOrderThreshold: { units: ${bulk} },                     // big baskets wait too`,
-    ]
-    if (d.alwaysAskOrders) lines.push(`alwaysRequireApproval: ['createOrder'],            // even a small order waits`)
-    if (d.forbidRefunds) lines.push(`forbiddenCapabilities: ['requestRefund'],          // refunds never via agent`)
+    const lines: string[] = []
+    lines.push(`// Draft — reviewable, not live. Publish to turn it on.`)
+
+    if (ask !== null) lines.push(`maxOrderValue: { minor: ${ask}, currency: 'INR' },          // ask you first above ₹${drafts.amount.askAbove}`)
+    if (never !== null) lines.push(`absoluteMaxOrderValue: { minor: ${never}, currency: 'INR' }, // always say no above ₹${drafts.amount.neverAbove}`)
+    if (Number.isInteger(bulk) && bulk > 0) lines.push(`bulkOrderThreshold: { units: ${bulk} },                     // big baskets wait too`)
+
+    if (alwaysRequireList.length > 0) lines.push(`alwaysRequireApproval: [${alwaysRequireList.map((c) => `'${c}'`).join(', ')}],            // held for your approval`)
+    if (forbiddenList.length > 0) lines.push(`forbiddenCapabilities: [${forbiddenList.map((c) => `'${c}'`).join(', ')}],          // refused outright`)
+
+    if (lines.length === 1) lines.push(`// No rules set — all capabilities run unattended.`)
+
     return lines.join('\n')
-  }, [ready, ask, never, bulk, d.alwaysAskOrders, d.forbidRefunds])
+  }, [ready, ask, never, bulk, drafts.amount.askAbove, drafts.amount.neverAbove, alwaysRequireList, forbiddenList])
 
   return (
     <div className="space-y-4">
@@ -136,7 +212,7 @@ export function RulesEditor() {
               : 'Unsaved draft. Nothing here affects your visitors.'}
           </p>
           <p className="mt-1 font-mono text-[11px] text-bone-faint">
-            same policy as the setup answers — saving here replaces those
+            {drafts.capabilities.length} mapped capability{drafts.capabilities.length === 1 ? '' : 's'} loaded from Map routes.
           </p>
           {loadError ? (
             <p className="mt-1 text-[12px] text-rust" role="alert">
@@ -147,60 +223,123 @@ export function RulesEditor() {
         <Badge tone="idle">not published yet</Badge>
       </div>
 
-      <div className="panel space-y-5 p-6">
-        <label className="flex cursor-pointer items-start gap-3">
-          <input type="checkbox" className="mt-1" checked={d.alwaysAskOrders} onChange={(e) => { setD({ ...d, alwaysAskOrders: e.target.checked }); setSavedAt(null) }} />
-          <span>
-            <span className="text-[14px] text-bone">Ask me before any order goes through</span>
-            <span className="mt-1 block text-[12px] text-bone-faint">Held for you first — even a small one. Nothing runs unseen.</span>
-          </span>
-        </label>
+      {/* Mapped capabilities with per-capability rules */}
+      <div className="panel space-y-3 p-6">
+        <p className="label">Rules per mapped capability</p>
+        <p className="mt-1 text-[12px] text-bone-faint">
+          Set a rule for each capability you mapped. Read capabilities run unattended by default; writes are held by default.
+        </p>
+        {drafts.capabilities.length === 0 ? (
+          <EmptyState
+            title="No mapped capabilities yet"
+            body="Go to Map routes and save some endpoints first. Then come back here to set limits."
+            action={<Link href="/map" className="btn btn-primary">Map routes</Link>}
+          />
+        ) : (
+          <div className="space-y-2">
+            {drafts.capabilities.map((cap) => {
+              const current = drafts.rules.find((r) => r.capability === cap.name)?.rule ?? 'allow'
+              return (
+                <div key={cap.name} className="flex items-center justify-between gap-3 p-3 rounded border border-ink-line/60 bg-ink/30">
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono text-[12px] text-bone">{cap.name}</span>
+                    <span className="font-mono text-[11px] text-bone-faint">{cap.method} {cap.path}</span>
+                    <Badge tone={cap.kind === 'write' ? 'held' : 'allow'}>{cap.kind}</Badge>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="cursor-pointer flex items-center gap-2 px-3 py-1.5 rounded border transition-colors {current === 'allow' ? 'border-verdant/40 bg-verdant/5' : 'border-ink-line/40 hover:border-verdant/40'}">
+                      <input
+                        type="radio"
+                        name={`rule-${cap.name}`}
+                        value="allow"
+                        checked={current === 'allow'}
+                        onChange={() => setRule(cap.name, 'allow')}
+                      />
+                      Allow
+                    </label>
+                    <label className="cursor-pointer flex items-center gap-2 px-3 py-1.5 rounded border transition-colors {current === 'hold' ? 'border-amber/40 bg-amber/5' : 'border-ink-line/40 hover:border-amber/40'}">
+                      <input
+                        type="radio"
+                        name={`rule-${cap.name}`}
+                        value="hold"
+                        checked={current === 'hold'}
+                        onChange={() => setRule(cap.name, 'hold')}
+                      />
+                      Hold
+                    </label>
+                    <label className="cursor-pointer flex items-center gap-2 px-3 py-1.5 rounded border transition-colors {current === 'refuse' ? 'border-rust/40 bg-rust/5' : 'border-ink-line/40 hover:border-rust/40'}">
+                      <input
+                        type="radio"
+                        name={`rule-${cap.name}`}
+                        value="refuse"
+                        checked={current === 'refuse'}
+                        onChange={() => setRule(cap.name, 'refuse')}
+                      />
+                      Refuse
+                    </label>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
 
-        <label className="flex cursor-pointer items-start gap-3">
-          <input type="checkbox" className="mt-1" checked={d.forbidRefunds} onChange={(e) => { setD({ ...d, forbidRefunds: e.target.checked }); setSavedAt(null) }} />
-          <span>
-            <span className="text-[14px] text-bone">Never let an agent issue a refund</span>
-            <span className="mt-1 block text-[12px] text-bone-faint">Refused outright, with a reason the agent can read.</span>
-          </span>
-        </label>
-
-        <details>
-          <summary className="cursor-pointer text-[13px] text-bone-dim">
-            Amount limits <span className="font-mono text-[11px] text-bone-faint">— only if you want them; the two switches above already cover most businesses</span>
-          </summary>
-          <div className="mt-4 space-y-5">
-            <div>
-              <label className="block text-[14px] text-bone" htmlFor="rules-ask">
-                Above what order value should we ask you first?
-              </label>
-              <p className="mt-1 text-[12px] text-bone-faint">Anything below this runs on its own. Above it, nothing happens until you approve it.</p>
-              <div className="mt-2 flex items-center gap-2">
-                <span aria-hidden="true" className="font-display text-xl text-bone-faint">₹</span>
-                <input id="rules-ask" className="w-36 border border-ink-line bg-transparent px-3 py-2 font-display text-xl text-bone outline-none focus:border-verdant focus-visible:ring-2 focus-visible:ring-verdant/60" value={d.askAbove} inputMode="decimal" onChange={(e) => { setD({ ...d, askAbove: e.target.value }); setSavedAt(null) }} />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[14px] text-bone" htmlFor="rules-never">
-                Above what value should we always say no?
-              </label>
-              <p className="mt-1 text-[12px] text-bone-faint">Never held, never queued — simply refused with the reason the agent can read.</p>
-              <div className="mt-2 flex items-center gap-2">
-                <span aria-hidden="true" className="font-display text-xl text-bone-faint">₹</span>
-                <input id="rules-never" className="w-36 border border-ink-line bg-transparent px-3 py-2 font-display text-xl text-bone outline-none focus:border-verdant focus-visible:ring-2 focus-visible:ring-verdant/60" value={d.neverAbove} inputMode="decimal" onChange={(e) => { setD({ ...d, neverAbove: e.target.value }); setSavedAt(null) }} />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[14px] text-bone" htmlFor="rules-bulk">
-                How many items in one basket should always wait for you?
-              </label>
-              <p className="mt-1 text-[12px] text-bone-faint">Volume control, independent of value — a cheap basket of many units still gets looked at.</p>
-              <input id="rules-bulk" className="mt-2 w-36 border border-ink-line bg-transparent px-3 py-2 font-display text-xl text-bone outline-none focus:border-verdant focus-visible:ring-2 focus-visible:ring-verdant/60" value={d.bulkUnits} inputMode="numeric" onChange={(e) => { setD({ ...d, bulkUnits: e.target.value }); setSavedAt(null) }} />
+      {/* Amount limits (optional, apply to all write capabilities) */}
+      <details className="panel p-6">
+        <summary className="cursor-pointer text-[13px] text-bone-dim">
+          Amount limits <span className="font-mono text-[11px] text-bone-faint">— optional; apply to all write capabilities</span>
+        </summary>
+        <div className="mt-4 space-y-5">
+          <div>
+            <label className="block text-[14px] text-bone" htmlFor="rules-ask">
+              Ask me first above this order value
+            </label>
+            <p className="mt-1 text-[12px] text-bone-faint">Anything below this runs on its own. Above it, nothing happens until you approve it.</p>
+            <div className="mt-2 flex items-center gap-2">
+              <span aria-hidden="true" className="font-display text-xl text-bone-faint">₹</span>
+              <input
+                id="rules-ask"
+                className="w-36 border border-ink-line bg-transparent px-3 py-2 font-display text-xl text-bone outline-none focus:border-verdant focus-visible:ring-2 focus-visible:ring-verdant/60"
+                value={drafts.amount.askAbove}
+                inputMode="decimal"
+                onChange={(e) => setAmount('askAbove', e.target.value)}
+              />
             </div>
           </div>
-        </details>
-      </div>
+          <div>
+            <label className="block text-[14px] text-bone" htmlFor="rules-never">
+              Always refuse above this order value
+            </label>
+            <p className="mt-1 text-[12px] text-bone-faint">Never held, never queued — simply refused with the reason the agent can read.</p>
+            <div className="mt-2 flex items-center gap-2">
+              <span aria-hidden="true" className="font-display text-xl text-bone-faint">₹</span>
+              <input
+                id="rules-never"
+                className="w-36 border border-ink-line bg-transparent px-3 py-2 font-display text-xl text-bone outline-none focus:border-verdant focus-visible:ring-2 focus-visible:ring-verdant/60"
+                value={drafts.amount.neverAbove}
+                inputMode="decimal"
+                onChange={(e) => setAmount('neverAbove', e.target.value)}
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-[14px] text-bone" htmlFor="rules-bulk">
+              Hold orders with more than this many items
+            </label>
+            <p className="mt-1 text-[12px] text-bone-faint">Volume control, independent of value — a cheap basket of many units still gets looked at.</p>
+            <div className="mt-2 flex items-center gap-2">
+              <input
+                id="rules-bulk"
+                className="w-36 border border-ink-line bg-transparent px-3 py-2 font-display text-xl text-bone outline-none focus:border-verdant focus-visible:ring-2 focus-visible:ring-verdant/60"
+                value={drafts.amount.bulkUnits}
+                inputMode="numeric"
+                onChange={(e) => setAmount('bulkUnits', e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+      </details>
 
       {errors.length > 0 && (
         <div className="panel border-rust/40 p-5" role="alert">
