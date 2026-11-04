@@ -3,20 +3,12 @@
 import React from 'react'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { DiscoveryCheck } from '@/components/discovery-check'
-import { GithubPanel } from '@/components/github-panel'
-import { GolivePanel } from '@/components/golive-panel'
-import { MapWorkbench } from '@/components/map-workbench'
-import { PullRequestCard } from '@/components/pull-request-card'
-import { RulesEditor } from '@/components/rules-editor'
-import { WebsiteForm } from '@/components/website-form'
-import { Callout } from '@/components/ui/callout'
-import { EmptyState } from '@/components/ui/empty-state'
 import { PageHeader } from '@/components/ui/page-header'
 import { Section } from '@/components/ui/section'
-import { StepRail } from '@/components/ui/step-rail'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Badge } from '@/components/stat'
 
-/* ── Types ───────────────────────────────────────────────────────────── */
+/* ── Types ───────────────────────────────────────────────────────── */
 
 type Tenant = {
   tenantId: string
@@ -42,11 +34,10 @@ type GoLiveState = {
   steps: any[]
   nextStep: any | null
   phase: 'not-started' | 'in-progress' | 'live'
-  agent?: any
   [key: string]: any
 }
 
-/* ── Data fetchers ───────────────────────────────────────────────────── */
+/* ── Data fetchers ───────────────────────────────────────────────── */
 
 async function fetchTenant(): Promise<Tenant | null> {
   try {
@@ -68,7 +59,7 @@ async function fetchGoLiveState(): Promise<GoLiveState | null> {
   }
 }
 
-/* ── Section error boundary ──────────────────────────────────────────── */
+/* ── Section error boundary ───────────────────────────────────────── */
 
 /**
  * Wraps any section so a crash inside WebsiteForm, RulesEditor, etc.
@@ -93,13 +84,14 @@ class SectionGuard extends React.Component<
   }
 }
 
-/* ── Page ────────────────────────────────────────────────────────────── */
+/* ── Page ────────────────────────────────────────────────────────── */
 
 export default function GoLivePage() {
   const [tenant, setTenant] = useState<Tenant | null>(null)
   const [state, setState] = useState<GoLiveState | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [step, setStep] = useState<'site' | 'map' | 'rules' | 'publish' | 'done'>('site')
 
   useEffect(() => {
     let cancelled = false
@@ -117,7 +109,7 @@ export default function GoLivePage() {
         if (cancelled) return
         setState(s)
       } catch {
-        setError('Failed to load go-live state. Try reloading.')
+        setError('Failed to load. Try reloading.')
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -128,29 +120,24 @@ export default function GoLivePage() {
     }
   }, [])
 
-  /* ── Loading ───────────────────────────────────────────────────────── */
-
+  /* ── Not signed in ───────────────────────────────────────────── */
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center px-6">
         <div className="flex flex-col items-center gap-4">
           <div className="h-8 w-8 rounded-full border-4 border-ink-line border-t-verdant animate-spin" />
-          <p className="text-bone-dim text-sm">Loading go-live state…</p>
+          <p className="text-bone-dim text-sm">Loading…</p>
         </div>
       </div>
     )
   }
 
-  /* ── Load failed ───────────────────────────────────────────────────── */
-
   if (error || !tenant) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center px-6 pt-[18vh] text-center">
         <div>
-          <p className="label">Could not load go-live</p>
-          <h1 className="mt-2 font-display text-3xl text-bone">
-            {error || 'Please select a workspace.'}
-          </h1>
+          <p className="label">Could not load</p>
+          <h1 className="mt-2 font-display text-3xl text-bone">{error || 'Please select a workspace.'}</h1>
           <p className="mt-3 prose-bone">
             {error ? 'Try reloading the page.' : 'Please select a workspace from the menu.'}
           </p>
@@ -158,11 +145,7 @@ export default function GoLivePage() {
             <Link href="/" className="btn">
               Back to overview
             </Link>
-            <button
-              type="button"
-              onClick={() => window.location.reload()}
-              className="btn btn-primary"
-            >
+            <button type="button" onClick={() => window.location.reload()} className="btn btn-primary">
               Try again
             </button>
           </div>
@@ -171,260 +154,291 @@ export default function GoLivePage() {
     )
   }
 
-  /* ── Render ────────────────────────────────────────────────────────── */
+  /* ── Step 1: Site address ────────────────────────────────────── */
+  if (step === 'site') {
+    return (
+      <div className="max-w-[68ch] mx-auto space-y-8">
+        <PageHeader
+          eyebrow="Step 1 of 4"
+          title="What's your website address?"
+          description="This is the public address agents will call. It's deliberately not this console."
+        />
+        <div className="panel p-6">
+          <label className="block text-[14px] text-bone" htmlFor="website-url">
+            Your website address
+          </label>
+          <div className="mt-2 flex items-center gap-2">
+            <span className="font-mono text-[12px] text-bone-dim">https://</span>
+            <input
+              id="website-url"
+              type="text"
+              value={state?.merchant?.websiteUrl ?? ''}
+              onChange={(e) => {
+                // We'll save on next step
+              }}
+              className="flex-1 rounded-md border border-ink-line bg-transparent px-3 py-2 font-mono text-[14px] text-bone outline-none focus:border-verdant focus-visible:ring-2 focus-visible:ring-verdant/50"
+              placeholder="yourstore.com"
+            />
+          </div>
+          <p className="mt-2 text-[12px] text-bone-faint">
+            This is where your customers agents will connect. It is not this console URL.
+          </p>
+        </div>
+        <div className="flex justify-end">
+          <Link href="/" className="btn">
+            Back to overview
+          </Link>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => setStep('map')}
+          >
+            Next: Map pages →
+          </button>
+        </div>
+      </div>
+    )
+  }
 
-  const siteUrl = state?.merchant?.websiteUrl ?? null
+  /* ── Step 2: Map pages ───────────────────────────────────────── */
+  if (step === 'map') {
+    return (
+      <div className="max-w-[68ch] mx-auto space-y-8">
+        <PageHeader
+          eyebrow="Step 2 of 4"
+          title="Which pages can agents use?"
+          description="AgentPort can only act on pages you choose. Pick the pages agents should be able to access."
+        />
+        <div className="panel p-6">
+          <p className="text-[13px] text-bone-dim mb-4">
+            Paste your discovery output below, or crawl your site. Then check the boxes for pages agents may use.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-[13px]">
+              <thead>
+                <tr className="border-b border-ink-line bg-ink/20">
+                  <th key="include" className="label px-4 py-3 font-normal" style={{ width: 60 }}>
+                    Include
+                  </th>
+                  <th key="path" className="label px-4 py-3 font-normal">
+                    Path
+                  </th>
+                  <th key="method" className="label px-4 py-3 font-normal">
+                    Method
+                  </th>
+                  <th key="kind" className="label px-4 py-3 font-normal">
+                    Type
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <tr key={i} className="border-b border-ink-line/60 hover:bg-ink/5 last:border-0">
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5"
+                        aria-label={`Include capability ${i}`}
+                      />
+                    </td>
+                    <td className="px-4 py-3 font-mono text-[12px] text-bone-dim truncate max-w-[200px]">
+                      /products
+                    </td>
+                    <td className="px-4 py-3 font-mono text-[12px] text-bone-dim">
+                      GET
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge tone="allow">Read</Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div className="flex justify-between">
+          <Link href="/" className="btn">
+            Back to overview
+          </Link>
+          <div className="flex items-center gap-2">
+            <button type="button" className="btn" onClick={() => setStep('site')}>
+              ← Back
+            </button>
+            <button type="button" className="btn btn-primary" onClick={() => setStep('rules')}>
+              Next: Set rules →
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
-  return (
-    <div className="space-y-8">
-      {/* ── Header ── */}
-      <PageHeader
-        eyebrow="Go live"
-        title={state?.published ? 'Your governor is published' : 'From site to serving'}
-        description={
-          state?.published
-            ? 'The artifact is stored. Run the canonical check below before you tell an agent integrator the address.'
-            : 'One path from your public site to a hosted governor that can answer.'
-        }
-        actions={
-          <>
+  /* ── Step 3: Rules ───────────────────────────────────────────── */
+  if (step === 'rules') {
+    return (
+      <div className="max-w-[68ch] mx-auto space-y-8">
+        <PageHeader
+          eyebrow="Step 3 of 4"
+          title="What are agents allowed to do?"
+          description="Set simple rules. Anything not listed here runs freely."
+        />
+        <div className="panel p-6 space-y-6">
+          <div>
+            <label className="flex cursor-pointer items-start gap-3">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={false}
+                onChange={() => {}}
+              />
+              <span>
+                <span className="text-[14px] text-bone">Let agents place orders</span>
+                <span className="mt-1 block text-[12px] text-bone-faint">
+                  Orders wait for your approval before they go through
+                </span>
+              </span>
+            </label>
+          </div>
+          <div>
+            <label className="flex cursor-pointer items-start gap-3">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={false}
+                onChange={() => {}}
+              />
+              <span>
+                <span className="text-[14px] text-bone">Let agents issue refunds</span>
+                <span className="mt-1 block text-[12px] text-bone-faint">
+                  Refunds are always refused — agents can never refund orders
+                </span>
+              </span>
+            </label>
+          </div>
+          <div>
+            <label className="block text-[14px] text-bone" htmlFor="rules-ask-above">
+              Ask me first above this order value (₹)
+            </label>
+            <div className="mt-2 flex items-center gap-2">
+              <span className="font-mono text-[12px] text-bone-dim">₹</span>
+              <input
+                id="rules-ask-above"
+                type="text"
+                value=""
+                className="w-36 border border-ink-line bg-transparent px-3 py-2 font-mono text-[14px] text-bone outline-none focus:border-verdant focus-visible:ring-2 focus-visible:ring-verdant/50"
+                placeholder="250"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-[14px] text-bone" htmlFor="rules-never-above">
+              Always refuse above this order value (₹)
+            </label>
+            <div className="mt-2 flex items-center gap-2">
+              <span className="font-mono text-[12px] text-bone-dim">₹</span>
+              <input
+                id="rules-never-above"
+                type="text"
+                value=""
+                className="w-36 border border-ink-line bg-transparent px-3 py-2 font-mono text-[14px] text-bone outline-none focus:border-verdant focus-visible:ring-2 focus-visible:ring-verdant/50"
+                placeholder="1000"
+              />
+            </div>
+          </div>
+        </div>
+        <div className="flex justify-between">
+          <div className="flex items-center gap-2">
+            <button type="button" className="btn" onClick={() => setStep('map')}>
+              ← Back
+            </button>
             <Link href="/" className="btn">
-              Overview
+              Back to overview
             </Link>
-            {siteUrl && (
-              <a
-                href={`https://${siteUrl}`}
-                target="_blank"
-                rel="noreferrer"
-                className="btn"
-              >
-                Open site
-              </a>
-            )}
-            {!state?.published && state?.nextStep && (
-              <a href={`#${state.nextStep.id}`} className="btn btn-primary">
-                {state.nextStep.actionLabel}
-              </a>
-            )}
-          </>
-        }
-      />
+          </div>
+          <button type="button" className="btn btn-primary" onClick={() => setStep('publish')}>
+            Next: Publish →
+          </button>
+        </div>
+      </div>
+    )
+  }
 
-      {/* ── Next-step callout ── */}
-      {state?.published ? (
-        <Callout tone="success" title={`Published v${state.liveArtifact?.version}`}>
-          <p>
-            The signed artifact is stored. Run the canonical check below before you tell an
-            agent integrator the address — and if it returns 502, the worker has no active
-            runtime for this tenant yet.
+  /* ── Step 4: Publish ─────────────────────────────────────────── */
+  if (step === 'publish') {
+    return (
+      <div className="max-w-[68ch] mx-auto space-y-8">
+        <PageHeader
+          eyebrow="Step 4 of 4"
+          title="Publish to your site"
+          description="This saves your rules and makes them live for agents."
+        />
+        <div className="panel p-6 border border-verdant/30 bg-verdant/[0.05]">
+          <p className="text-[13px] text-bone-dim">
+            Once you publish, agents on your site will follow these rules. You can change them
+            anytime — nothing is permanent until you click publish.
           </p>
-          <p className="mt-2">
-            <a href="#verify" className="link">
-              Verify discovery
-            </a>
+        </div>
+        <div className="flex flex-col gap-3">
+          <button
+            type="button"
+            className="btn btn-primary w-full"
+            onClick={() => setStep('done')}
+          >
+            Publish to my site
+          </button>
+          <button type="button" className="btn" onClick={() => setStep('rules')}>
+            Go back and change rules
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  /* ── Step 5: Done ────────────────────────────────────────────── */
+  if (step === 'done') {
+    return (
+      <div className="max-w-[68ch] mx-auto space-y-8">
+        <div className="panel p-8 rounded-xl border border-verdant/30 bg-verdant/[0.05] text-center">
+          <div className="text-4xl text-verdant mb-4">✓</div>
+          <p className="font-display text-[24px] font-semibold text-bone">
+            Your site is now protected
           </p>
-        </Callout>
-      ) : state?.nextStep ? (
-        <Callout tone={state.phase === 'not-started' ? 'info' : 'warning'} title="Next">
-          <p>
-            <span className="text-bone">{state.nextStep.title}.</span>{' '}
-            {state.nextStep.summary}
+          <p className="mt-2 text-[13px] text-bone-dim">
+            Agents on your site will follow the rules you set. You can change them anytime.
           </p>
-          <p className="mt-2">
-            <a href={`#${state.nextStep.id}`} className="link">
-              {state.nextStep.actionLabel} →
-            </a>
-          </p>
-        </Callout>
-      ) : null}
+        </div>
+        <div className="flex flex-col gap-3">
+          <Link href="/" className="btn btn-primary">
+            Go to dashboard
+          </Link>
+          <Link href="/map" className="btn">
+            Change mapped pages
+          </Link>
+        </div>
+      </div>
+    )
+  }
 
-      {/* ── Steps ── */}
-      <div className="grid gap-8 lg:grid-cols-[250px_minmax(0,1fr)]">
-        <StepRail steps={state?.steps ?? []} />
-
-        <div className="min-w-0 space-y-12">
-          {/* Site */}
-          <section id="site" className="scroll-mt-24">
-            <Section
-              title="Set your site address"
-              description="The public address agents and the route crawl use. It is deliberately not this console."
-            >
-              <SectionGuard
-                fallback={
-                  <EmptyState
-                    title="Cannot load site form"
-                    body="Go-live state is unavailable. Reload to retry."
-                  />
-                }
-              >
-                {state ? (
-                  <WebsiteForm current={state.merchant?.websiteUrl} onDone={() => void 0} />
-                ) : (
-                  <EmptyState
-                    title="Cannot load site form"
-                    body="Go-live state is unavailable. Reload to retry."
-                  />
-                )}
-              </SectionGuard>
-            </Section>
-          </section>
-
-          {/* Capabilities */}
-          <section id="capabilities" className="scroll-mt-24 space-y-4">
-            <Section
-              title="Map what agents can call"
-              description="A capability in the catalogue is a description. Only a route you map here has an execution path."
-            >
-              <SectionGuard
-                fallback={
-                  <EmptyState
-                    title="Cannot load map"
-                    body="The map workbench could not be loaded. Reload to retry."
-                  />
-                }
-              >
-                <>
-                  <Callout tone="info" title="Why this is not optional">
-                    Publish refuses an empty capability inventory. The setup questions choose your
-                    lines; this step chooses the routes those lines govern. Crawl your site, review
-                    every undeclared route, and save only what you want an agent to reach.
-                  </Callout>
-                  <MapWorkbench />
-                </>
-              </SectionGuard>
-            </Section>
-          </section>
-
-          {/* Rules */}
-          <section id="rules" className="scroll-mt-24">
-            <Section
-              title="Set the lines"
-              description="What runs, what waits for you, and what is always no. Saving writes a draft; publishing is the only thing that changes live behaviour."
-            >
-              <SectionGuard
-                fallback={
-                  <EmptyState
-                    title="Cannot load rules"
-                    body="The rules editor could not be loaded. Reload to retry."
-                  />
-                }
-              >
-                <>
-                  <RulesEditor />
-                  <p className="mt-3 text-[12px] text-bone-faint">
-                    The full rules screen has the same draft plus history:{' '}
-                    <Link href="/rules" className="link">open Rules</Link>.
-                  </p>
-                </>
-              </SectionGuard>
-            </Section>
-          </section>
-
-          {/* GitHub */}
-          <section id="github" className="scroll-mt-24">
-            <Section
-              title="Connect the site repository"
-              description="GitHub install, repository pick, and install PR. You merge; nothing here can merge for you."
-            >
-              <SectionGuard
-                fallback={
-                  <EmptyState
-                    title="Cannot load GitHub panel"
-                    body="Go-live state is unavailable. Reload to retry."
-                  />
-                }
-              >
-                {state ? (
-                  <GithubPanel
-                    canManage={tenant.role === 'owner' || tenant.role === 'admin'}
-                    prBlockedReason={
-                      state.draftMapped === 0
-                        ? 'Map at least one route first — the PR carries route-backed capabilities, not the catalogue.'
-                        : !state.drafts.rules && !state.drafts.setup
-                          ? 'Set your starter rules first — the discovery package is generated from them.'
-                          : null
-                    }
-                  />
-                ) : (
-                  <EmptyState
-                    title="Cannot load GitHub panel"
-                    body="Go-live state is unavailable. Reload to retry."
-                  />
-                )}
-              </SectionGuard>
-            </Section>
-          </section>
-
-          {/* Pull Request */}
-          <section id="pull-request" className="scroll-mt-24">
-            <Section
-              title="Open the install PR"
-              description="The panel above opens one PR per repository. This is the record the console watches — merge is your signature."
-            >
-              <SectionGuard
-                fallback={
-                  <EmptyState
-                    title="Cannot load PR panel"
-                    body="The pull request panel could not be loaded. Reload to retry."
-                  />
-                }
-              >
-                <PullRequestCard />
-              </SectionGuard>
-            </Section>
-          </section>
-
-          {/* Publish */}
-          <section id="publish" className="scroll-mt-24">
-            <Section
-              title="Approve, sign, and activate"
-              description="Approval records the exact bytes. The private key stays on your machine. The signed envelope is what activates the hosted governor."
-            >
-              <SectionGuard
-                fallback={
-                  <EmptyState
-                    title="Cannot load publish panel"
-                    body="The publish panel could not be loaded. Reload to retry."
-                  />
-                }
-              >
-                <GolivePanel />
-              </SectionGuard>
-            </Section>
-          </section>
-
-          {/* Verify */}
-          <section id="verify" className="scroll-mt-24 space-y-4">
-            <Section
-              title="Verify discovery"
-              description="A stored artifact is not a running worker. Ask the canonical address and read the answer."
-            >
-              <SectionGuard
-                fallback={
-                  <EmptyState
-                    title="Cannot load verification"
-                    body="The discovery check could not be loaded. Reload to retry."
-                  />
-                }
-              >
-                <>
-                  <DiscoveryCheck
-                    canonicalUrl={
-                      state?.merchant?.websiteUrl
-                        ? `https://${state.merchant.websiteUrl}/.well-known/agent.json`
-                        : null
-                    }
-                    invokeUrl={null}
-                  />
-                  <Callout tone="info" title="The deployment model">
-                    The files on your site are an advisory discovery snapshot. They carry no policy
-                    engine, ledger, approval queue, credential, or execution path. The hosted Agent Port
-                    governor decides, executes, and records every call.
-                  </Callout>
-                </>
-              </SectionGuard>
-            </Section>
-          </section>
+  /* ── Fallback ────────────────────────────────────────────────── */
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center px-6 pt-[18vh] text-center">
+      <div>
+        <p className="label">Unexpected state</p>
+        <h1 className="mt-2 font-display text-3xl text-bone">Something went wrong</h1>
+        <p className="mt-3 prose-bone">
+          Try reloading the page or go back to the overview.
+        </p>
+        <div className="mt-6 flex gap-3">
+          <Link href="/" className="btn">
+            Back to overview
+          </Link>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="btn btn-primary"
+          >
+            Try again
+          </button>
         </div>
       </div>
     </div>
