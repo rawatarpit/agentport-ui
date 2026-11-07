@@ -115,12 +115,15 @@ describe('compileLiveFrom (durable-drafts path)', () => {
 })
 
 describe('publish path requires a route-backed inventory', () => {
-  const route = read('app/api/publish/approve/route.ts')
+  const apply = read('app/api/publish/apply/route.ts')
 
-  it('refuses before approval when no route is mapped', () => {
-    expect(route).toContain('No routes are mapped')
-    expect(route).toContain('extras.length === 0')
-    expect(route).not.toContain('caps = KNOWN_CAPABILITIES')
+  it('refuses to apply when no route is mapped', () => {
+    expect(apply).toContain('No routes are mapped')
+    expect(apply).not.toContain('caps = KNOWN_CAPABILITIES')
+  })
+
+  it('the old approve route is retired', () => {
+    expect(read('app/api/publish/approve/route.ts')).toContain('410')
   })
 })
 

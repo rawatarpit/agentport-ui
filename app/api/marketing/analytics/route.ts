@@ -39,14 +39,6 @@ type CapabilityRow = {
   origin: string
 }
 
-type PublishApprovalRow = {
-  version: number
-  approver_role: string
-  risk_tier: string
-  digest: string
-  created_at: string
-}
-
 type TenantHomeRow = {
   tenant_id: string
   display_name: string
@@ -133,7 +125,7 @@ async function fetchMarketingAnalytics(
   supabase: RequestTenant['supabase'],
   tenantId: string,
 ): Promise<MarketingAnalytics> {
-  const [activityRes, conversionRes, demandRes, capsRes, approvalsRes, homeRes, pushRes, eventsRes] =
+  const [activityRes, conversionRes, demandRes, capsRes, homeRes, pushRes, eventsRes] =
     await Promise.all([
       supabase
         .from('v_ledger_capability_activity')
@@ -159,12 +151,6 @@ async function fetchMarketingAnalytics(
         .from('agent_capabilities')
         .select('name,method,path,kind,origin')
         .eq('tenant_id', tenantId),
-      supabase
-        .from('publish_approvals')
-        .select('version,approver_role,risk_tier,digest,created_at')
-        .eq('tenant_id', tenantId)
-        .order('created_at', { ascending: false })
-        .limit(20),
       supabase
         .from('v_tenant_home')
         .select('tenant_id,display_name,last_push_at,event_count,member_count,my_role')
@@ -193,7 +179,6 @@ async function fetchMarketingAnalytics(
   const conversion = (conversionRes.data ?? []) as ConversionRow[]
   const demand = (demandRes.data ?? []) as DemandRow[]
   const rawCapabilities = (capsRes.data ?? []) as CapabilityRow[]
-  const approvals = (approvalsRes.data ?? []) as PublishApprovalRow[]
 
   // --- Sources: group demand by agent source (from agent_id detection) ---
   const bySource = new Map<string, {

@@ -166,52 +166,50 @@ describe('signed artifact verification', () => {
 describe('publish routes hold the boundaries', () => {
   const here = dirname(fileURLToPath(import.meta.url))
   const src = (p: string) => readFileSync(join(here, '..', 'app', 'api', 'publish', p, 'route.ts'), 'utf8')
-  it('approve + artifact resolve owner/admin from the session, never service_role', () => {
+
+  it('the retired artifact routes refuse and point at the DB apply path', () => {
     for (const p of ['approve', 'artifact']) {
       const s = src(p)
-      expect(s, `${p} resolves role`).toContain('resolveCallerRole')
-      expect(s, `${p} must not touch service_role`).not.toContain('service_role')
+      expect(s, `${p} refuses with 410`).toContain('410')
+      expect(s, `${p} points at apply`).toContain('/api/publish/apply')
+      expect(s, `${p} must not write artifacts`).not.toContain('policy_artifacts')
+      expect(s, `${p} must not verify signatures`).not.toContain('verifySignedArtifact')
     }
-    // Tiering lives at approve time; upload time gates on the approval row.
-    expect(src('approve'), 'approve tier-gates').toContain('tierForChange')
-    expect(src('artifact'), 'artifact demands prior approval').toContain('publish_approvals')
   })
-  it('approval and inventory commit through one atomic RPC', () => {
-    const s = src('approve')
-    expect(s).toContain('agentport_record_publish_approval')
-    expect(s, 'inventory must not be written outside the RPC').not.toContain(".from('agent_capabilities')")
-  })
-  it('artifact intake refuses kill-switch cargo, verifies the signature, and honors the key pin', () => {
-    const s = src('artifact')
-    expect(s).toContain('emergencyKillSwitch')
-    expect(s).toContain('publish_approvals')
-    expect(s).toContain('policy_artifacts')
-    expect(s).toContain('verifySignedArtifact')
-    expect(s).toContain('policy_public_key_pem')
+
+  it('apply resolves owner/admin from the session and writes through one RPC', () => {
+    const s = src('apply')
+    expect(s).toContain('resolveCallerRole')
+    expect(s).toContain('tierForChange')
+    expect(s).toContain('agentport_apply_tenant_config')
+    expect(s).not.toContain('service_role')
+    // The inventory moves inside the RPC transaction, never a second write.
+    expect(s).not.toContain(".from('agent_capabilities')")
   })
 })
 
-describe('automatic browser publishing', () => {
+describe('database publishing', () => {
   const here = dirname(fileURLToPath(import.meta.url))
   const read = (p: string) => readFileSync(join(here, '..', p), 'utf8')
 
-  it('approve returns the exact artifact for the browser to sign', () => {
-    const s = read('app/api/publish/approve/route.ts')
-    expect(s).toContain('artifact')
-    expect(s).toContain('publicBaseUrl')
-    expect(s).toContain('normaliseWorkerUrl')
-    expect(s).toContain('existingApproval')
-    expect(s).not.toContain('agent-port publish')
+  it('the publish panel applies through the database, with no browser signing', () => {
+    const s = read('components/golive-panel.tsx')
+    expect(s).toContain('/api/publish/apply')
+    expect(s).not.toContain('signArtifact')
+    expect(s).not.toContain('ensurePublishKey')
+    expect(s).not.toContain('loadPublishKey')
+    expect(s).not.toContain('keyMatchesPin')
+    expect(s).not.toContain('browser-publish-key')
   })
 
-  it('the publish panel signs and uploads automatically, with no envelope paste step', () => {
-    const s = read('components/golive-panel.tsx')
-    expect(s).toContain('signArtifact')
-    expect(s).toContain('ensurePublishKey')
-    expect(s).toContain('loadPublishKey')
-    expect(s).toContain('keyMatchesPin')
-    expect(s).not.toContain('Upload the signed envelope')
-    expect(s).not.toContain('agent-port publish --key')
+  it('the apply route writes a config version, not an artifact', () => {
+    const s = read('app/api/publish/apply/route.ts')
+    expect(s).toContain('agentport_apply_tenant_config')
+    expect(s).toContain('tenant_config_versions')
+    expect(s).not.toContain('policy_artifacts')
+    expect(s).not.toContain('verifySignedArtifact')
+    expect(s).not.toContain('publicBaseUrl')
+    expect(s).not.toContain('normaliseWorkerUrl')
   })
 
   it('browser key code never reaches for the server crypto or Supabase clients', () => {
@@ -222,10 +220,10 @@ describe('automatic browser publishing', () => {
     expect(s).toContain("'use client'")
   })
 
-  it('status exposes the public pin as known/unknown, never as a guessed empty pin', () => {
+  it('status reads the applied config, not an artifact or a key pin', () => {
     const s = read('app/api/publish/status/route.ts')
-    expect(s).toContain('pinnedPublicKey')
-    expect(s).toContain('pinnedPublicKeyKnown')
-    expect(s).toContain('tenant_runtime')
+    expect(s).toContain('tenant_config_versions')
+    expect(s).not.toContain('pinnedPublicKey')
+    expect(s).not.toContain('policy_artifacts')
   })
 })
