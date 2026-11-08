@@ -238,6 +238,48 @@ function addBuildHook(packageJson: string): { ok: true; content: string } | { ok
   return { ok: true, content: `${JSON.stringify(root, null, 2)}\n` }
 }
 
+/**
+ * Direct installs write into a source directory (`public/`, `static/`) that the
+ * framework copies into its build output. A `prebuild` hook that runs
+ * `publish.mjs` therefore refreshes the served manifest from the live governor
+ * on every deploy, so the committed snapshot cannot freeze at the day the
+ * install PR was opened.
+ *
+ * `static-root` sites have no build to hook; they get the `agentport:publish`
+ * script and refresh by running it before deploy, or by re-opening the install
+ * PR from the dashboard.
+ */
+function addDirectRefreshHook(
+  packageJson: string,
+  hookBuild: boolean,
+): { ok: true; content: string } | { ok: false; reason: string } {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(packageJson)
+  } catch {
+    return { ok: false, reason: 'package.json is not valid JSON; refusing to rewrite it.' }
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    return { ok: false, reason: 'package.json is not a JSON object; refusing to rewrite it.' }
+  }
+  const root = parsed as Record<string, unknown>
+  const currentScripts =
+    typeof root.scripts === 'object' && root.scripts !== null && !Array.isArray(root.scripts)
+      ? ({ ...(root.scripts as Record<string, unknown>) } as Record<string, unknown>)
+      : {}
+  currentScripts['agentport:publish'] = 'node agentport/publish.mjs'
+  if (hookBuild) {
+    const pre = typeof currentScripts.prebuild === 'string' ? currentScripts.prebuild : ''
+    if (!pre.includes('agentport/publish.mjs')) {
+      currentScripts.prebuild = pre
+        ? `node agentport/publish.mjs && ${pre}`
+        : 'node agentport/publish.mjs'
+    }
+  }
+  root.scripts = currentScripts
+  return { ok: true, content: `${JSON.stringify(root, null, 2)}\n` }
+}
+
 function capabilityDetails(compiled: Compiled, drafts: InstallPackageInput['drafts']) {
   const policy = compiled.policy
   let extra: Array<{ name: string; method: string; path: string; kind: 'read' | 'write' }> = []
@@ -372,6 +414,11 @@ function readme(business: string, manifestUrl: string, target: PublishTarget): s
     'source of truth: `publish.mjs` fetches its manifest at build time and refuses',
     'to write a stale local snapshot. Do not hand-edit policy here; policy lives',
     'in the hosted governor and its audit trail.',
+    '',
+    'Framework sites run `publish.mjs` from the `prebuild` script, so every deploy',
+    'rewrites the served discovery files from the live governor. Static sites run',
+    '`npm run agentport:publish` before deploying, or re-open the install PR from',
+    'the dashboard — an open PR is updated, not duplicated.',
     '',
   ].join('\n')
 }
@@ -681,6 +728,16 @@ export function buildInstallPackageFrom(
       { path: `${prefix}.well-known/agent-access.html`, content: agentAccessHtml(business, manifestUrl) },
       { path: `${prefix}llms.txt`, content: mergeLlmsTxt(input.existingLlms, llmsTxt(business, manifestUrl, executeUrl)) },
     )
+    // Keep the folder self-updating. A framework site runs `publish.mjs` before
+    // its build and rewrites the served files from the live governor, so the
+    // snapshot cannot advertise capabilities the merchant has since changed.
+    // A static-root site has no build, so it relies on `agentport:publish` and
+    // the dashboard/PR path instead of a lifecycle hook.
+    if (input.packageJson) {
+      const hooked = addDirectRefreshHook(input.packageJson, target.framework !== 'static-root')
+      if (!hooked.ok) return hooked
+      files.push({ path: packageJsonPath, content: hooked.content })
+    }
   } else {
     if (!input.packageJson) {
       return {

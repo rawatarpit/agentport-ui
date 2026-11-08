@@ -85,9 +85,11 @@ export function GolivePanel() {
         body = await apply({ ...payload, confirm: typed })
       }
       if (body.status !== 'ok') throw new Error(body.reason ?? 'Apply refused.')
-      setMsg(
+      const applied =
         body.next ??
-          `Applied version ${body.version}. The hosted governor reads it on its next registry poll.`,
+        `Applied version ${body.version}. The hosted governor reads it on its next registry poll.`
+      setMsg(
+        `${applied} Refresh the discovery files your site serves: your next build fetches the live manifest, or re-open the install PR from step 04.`,
       )
       await load()
       await loadVersions()
@@ -221,6 +223,11 @@ export function GolivePanel() {
           <p className="font-mono text-[11px] leading-relaxed text-bone-faint">
             Applying writes one append-only config version and advances the runtime pointer. The hosted
             governor reads it on its next registry poll. Until then, nothing changes.
+          </p>
+          <p className="font-mono text-[11px] leading-relaxed text-bone-faint">
+            The discovery files your site serves refresh from the governor: `publish.mjs` runs from
+            `prebuild` on framework sites. Static sites run `npm run agentport:publish`, or re-open the
+            install PR from step 04 — an open PR is updated, not duplicated.
           </p>
           <p className="font-mono text-[11px] leading-relaxed text-bone-faint">
             No GitHub App on your repo yet? Download{' '}

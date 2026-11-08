@@ -210,6 +210,43 @@ describe('buildInstallPackageFrom', () => {
     expect(r.value.files.map((f) => f.path)).not.toContain('dist/.well-known/agent.json')
   })
 
+  it('adds a prebuild hook so a framework site refreshes the manifest on every deploy', () => {
+    const packageJson = JSON.stringify({
+      name: 'site',
+      scripts: { build: 'next build', prebuild: 'echo prep' },
+    })
+    const r = buildInstallPackageFrom({
+      ...base,
+      publishTarget: { dir: 'public', mode: 'direct', framework: 'next' },
+      packageJson,
+    })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    const pkg = r.value.files.find((f) => f.path === 'package.json')
+    expect(pkg).toBeDefined()
+    const parsed = JSON.parse(pkg!.content) as { scripts: Record<string, string> }
+    expect(parsed.scripts.build).toBe('next build')
+    expect(parsed.scripts.prebuild).toBe('node agentport/publish.mjs && echo prep')
+    expect(parsed.scripts['agentport:publish']).toBe('node agentport/publish.mjs')
+    expect(r.value.files.map((f) => f.path)).toContain('public/.well-known/agent.json')
+  })
+
+  it('gives a static-root site the publish script but no build hook to run it', () => {
+    const packageJson = JSON.stringify({ name: 'site', scripts: { build: 'echo none' } })
+    const r = buildInstallPackageFrom({
+      ...base,
+      publishTarget: { dir: '.', mode: 'direct', framework: 'static-root' },
+      packageJson,
+    })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    const pkg = r.value.files.find((f) => f.path === 'package.json')
+    expect(pkg).toBeDefined()
+    const parsed = JSON.parse(pkg!.content) as { scripts: Record<string, string> }
+    expect(parsed.scripts['agentport:publish']).toBe('node agentport/publish.mjs')
+    expect(parsed.scripts.prebuild).toBeUndefined()
+  })
+
   it('refuses to overwrite another provider’s manifest or access page', () => {
     const manifest = buildInstallPackageFrom({
       ...base,

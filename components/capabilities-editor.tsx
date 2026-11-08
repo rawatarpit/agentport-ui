@@ -238,8 +238,8 @@ export function CapabilitiesEditor({ inventory = [] }: { inventory?: InventoryCa
             <div>
               <p className="label">Approved inventory</p>
               <p className="mt-1 text-[13px] text-bone-dim">
-                Routes with an execution blueprint in this workspace, written when a publish was
-                approved. Approved is not the same as live — the published artifact still has to be
+                Routes with an execution blueprint in this workspace, written when a config was
+                applied. Approved is not the same as live — the applied config still has to be
                 active before the governor serves them.
               </p>
             </div>

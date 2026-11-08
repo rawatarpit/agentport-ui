@@ -18,7 +18,7 @@ type ManifestShape = {
 /**
  * The last step is a fetch, not a badge.
  *
- * A stored artifact proves the merchant signed something. It does not prove a
+ * A saved config row proves the merchant applied something. It does not prove a
  * worker is serving this tenant. This button asks the hosted governor for the
  * canonical manifest through the console's own route (no cross-origin fetch,
  * no open proxy) and reports the HTTP answer it actually got.

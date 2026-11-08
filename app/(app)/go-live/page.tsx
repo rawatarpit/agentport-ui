@@ -204,7 +204,7 @@ export default async function GoLivePage() {
             {state.pullRequests.length === 0 ? (
               <EmptyState
                 title="No install PR recorded yet"
-                body="Connect GitHub in step 04 and open the PR there. Every later update flows through the publish channel, not another PR."
+                body="Connect GitHub in step 04 and open the PR there. It adds the discovery files your site serves; enforcement updates still flow through the publish channel."
                 action={
                   <a href="#github" className="btn">
                     Go to GitHub
@@ -241,8 +241,8 @@ export default async function GoLivePage() {
                 <p className="label">06</p>
                 <h2 className="font-display text-[18px] font-semibold text-bone">Publish and activate</h2>
                 <p className="mt-1 text-[13px] leading-relaxed text-bone-dim">
-                  Approve the exact bytes; this browser signs and uploads them automatically. No GitHub?
-                  Download the installer in this step — it uses the same compiler.
+                  Apply records exactly this policy and capability set; the hosted governor loads it on its
+                  next poll. No GitHub? Download the installer in this step — it uses the same compiler.
                 </p>
               </div>
               <Badge tone={state.published ? 'allow' : 'idle'}>
@@ -261,7 +261,7 @@ export default async function GoLivePage() {
               <p className="label">07</p>
               <h2 className="font-display text-[18px] font-semibold text-bone">Verify discovery</h2>
               <p className="mt-1 text-[13px] leading-relaxed text-bone-dim">
-                A stored artifact proves you signed something. Only a live 200 from the governor
+                A saved config row proves you applied something. Only a live 200 from the governor
                 proves it is being served.
               </p>
             </div>

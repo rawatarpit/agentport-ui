@@ -170,7 +170,7 @@ const SECURITY = [
   },
   {
     title: 'Emergency stop',
-    body: 'The kill switch blocks agent-initiated writes, makes reads audit-only, and leaves your website and APIs running. It is checked first and is never part of a published artifact.',
+    body: 'The kill switch blocks agent-initiated writes, makes reads audit-only, and leaves your website and APIs running. It is checked first and is never part of an applied config.',
   },
 ]
 

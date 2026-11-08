@@ -127,7 +127,7 @@ export default async function OverviewPage() {
           }
           hint={
             state.liveArtifactUnknown
-              ? 'The published-artifact read failed. Unknown, not unpublished.'
+              ? 'The live config read failed. Unknown, not unpublished.'
               : state.liveArtifact
                 ? `Activated ${when(state.liveArtifact.publishedAt)}.`
                 : 'A saved draft is not live. Publish from go-live.'
@@ -181,7 +181,7 @@ export default async function OverviewPage() {
 
       <Section
         title="Mapped capabilities"
-        description="The approved inventory, not the draft in the editor. A route runs only once it is in the published artifact the governor serves."
+        description="The approved inventory, not the draft in the editor. A route runs only once it is in the applied config the governor serves."
         action={
           <Link href="/map" className="btn">
             Review routes
