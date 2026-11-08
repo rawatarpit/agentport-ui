@@ -159,6 +159,87 @@ describe('repo listing + PR shapes (offline guards)', () => {
   })
 })
 
+describe('install PR branch handling', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  function stub(replies: (url: string) => Response | null) {
+    const calls: Array<{ method: string; url: string; body: Record<string, unknown> | null }> = []
+    vi.stubGlobal('fetch', async (input: unknown, init?: RequestInit) => {
+      const url = String(input)
+      const method = init?.method ?? 'GET'
+      const body =
+        typeof init?.body === 'string' ? (JSON.parse(init.body) as Record<string, unknown>) : null
+      calls.push({ method, url, body })
+      return replies(url) ?? new Response(JSON.stringify({ message: 'unexpected' }), { status: 404 })
+    })
+    return calls
+  }
+
+  const json = (value: unknown) =>
+    new Response(JSON.stringify(value), { status: 200, headers: { 'content-type': 'application/json' } })
+
+  it('rebases a merged install branch on the current default head', async () => {
+    const calls = stub((url) => {
+      if (url.endsWith('/repos/o/r')) return json({ full_name: 'o/r', default_branch: 'main' })
+      if (url.endsWith('/git/ref/heads/main')) return json({ object: { sha: 'base-sha' } })
+      if (url.endsWith('/git/ref/heads/agentport%2Finstall')) return json({ object: { sha: 'stale-sha' } })
+      if (url.includes('/pulls?state=open')) return json([])
+      if (url.endsWith('/git/commits/base-sha')) return json({ tree: { sha: 'base-tree' } })
+      if (url.endsWith('/git/blobs')) return json({ sha: 'blob-sha' })
+      if (url.endsWith('/git/trees')) return json({ sha: 'new-tree' })
+      if (url.endsWith('/git/commits')) return json({ sha: 'new-commit' })
+      if (url.includes('/git/refs/heads/')) return json({ object: { sha: 'new-commit' } })
+      if (url.endsWith('/pulls')) return json({ html_url: 'https://github.com/o/r/pull/2', number: 2 })
+      return null
+    })
+    const { openInstallPr } = await import('./github.js')
+    const r = await openInstallPr({
+      installationToken: 'x',
+      repoFullName: 'o/r',
+      files: [{ path: 'agentport/manifest.json', content: '{}' }],
+      prTitle: 't',
+      prBody: 'b',
+    })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.prNumber).toBe(2)
+    expect(calls.some((c) => c.url.endsWith('/git/commits/stale-sha'))).toBe(false)
+    const commit = calls.find((c) => c.method === 'POST' && c.url.endsWith('/git/commits'))
+    expect(commit?.body?.parents).toEqual(['base-sha'])
+    const patch = calls.find((c) => c.method === 'PATCH')
+    expect(patch?.body?.force).toBe(true)
+  })
+
+  it('keeps basing on the branch while its PR is open', async () => {
+    const calls = stub((url) => {
+      if (url.endsWith('/repos/o/r')) return json({ full_name: 'o/r', default_branch: 'main' })
+      if (url.endsWith('/git/ref/heads/main')) return json({ object: { sha: 'base-sha' } })
+      if (url.endsWith('/git/ref/heads/agentport%2Finstall')) return json({ object: { sha: 'open-sha' } })
+      if (url.includes('/pulls?state=open')) return json([{ number: 1 }])
+      if (url.endsWith('/git/commits/open-sha')) return json({ tree: { sha: 'open-tree' } })
+      if (url.endsWith('/git/blobs')) return json({ sha: 'blob-sha' })
+      if (url.endsWith('/git/trees')) return json({ sha: 'new-tree' })
+      if (url.endsWith('/git/commits')) return json({ sha: 'new-commit' })
+      if (url.includes('/git/refs/heads/')) return json({ object: { sha: 'new-commit' } })
+      if (url.endsWith('/pulls')) return json({ html_url: 'https://github.com/o/r/pull/1', number: 1 })
+      return null
+    })
+    const { openInstallPr } = await import('./github.js')
+    const r = await openInstallPr({
+      installationToken: 'x',
+      repoFullName: 'o/r',
+      files: [{ path: 'agentport/manifest.json', content: '{}' }],
+      prTitle: 't',
+      prBody: 'b',
+    })
+    expect(r.ok).toBe(true)
+    const commit = calls.find((c) => c.method === 'POST' && c.url.endsWith('/git/commits'))
+    expect(commit?.body?.parents).toEqual(['open-sha'])
+    const patch = calls.find((c) => c.method === 'PATCH')
+    expect(patch?.body?.force).toBe(false)
+  })
+})
+
 describe('private-key paste normalization', () => {
   const { privateKey } = rs256Keypair()
   const singleLine = privateKey.replace(/\n/g, '\\n')

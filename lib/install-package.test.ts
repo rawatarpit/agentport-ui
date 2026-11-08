@@ -1,3 +1,7 @@
+import { execFileSync } from 'node:child_process'
+import { mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   buildInstallPackageFrom,
@@ -116,10 +120,13 @@ describe('buildInstallPackageFrom', () => {
     expect(publish?.content).toContain("createHash('sha256').update(text)")
     expect(publish?.content).not.toContain('copyFileSync')
     expect(publish?.content).not.toContain("readFileSync(join(here, 'llms.txt')")
-    expect(verify?.content).toContain("live.business !== config.business")
+    expect(publish?.content).toContain('hosted manifest is for a different tenant')
+    expect(publish?.content).not.toContain('hosted manifest is for a different business')
+    expect(verify?.content).toContain('hosted manifest is for a different tenant')
+    expect(verify?.content).toContain('config.workerUrl')
     expect(verify?.content).toContain('published manifest does not match the hosted governor selection')
     expect(verify?.content).not.toContain('manifestSha256')
-    expect(verify?.content).not.toContain('live.baseUrl !== config.workerUrl')
+    expect(verify?.content).not.toContain("live.business !== config.business")
     expect(readme?.content).toContain('hosted governor is the')
     expect(paths).toContain('public/.well-known/agent.json')
     expect(paths).toContain('public/.well-known/agent-access.html')
@@ -260,6 +267,43 @@ describe('buildInstallPackageFrom', () => {
     expect(page.ok).toBe(false)
   })
 
+  it('refreshes an older Agent Port manifest that points at this tenant’s governor', () => {
+    const tenantUrl = 'https://governor.agentport.dev/t/tenant-1'
+    const legacy = JSON.stringify({
+      version: '1.0',
+      business: 'Acme',
+      baseUrl: tenantUrl,
+      endpoints: {
+        manifest: `${tenantUrl}/.well-known/agent.json`,
+        execute: `${tenantUrl}/.well-known/agent/invoke`,
+      },
+    })
+    const r = buildInstallPackageFrom({ ...base, existingManifest: legacy })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.value.manifest).toMatchObject({ generatedBy: 'agentport', business: 'Acme' })
+  })
+
+  it('still refuses a foreign manifest that does not point at this tenant', () => {
+    const foreign = JSON.stringify({
+      version: '1.0',
+      business: 'Acme',
+      baseUrl: 'https://other-provider.example',
+      endpoints: { manifest: 'https://other-provider.example/.well-known/agent.json' },
+    })
+    const r = buildInstallPackageFrom({ ...base, existingManifest: foreign })
+    expect(r.ok).toBe(false)
+  })
+
+  it('refuses another tenant’s Agent Port manifest', () => {
+    const other = JSON.stringify({
+      baseUrl: 'https://governor.agentport.dev/t/tenant-2',
+      endpoints: { manifest: 'https://governor.agentport.dev/t/tenant-2/.well-known/agent.json' },
+    })
+    const r = buildInstallPackageFrom({ ...base, existingManifest: other })
+    expect(r.ok).toBe(false)
+  })
+
   it('merges the Agent Port block into an existing llms.txt instead of replacing it', () => {
     const existing = '# Acme docs\n\nKeep this line.\n'
     const r = buildInstallPackageFrom({
@@ -308,5 +352,23 @@ describe('buildInstallPackageFrom', () => {
     expect(script).toContain('writeFileSync')
     expect(script).not.toContain('evaluate(')
     expect(script).not.toContain('emergencyKillSwitch')
+  })
+
+  it('generates syntactically valid publish and verify scripts', () => {
+    const r = buildInstallPackageFrom({
+      ...base,
+      publishTarget: { dir: 'public', mode: 'direct', framework: 'next' },
+      packageJson: JSON.stringify({ scripts: { build: 'next build' } }),
+    })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    const dir = mkdtempSync(join(tmpdir(), 'agentport-script-'))
+    for (const path of ['agentport/publish.mjs', 'agentport/verify.mjs']) {
+      const file = r.value.files.find((f) => f.path === path)
+      expect(file).toBeDefined()
+      const target = join(dir, path.split('/').join('-'))
+      writeFileSync(target, file!.content)
+      expect(() => execFileSync(process.execPath, ['--check', target], { stdio: 'pipe' })).not.toThrow()
+    }
   })
 })

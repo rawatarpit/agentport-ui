@@ -253,7 +253,7 @@ export function GithubPanel({
             ) : picked.length === 0 && (repos?.length ?? 0) > 0 ? (
               <span className="font-mono text-[11px] text-bone-faint">pick at least one repo — the button stays off until then</span>
             ) : (
-              <span className="font-mono text-[11px] text-bone-faint">one PR per repo · re-running updates, never duplicates</span>
+              <span className="font-mono text-[11px] text-bone-faint">one PR per repo · an open PR is updated; after a merge, a new one opens</span>
             )}
           </div>
           {opened.length > 0 ? (

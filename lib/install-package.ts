@@ -446,11 +446,22 @@ if (res === null || !res.ok) fail('could not read the hosted manifest; refusing 
 const text = await res.text()
 let live
 try { live = JSON.parse(text) } catch { fail('hosted manifest is not valid JSON') }
+const trimSlash = (value) => {
+  let s = String(value ?? '')
+  while (s.endsWith('/')) s = s.slice(0, -1)
+  return s
+}
+// Identity is the tenant governor, not the display name: a business may be
+// renamed in the console after install, and that must not fail the build.
+const sameTenant =
+  (Boolean(config.workerUrl) && typeof live.baseUrl === 'string' && trimSlash(live.baseUrl) === trimSlash(config.workerUrl)) ||
+  (Boolean(config.manifestUrl) && typeof live.endpoints?.manifest === 'string' && trimSlash(live.endpoints.manifest) === trimSlash(config.manifestUrl))
 if (live.version !== '1.0') fail('hosted manifest version is not 1.0')
-if (live.business !== config.business) fail('hosted manifest is for a different business')
+if (!sameTenant) fail('hosted manifest is for a different tenant')
+if (typeof live.business !== 'string' || live.business.trim() === '') fail('hosted manifest has no business name')
 if (live.authentication?.scheme !== 'bearer') fail('hosted manifest does not advertise bearer authentication')
 
-const business = String(live.business ?? config.business)
+const business = live.business.trim()
 const manifestUrl = String(live.endpoints?.manifest ?? config.manifestUrl)
 const executeUrl = String(live.endpoints?.execute ?? config.executeUrl)
 const tokenUrl = String(live.endpoints?.token ?? live.authentication?.tokenEndpoint ?? '')
@@ -469,8 +480,11 @@ writeFileSync(at('.well-known/agent.json'), text)
 // stale the moment the governor republishes. Update it with the bytes we just
 // wrote; otherwise a reviewer comparing the two would see a false mismatch.
 const digest = createHash('sha256').update(text).digest('hex')
-if (config.manifestSha256 !== digest) {
+if (config.manifestSha256 !== digest || config.business !== business) {
   config.manifestSha256 = digest
+  // The display name is mutable; keep the committed config in step with the
+  // governor so a rename does not leave a misleading local snapshot.
+  config.business = business
   writeFileSync(join(here, 'config.json'), JSON.stringify(config, null, 2) + '\\n')
 }
 
@@ -572,8 +586,18 @@ const canon = (value) => {
 }
 
 const live = await (await get(config.manifestUrl)).json()
+const trimSlash = (value) => {
+  let s = String(value ?? '')
+  while (s.endsWith('/')) s = s.slice(0, -1)
+  return s
+}
+// Identity is the tenant governor, not the display name: a business may be
+// renamed in the console after install, and that must not fail verification.
+const sameTenant =
+  (Boolean(config.workerUrl) && typeof live.baseUrl === 'string' && trimSlash(live.baseUrl) === trimSlash(config.workerUrl)) ||
+  (Boolean(config.manifestUrl) && typeof live.endpoints?.manifest === 'string' && trimSlash(live.endpoints.manifest) === trimSlash(config.manifestUrl))
 if (live.version !== '1.0') fail('hosted manifest version is not 1.0')
-if (live.business !== config.business) fail('hosted manifest is for a different business')
+if (!sameTenant) fail('hosted manifest is for a different tenant')
 if (live.authentication?.scheme !== 'bearer') fail('hosted manifest does not advertise bearer authentication')
 
 let served
@@ -631,21 +655,38 @@ export function buildInstallPackageFrom(
     return { ok: false, reason: 'Publish directory is not a safe repository path.' }
   }
 
+  const now = input.now ?? new Date()
+  const manifestUrl = `${worker.url}/.well-known/agent.json`
+  const executeUrl = `${worker.url}/.well-known/agent/invoke`
+
   if (input.existingManifest) {
+    let existing: {
+      generatedBy?: unknown
+      baseUrl?: unknown
+      endpoints?: { manifest?: unknown; execute?: unknown }
+    }
     try {
-      const existing = JSON.parse(input.existingManifest) as { generatedBy?: unknown }
-      if (existing.generatedBy !== 'agentport') {
-        return {
-          ok: false,
-          reason:
-            'A different agent manifest already exists at this path. Refusing to overwrite it; move it or remove it first.',
-        }
-      }
+      existing = JSON.parse(input.existingManifest) as typeof existing
     } catch {
       return {
         ok: false,
         reason:
           'An existing agent manifest is not valid JSON. Refusing to overwrite it; review it first.',
+      }
+    }
+    // Older Agent Port builds wrote the served manifest without `generatedBy`.
+    // Recognise our own file by the tenant governor it points at, so a re-run
+    // refreshes a stale snapshot without clobbering a different provider's.
+    const ours =
+      existing.generatedBy === 'agentport' ||
+      existing.baseUrl === worker.url ||
+      existing.endpoints?.manifest === manifestUrl ||
+      existing.endpoints?.execute === executeUrl
+    if (!ours) {
+      return {
+        ok: false,
+        reason:
+          'A different agent manifest already exists at this path. Refusing to overwrite it; move it or remove it first.',
       }
     }
   }
@@ -657,9 +698,6 @@ export function buildInstallPackageFrom(
     }
   }
 
-  const now = input.now ?? new Date()
-  const manifestUrl = `${worker.url}/.well-known/agent.json`
-  const executeUrl = `${worker.url}/.well-known/agent/invoke`
   const details = capabilityDetails(compiled.compiled, input.drafts)
   const policy = compiled.compiled.policy
   const manifest: Record<string, unknown> = {

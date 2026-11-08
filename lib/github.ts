@@ -610,7 +610,10 @@ export async function openInstallPr(opts: {
   if (!ref.ok) return { ok: false, reason: 'could not read the default branch' }
   const baseSha = ref.value.object.sha
 
-  // Reuse our branch when it already exists (update the PR); create otherwise.
+  // Reuse our branch only while its PR is still open (so a second run updates
+  // that PR). A merged or closed branch is stale: basing a commit on it would
+  // re-propose files the default branch has changed since, and the merge would
+  // conflict. In that case base on the current default head and reset the ref.
   const existing = await gh<{ object: { sha: string } }>(
     `/repos/${owner}/${repo}/git/ref/heads/${encodeURIComponent(branch)}`,
     opts.installationToken,
@@ -619,7 +622,16 @@ export async function openInstallPr(opts: {
     return { ok: false, reason: existing.reason }
   }
   const branchExists = existing.ok
-  const headSha = existing.ok ? existing.value.object.sha : baseSha
+  let hasOpenPr = false
+  if (branchExists) {
+    const open = await gh<Array<{ number: number }>>(
+      `/repos/${owner}/${repo}/pulls?state=open&head=${encodeURIComponent(`${owner}:${branch}`)}`,
+      opts.installationToken,
+    )
+    if (!open.ok) return { ok: false, reason: 'could not check the install pull request' }
+    hasOpenPr = open.value.length > 0
+  }
+  const headSha = branchExists && hasOpenPr ? existing.value.object.sha : baseSha
 
   const head = await gh<{ tree: { sha: string } }>(
     `/repos/${owner}/${repo}/git/commits/${headSha}`,
@@ -666,7 +678,7 @@ export async function openInstallPr(opts: {
       {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sha: commit.value.sha, force: false }),
+        body: JSON.stringify({ sha: commit.value.sha, force: !hasOpenPr }),
       },
     )
     if (!updated.ok) return { ok: false, reason: `could not update the install branch: ${updated.reason}` }
