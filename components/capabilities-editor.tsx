@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { Badge } from '@/components/stat'
+import type { DataClass } from '@/lib/contracts'
 
 /**
  * What agents may see.
@@ -38,6 +39,16 @@ type ExtraCap = {
   path: string
   kind: 'read' | 'write'
   allowUnattended?: boolean
+  dataClass: DataClass
+  autoIssue: boolean
+}
+
+const DATA_CLASSES: DataClass[] = ['public', 'internal', 'pii', 'payment']
+const DATA_CLASS_HELP: Record<DataClass, string> = {
+  public: 'Already published; safe to auto-issue to agents.',
+  internal: 'Business data. Requires a human grant.',
+  pii: 'Personal data. Requires a human grant and is redacted in the ledger.',
+  payment: 'Payment data. Requires a human grant.',
 }
 
 /** An approved execution blueprint, written by publish approval. */
@@ -114,7 +125,15 @@ export function CapabilitiesEditor({ inventory = [] }: { inventory?: InventoryCa
             return next
           })
         }
-        if (Array.isArray(body.draft.extra)) setExtra(body.draft.extra)
+        if (Array.isArray(body.draft.extra)) {
+          setExtra(
+            body.draft.extra.map((e) => ({
+              ...e,
+              dataClass: e.dataClass ?? 'internal',
+              autoIssue: e.autoIssue === true,
+            })),
+          )
+        }
         setSavedAt('loaded')
       })
       .catch(() => {
@@ -158,6 +177,19 @@ export function CapabilitiesEditor({ inventory = [] }: { inventory?: InventoryCa
       ...h,
       [cap]: h[cap]!.includes(field) ? h[cap]!.filter((f) => f !== field) : [...h[cap]!, field],
     }))
+
+  const updateExtra = (key: string, patch: Partial<ExtraCap>) => {
+    setExtra((rows) =>
+      rows.map((row) => {
+        if (`${row.method} ${row.path}` !== key) return row
+        const next = { ...row, ...patch }
+        // Auto-issue is only legal for a public read. Changing the class or
+        // method away from that must not leave a stale true behind.
+        if (next.kind !== 'read' || next.dataClass !== 'public') next.autoIssue = false
+        return next
+      }),
+    )
+  }
 
   const totalHidden = Object.values(hidden).reduce((n, f) => n + f.length, 0)
 
@@ -212,22 +244,67 @@ export function CapabilitiesEditor({ inventory = [] }: { inventory?: InventoryCa
           </div>
         ) : (
           <ul className="mt-4 divide-y divide-ink-line/60">
-            {extra.map((e) => (
-              <li key={`${e.method} ${e.path}`} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                <div className="min-w-0">
-                  <p className="font-mono text-[12px] text-bone">{e.name}</p>
-                  <p className="mt-0.5 font-mono text-[11px] text-bone-faint">
-                    {e.method} {e.path}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge tone={e.kind === 'write' ? 'held' : 'allow'}>{e.kind}</Badge>
-                  <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-bone-faint">
-                    {e.kind === 'read' || e.allowUnattended ? 'unattended' : 'held'}
-                  </span>
-                </div>
-              </li>
-            ))}
+            {extra.map((e) => {
+              const key = `${e.method} ${e.path}`
+              const canAutoIssue = e.kind === 'read' && e.dataClass === 'public'
+              return (
+                <li key={key} className="py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-mono text-[12px] text-bone">{e.name}</p>
+                      <p className="mt-0.5 font-mono text-[11px] text-bone-faint">
+                        {e.method} {e.path}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge tone={e.kind === 'write' ? 'held' : 'allow'}>{e.kind}</Badge>
+                      <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-bone-faint">
+                        {e.kind === 'read' || e.allowUnattended ? 'unattended' : 'held'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-end gap-4">
+                    <label className="flex flex-col gap-1 text-[11px] text-bone-faint">
+                      <span className="label">Data class</span>
+                      <select
+                        className="input min-w-36 text-[12px]"
+                        value={e.dataClass}
+                        onChange={(event) =>
+                          updateExtra(key, { dataClass: event.target.value as DataClass })
+                        }
+                        aria-label={`Data class for ${e.name}`}
+                      >
+                        {DATA_CLASSES.map((value) => (
+                          <option key={value} value={value}>
+                            {value}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="max-w-72 text-[11px] leading-snug text-bone-faint">
+                        {DATA_CLASS_HELP[e.dataClass]}
+                      </span>
+                    </label>
+                    <label className="flex max-w-72 items-start gap-2 text-[12px] text-bone-dim">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5"
+                        checked={e.autoIssue}
+                        disabled={!canAutoIssue}
+                        onChange={(event) => updateExtra(key, { autoIssue: event.target.checked })}
+                        aria-label={`Auto-issue ${e.name}`}
+                      />
+                      <span>
+                        Auto-issue this read
+                        <span className="block text-[11px] text-bone-faint">
+                          Only public reads can be auto-issued. Writes and private reads require a
+                          human grant.
+                        </span>
+                      </span>
+                    </label>
+                  </div>
+                </li>
+              )
+            })}
           </ul>
         )}
       </div>

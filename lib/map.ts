@@ -158,6 +158,10 @@ export type CapabilityProposal = {
   kind: 'read' | 'write'
   /** Writes are held by default; only an explicit Map opt-in clears this. */
   allowUnattended: boolean
+  /** A discovery pass cannot know this; internal is the safe default. */
+  dataClass: 'internal'
+  /** Auto-issue is a deliberate promotion made later on the capabilities page. */
+  autoIssue: false
   bucket: 'corroborated' | 'undeclared' | 'unused'
 }
 
@@ -172,6 +176,8 @@ export function propose(b: Buckets): CapabilityProposal[] {
       path: e.path,
       kind: suggestKind(e.method),
       allowUnattended: false,
+      dataClass: 'internal',
+      autoIssue: false,
       bucket,
     })
   b.corroborated.forEach((e) => push(e, 'corroborated'))

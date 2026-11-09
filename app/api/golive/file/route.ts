@@ -1,5 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
-import { buildInstallPackageFrom, buildManualInstaller, normaliseWorkerUrl } from '@/lib/install-package'
+import {
+  buildInstallPackageFrom,
+  buildManualInstaller,
+  normaliseWorkerUrl,
+  type OnboardingProfile,
+} from '@/lib/install-package'
 import { getDraftDb, getTenantProfileDb } from '@/lib/durable-store'
 import { resolveCallerTenant } from '@/lib/tenant'
 import { readSelectedTenantId, tenantRefusalResponse } from '@/lib/tenant-server'
@@ -32,10 +37,11 @@ export async function GET() {
   if (t.tenantId === null) {
     return tenantRefusalResponse(t)
   }
-  const [rules, setup, capabilities, profile] = await Promise.all([
+  const [rules, setup, capabilities, onboarding, profile] = await Promise.all([
     getDraftDb(t.tenantId, 'rules'),
     getDraftDb(t.tenantId, 'setup'),
     getDraftDb(t.tenantId, 'capabilities'),
+    getDraftDb(t.tenantId, 'onboarding'),
     getTenantProfileDb(t.tenantId),
   ])
   if (!profile || !profile.businessName) {
@@ -59,6 +65,7 @@ export async function GET() {
     siteUrl: profile.websiteUrl,
     workerUrl: worker.url,
     publishTarget: { dir: '.', mode: 'direct', framework: 'static-root' },
+    onboarding: (onboarding?.payload ?? undefined) as OnboardingProfile | undefined,
   })
   if (!pkg.ok) {
     return Response.json({ status: 'error', reason: pkg.reason }, { status: 422 })

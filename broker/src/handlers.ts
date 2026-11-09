@@ -15,7 +15,12 @@ import {
   verifyWebhookSignature,
 } from '@/lib/github'
 import { installUrlFor } from '@/lib/install-state'
-import { buildInstallPackageFrom, detectPublishTarget, normaliseWorkerUrl } from '@/lib/install-package'
+import {
+  buildInstallPackageFrom,
+  detectPublishTarget,
+  normaliseWorkerUrl,
+  type OnboardingProfile,
+} from '@/lib/install-package'
 import { canManageIntegrations } from '@/lib/tenant'
 import {
   getDrafts,
@@ -299,7 +304,6 @@ export async function handlePrOpen(args: {
   const manifestPath = `${prefix}.well-known/agent.json`
   const accessPath = `${prefix}.well-known/agent-access.html`
   const packageJsonPath = `${root}package.json`
-  const llmsPath = `${prefix}llms.txt`
 
   const readIfPresent = async (path: string): Promise<string | null> => {
     if (!paths.includes(path)) return null
@@ -315,13 +319,11 @@ export async function handlePrOpen(args: {
 
   let existingManifest: string | null = null
   let existingAccessPage: string | null = null
-  let existingLlms: string | null = null
   let packageJson: string | null = null
   try {
-    ;[existingManifest, existingAccessPage, existingLlms, packageJson] = await Promise.all([
+    ;[existingManifest, existingAccessPage, packageJson] = await Promise.all([
       readIfPresent(manifestPath),
       readIfPresent(accessPath),
-      readIfPresent(llmsPath),
       readIfPresent(packageJsonPath),
     ])
   } catch (error) {
@@ -338,7 +340,7 @@ export async function handlePrOpen(args: {
     packageJson,
     existingManifest,
     existingAccessPage,
-    existingLlms,
+    onboarding: drafts.onboarding as OnboardingProfile | undefined,
   })
   if (!pkg.ok) return fail(pkg.reason, 422)
 

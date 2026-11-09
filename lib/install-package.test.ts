@@ -106,10 +106,17 @@ describe('buildInstallPackageFrom', () => {
     expect(r.ok).toBe(true)
     if (!r.ok) return
     const paths = r.value.files.map((f) => f.path)
-    expect(paths).toContain('agentport/manifest.json')
-    expect(paths).toContain('agentport/config.json')
-    expect(paths).toContain('agentport/publish.mjs')
-    expect(paths).toContain('agentport/verify.mjs')
+    expect(paths).toEqual([
+      'agentport/config.json',
+      'agentport/publish.mjs',
+      'agentport/verify.mjs',
+      'agentport/README.md',
+    ])
+    expect(paths).not.toContain('agentport/manifest.json')
+    expect(paths).not.toContain('agentport/llms.txt')
+    expect(paths).not.toContain('agentport/agent-access.html')
+    expect(paths).not.toContain('public/.well-known/agent.json')
+    expect(paths).not.toContain('public/llms.txt')
     const publish = r.value.files.find((f) => f.path === 'agentport/publish.mjs')
     const verify = r.value.files.find((f) => f.path === 'agentport/verify.mjs')
     const readme = r.value.files.find((f) => f.path === 'agentport/README.md')
@@ -119,7 +126,8 @@ describe('buildInstallPackageFrom', () => {
     expect(publish?.content).toContain('autoIssue')
     expect(publish?.content).toContain("createHash('sha256').update(text)")
     expect(publish?.content).not.toContain('copyFileSync')
-    expect(publish?.content).not.toContain("readFileSync(join(here, 'llms.txt')")
+    expect(publish?.content).toContain('llms-full.txt')
+    expect(publish?.content).toContain("join(guideDir, 'custom.md')")
     expect(publish?.content).toContain('hosted manifest is for a different tenant')
     expect(publish?.content).not.toContain('hosted manifest is for a different business')
     expect(verify?.content).toContain('hosted manifest is for a different tenant')
@@ -128,9 +136,6 @@ describe('buildInstallPackageFrom', () => {
     expect(verify?.content).not.toContain('manifestSha256')
     expect(verify?.content).not.toContain("live.business !== config.business")
     expect(readme?.content).toContain('hosted governor is the')
-    expect(paths).toContain('public/.well-known/agent.json')
-    expect(paths).toContain('public/.well-known/agent-access.html')
-    expect(paths).toContain('public/llms.txt')
     expect(paths).not.toContain('agentport.config.ts')
     expect(r.value.manifest).toMatchObject({
       generatedBy: 'agentport',
@@ -179,6 +184,75 @@ describe('buildInstallPackageFrom', () => {
     expect(manifest.errorContract.some((e) => e.reason === 'handler_error')).toBe(false)
   })
 
+  it('publishes public onboarding facts and only auto-issues public reads', () => {
+    const r = buildInstallPackageFrom({
+      ...base,
+      onboarding: {
+        businessDescription: 'We sell industrial parts.',
+        docsUrl: 'https://acme.example/docs/',
+        supportUrl: 'https://acme.example/support',
+        privacyUrl: 'https://acme.example/privacy',
+        termsUrl: 'https://acme.example/terms',
+        connectorUrl: 'https://connector.acme.example/mcp',
+      },
+      drafts: {
+        setup: base.drafts.setup,
+        capabilities: {
+          hidden: {},
+          extra: [
+            {
+              name: 'listDocs',
+              method: 'GET',
+              path: '/docs',
+              dataClass: 'public',
+              autoIssue: true,
+            },
+            {
+              name: 'listOrders',
+              method: 'GET',
+              path: '/orders',
+              dataClass: 'internal',
+              autoIssue: false,
+            },
+          ],
+        },
+      },
+    })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.value.config).toMatchObject({
+      businessDescription: 'We sell industrial parts.',
+      docsUrl: 'https://acme.example/docs',
+      supportUrl: 'https://acme.example/support',
+      privacyUrl: 'https://acme.example/privacy',
+      termsUrl: 'https://acme.example/terms',
+      connectorUrl: 'https://connector.acme.example/mcp',
+    })
+    const manifest = r.value.manifest as {
+      capabilities: Array<Record<string, unknown>>
+      authentication: Record<string, unknown>
+    }
+    expect(manifest.capabilities.find((c) => c.name === 'listDocs')).toMatchObject({
+      dataClass: 'public',
+      autoIssue: true,
+    })
+    expect(manifest.capabilities.find((c) => c.name === 'listOrders')).toMatchObject({
+      dataClass: 'internal',
+      autoIssue: false,
+    })
+    expect(manifest.authentication.autoIssue).toEqual(['listDocs'])
+  })
+
+  it('refuses an invalid onboarding URL before writing a package', () => {
+    const r = buildInstallPackageFrom({
+      ...base,
+      onboarding: { docsUrl: 'http://acme.example/docs' },
+    })
+    expect(r.ok).toBe(false)
+    if (r.ok) return
+    expect(r.reason).toContain('must use https')
+  })
+
   it('keeps a monorepo package self-contained under its own root', () => {
     const r = buildInstallPackageFrom({
       ...base,
@@ -188,10 +262,11 @@ describe('buildInstallPackageFrom', () => {
     expect(r.ok).toBe(true)
     if (!r.ok) return
     const paths = r.value.files.map((f) => f.path)
-    expect(paths).toContain('apps/web/agentport/manifest.json')
+    expect(paths).toContain('apps/web/agentport/config.json')
     expect(paths).toContain('apps/web/agentport/publish.mjs')
     expect(paths).toContain('apps/web/package.json')
-    expect(paths).not.toContain('agentport/manifest.json')
+    expect(paths).not.toContain('agentport/config.json')
+    expect(paths).not.toContain('apps/web/agentport/manifest.json')
     expect(r.value.config.packageRoot).toBe('apps/web')
     expect(r.value.config.publishDir).toBe('dist')
   })
@@ -235,7 +310,8 @@ describe('buildInstallPackageFrom', () => {
     expect(parsed.scripts.build).toBe('next build')
     expect(parsed.scripts.prebuild).toBe('node agentport/publish.mjs && echo prep')
     expect(parsed.scripts['agentport:publish']).toBe('node agentport/publish.mjs')
-    expect(r.value.files.map((f) => f.path)).toContain('public/.well-known/agent.json')
+    expect(r.value.files.map((f) => f.path)).toContain('agentport/config.json')
+    expect(r.value.files.map((f) => f.path)).not.toContain('public/.well-known/agent.json')
   })
 
   it('gives a static-root site the publish script but no build hook to run it', () => {
@@ -304,22 +380,22 @@ describe('buildInstallPackageFrom', () => {
     expect(r.ok).toBe(false)
   })
 
-  it('merges the Agent Port block into an existing llms.txt instead of replacing it', () => {
-    const existing = '# Acme docs\n\nKeep this line.\n'
+  it('generates a publisher that merges the Agent Port block into an existing llms.txt', () => {
     const r = buildInstallPackageFrom({
       ...base,
       publishTarget: { dir: '.', mode: 'direct', framework: 'static-root' },
-      existingLlms: existing,
     })
     expect(r.ok).toBe(true)
     if (!r.ok) return
-    const llms = r.value.files.find((f) => f.path === 'llms.txt')
-    expect(llms?.content).toContain('Keep this line.')
-    expect(llms?.content).toContain('<!-- agentport:begin -->')
-    expect(llms?.content).toContain('<!-- agentport:end -->')
+    const publish = r.value.files.find((f) => f.path === 'agentport/publish.mjs')?.content ?? ''
+    expect(publish).toContain('<!-- agentport:begin -->')
+    expect(publish).toContain('<!-- agentport:end -->')
+    expect(publish).toContain('mergeBlock')
+    expect(publish).toContain('current.indexOf(begin)')
+    expect(publish).toContain('current.slice(0, start)')
   })
 
-  it('escapes the business name in generated HTML and Markdown', () => {
+  it('escapes the business name in generated Markdown', () => {
     const r = buildInstallPackageFrom({
       ...base,
       business: '<script>alert("x")</script>',
@@ -327,9 +403,6 @@ describe('buildInstallPackageFrom', () => {
     })
     expect(r.ok).toBe(true)
     if (!r.ok) return
-    const html = r.value.files.find((f) => f.path === 'agentport/agent-access.html')?.content ?? ''
-    expect(html).not.toContain('<script>')
-    expect(html).toContain('&lt;script&gt;')
     const readme = r.value.files.find((f) => f.path === 'agentport/README.md')?.content ?? ''
     expect(readme).not.toContain('<script>')
     expect(readme).toContain('\\<script\\>')
@@ -348,7 +421,7 @@ describe('buildInstallPackageFrom', () => {
     expect(r.ok).toBe(true)
     if (!r.ok) return
     const script = buildManualInstaller(r.value.files)
-    expect(script).toContain('agentport/manifest.json')
+    expect(script).toContain('agentport/config.json')
     expect(script).toContain('writeFileSync')
     expect(script).not.toContain('evaluate(')
     expect(script).not.toContain('emergencyKillSwitch')

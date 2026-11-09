@@ -28,7 +28,7 @@ export type DbInstallation = {
   receivedAt: string
 }
 
-export type DraftSection = 'setup' | 'capabilities' | 'rules'
+export type DraftSection = 'setup' | 'capabilities' | 'rules' | 'onboarding'
 
 export type DbDraft = {
   section: DraftSection

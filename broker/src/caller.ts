@@ -117,7 +117,12 @@ export async function listInstallations(caller: Caller, tenantId: string): Promi
   }
 }
 
-export type Drafts = { rules?: unknown; setup?: unknown; capabilities?: unknown }
+export type Drafts = {
+  rules?: unknown
+  setup?: unknown
+  capabilities?: unknown
+  onboarding?: unknown
+}
 
 export async function getDrafts(caller: Caller, tenantId: string): Promise<Drafts> {
   try {
@@ -128,7 +133,12 @@ export async function getDrafts(caller: Caller, tenantId: string): Promise<Draft
     if (error || !data) return {}
     const drafts: Drafts = {}
     for (const row of data as Array<{ section: string; payload: unknown }>) {
-      if (row.section === 'rules' || row.section === 'setup' || row.section === 'capabilities') {
+      if (
+        row.section === 'rules' ||
+        row.section === 'setup' ||
+        row.section === 'capabilities' ||
+        row.section === 'onboarding'
+      ) {
         drafts[row.section] = row.payload
       }
     }

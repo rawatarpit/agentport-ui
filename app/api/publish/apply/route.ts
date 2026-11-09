@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { compileLiveFrom, KNOWN_CAPABILITIES, validateCapabilities } from '@/lib/golive'
+import type { DataClass } from '@/lib/contracts'
 import { getDraftDb } from '@/lib/durable-store'
 import { contentDigest, tierForChange } from '@/lib/publish'
 import { guardStateChange } from '@/lib/request-guard'
@@ -10,7 +11,16 @@ import { readSelectedTenantId, tenantRefusalResponse } from '@/lib/tenant-server
 export const dynamic = 'force-dynamic'
 
 type Caps = Array<{ name: string }>
-type ConfigCaps = Array<{ name: string; method: string; path: string; kind: 'read' | 'write' }>
+type ConfigCap = {
+  name: string
+  method: string
+  path: string
+  kind: 'read' | 'write'
+  dataClass: DataClass
+  requiresApproval: boolean
+  autoIssue: boolean
+}
+type ConfigCaps = ConfigCap[]
 type Policy = Record<string, unknown>
 
 async function caller() {
@@ -137,7 +147,17 @@ export async function POST(req: Request) {
         { status: 422 },
       )
     }
-    caps = extras.map((e) => ({ name: e.name, method: e.method, path: e.path, kind: e.kind }))
+    caps = extras.map((e) => ({
+      name: e.name,
+      method: e.method,
+      path: e.path,
+      kind: e.kind,
+      dataClass: e.dataClass,
+      // A write is held unless the merchant explicitly allowed this exact
+      // route to run unattended. Reads never need approval.
+      requiresApproval: e.kind === 'write' && e.allowUnattended !== true,
+      autoIssue: e.autoIssue,
+    }))
   }
 
   const prev = latest ? { policy: latest.policy, capabilities: latest.capabilities as Caps } : null

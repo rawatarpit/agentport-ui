@@ -4,6 +4,7 @@ import { ConnectSection } from '@/components/connect-section'
 import { DiscoveryCheck } from '@/components/discovery-check'
 import { EnforcingPanel } from '@/components/enforcing-panel'
 import { GolivePanel } from '@/components/golive-panel'
+import { OnboardingForm } from '@/components/onboarding-form'
 import { WebsiteForm } from '@/components/website-form'
 import { EmptyState } from '@/components/ui/empty-state'
 import { PageHeader } from '@/components/ui/page-header'
@@ -103,6 +104,13 @@ export default async function GoLivePage() {
               {state.siteUrl ? <Badge tone="allow">set</Badge> : <Badge tone="idle">missing</Badge>}
             </div>
             <WebsiteForm current={state.siteUrl} />
+            <div className="mt-4">
+              <p className="label">Public facts</p>
+              <p className="mb-3 mt-1 text-[13px] leading-relaxed text-bone-dim">
+                What the discovery package publishes about the business. Optional, and never a credential.
+              </p>
+              <OnboardingForm />
+            </div>
           </section>
 
           <section id="capabilities" className="scroll-mt-24">

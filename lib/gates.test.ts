@@ -89,6 +89,81 @@ describe('validateCapabilities', () => {
     if (v.ok) expect(v.value.extra?.[0].allowUnattended).toBe(false)
   })
 
+  it('defaults every mapped route to internal and no auto-issue', () => {
+    const v = validateCapabilities({
+      hidden: {},
+      extra: [{ name: 'getCatalog', method: 'GET', path: '/catalog', kind: 'read' }],
+    })
+    expect(v.ok).toBe(true)
+    if (v.ok) {
+      expect(v.value.extra?.[0]).toMatchObject({ dataClass: 'internal', autoIssue: false })
+    }
+  })
+
+  it('accepts auto-issue only for a public read', () => {
+    const ok = validateCapabilities({
+      hidden: {},
+      extra: [
+        {
+          name: 'getDocs',
+          method: 'GET',
+          path: '/docs',
+          kind: 'read',
+          dataClass: 'public',
+          autoIssue: true,
+        },
+      ],
+    })
+    expect(ok.ok).toBe(true)
+    if (ok.ok) expect(ok.value.extra?.[0]).toMatchObject({ dataClass: 'public', autoIssue: true })
+
+    expect(
+      validateCapabilities({
+        hidden: {},
+        extra: [
+          {
+            name: 'getReports',
+            method: 'GET',
+            path: '/reports',
+            kind: 'read',
+            dataClass: 'internal',
+            autoIssue: true,
+          },
+        ],
+      }).ok,
+    ).toBe(false)
+    expect(
+      validateCapabilities({
+        hidden: {},
+        extra: [
+          {
+            name: 'publishPost',
+            method: 'POST',
+            path: '/posts',
+            kind: 'write',
+            dataClass: 'public',
+            autoIssue: true,
+          },
+        ],
+      }).ok,
+    ).toBe(false)
+  })
+
+  it('refuses an unknown data class or non-boolean auto-issue', () => {
+    expect(
+      validateCapabilities({
+        hidden: {},
+        extra: [{ name: 'getCatalog', method: 'GET', path: '/catalog', dataClass: 'secret' }],
+      }).ok,
+    ).toBe(false)
+    expect(
+      validateCapabilities({
+        hidden: {},
+        extra: [{ name: 'getCatalog', method: 'GET', path: '/catalog', autoIssue: 'yes' }],
+      }).ok,
+    ).toBe(false)
+  })
+
   it('refuses a non-boolean unattended flag', () => {
     expect(
       validateCapabilities({

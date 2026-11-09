@@ -74,14 +74,6 @@ export function MapWorkbench() {
     setSaving(true)
     setSaved(null)
     setError(null)
-    const extra = rows
-      .filter((r) => r.checked)
-      .map((r) => ({
-        name: r.name.trim(),
-        method: r.method,
-        path: r.path,
-        kind: r.kind,
-      }))
     try {
       const current = await fetch('/api/drafts/capabilities', { cache: 'no-store' })
       if (!current.ok) {
@@ -89,9 +81,40 @@ export function MapWorkbench() {
         return
       }
       const currentBody = (await current.json()) as {
-        draft?: { hidden?: Record<string, string[]> } | null
+        draft?: {
+          hidden?: Record<string, string[]>
+          extra?: Array<{
+            name: string
+            method: string
+            path: string
+            kind: 'read' | 'write'
+            allowUnattended?: boolean
+            dataClass?: 'public' | 'internal' | 'pii' | 'payment'
+            autoIssue?: boolean
+          }>
+        } | null
       }
       const hidden = currentBody.draft?.hidden ?? {}
+      // Re-mapping the same route must not silently reset its classification
+      // or auto-issue choice. The route identity is method + path, not the
+      // editable display name.
+      const existing = new Map(
+        (currentBody.draft?.extra ?? []).map((e) => [`${e.method} ${e.path}`, e]),
+      )
+      const extra = rows
+        .filter((r) => r.checked)
+        .map((r) => {
+          const saved = existing.get(`${r.method} ${r.path}`)
+          return {
+            name: r.name.trim(),
+            method: r.method,
+            path: r.path,
+            kind: r.kind,
+            allowUnattended: saved?.allowUnattended === true,
+            dataClass: saved?.dataClass ?? r.dataClass,
+            autoIssue: saved?.autoIssue === true,
+          }
+        })
 
       const res = await fetch('/api/drafts/capabilities', {
         method: 'PUT',
@@ -326,6 +349,10 @@ export function MapWorkbench() {
             <li>
               Write capabilities are saved but{' '}
               <span className="text-bone">held for your approval</span> before they run.
+            </li>
+            <li>
+              Every mapped route starts as <span className="text-bone">internal</span>. Set its
+              data class and auto-issue choice on Capabilities; only a public read may auto-issue.
             </li>
             <li>
               Nothing is live for your visitors until you publish from Go-live.

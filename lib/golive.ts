@@ -1,4 +1,4 @@
-import type { Policy } from '@/lib/contracts'
+import type { DataClass, Policy } from '@/lib/contracts'
 
 /**
  * Drafts in, signed live config out.
@@ -66,7 +66,32 @@ export type CapabilitiesDraft = {
      * opts in for that route. Absent means held; a read is unaffected.
      */
     allowUnattended?: boolean
+    /**
+     * What this route touches. Absent means `internal`: a merchant must promote
+     * a route to public deliberately, because public reads can be auto-issued.
+     */
+    dataClass?: DataClass
+    /**
+     * Auto-issue is only legal for a public read. It skips the human grant, so
+     * validation refuses every other combination rather than trusting the UI.
+     */
+    autoIssue?: boolean
   }>
+}
+
+export type ValidatedCapability = {
+  name: string
+  method: string
+  path: string
+  kind: 'read' | 'write'
+  allowUnattended?: boolean
+  dataClass: DataClass
+  autoIssue: boolean
+}
+
+export type ValidatedCapabilities = {
+  hidden: Record<string, string[]>
+  extra: ValidatedCapability[]
 }
 
 export type SetupDraft = {
@@ -107,7 +132,7 @@ export function validateRules(p: unknown): { ok: true; value: RulesDraft } | { o
   }
 }
 
-export function validateCapabilities(p: unknown): { ok: true; value: CapabilitiesDraft } | { ok: false; errors: string[] } {
+export function validateCapabilities(p: unknown): { ok: true; value: ValidatedCapabilities } | { ok: false; errors: string[] } {
   const errors: string[] = []
   const v = (p ?? {}) as Record<string, unknown>
   if (typeof v.hidden !== 'object' || v.hidden === null || Array.isArray(v.hidden)) {
@@ -117,13 +142,7 @@ export function validateCapabilities(p: unknown): { ok: true; value: Capabilitie
   // entry for a mapped capability is legitimate, checked for shape only
   // (no known-fields table exists for a discovered route).
   const extraNames = new Set<string>()
-  const extra: Array<{
-    name: string
-    method: string
-    path: string
-    kind: 'read' | 'write'
-    allowUnattended?: boolean
-  }> = []
+  const extra: ValidatedCapability[] = []
   const extraRaw = v.extra
   if (extraRaw !== undefined) {
     if (!Array.isArray(extraRaw)) {
@@ -151,10 +170,31 @@ export function validateCapabilities(p: unknown): { ok: true; value: Capabilitie
           errors.push(`"${r.name}" needs allowUnattended to be true or false.`)
           continue
         }
+        const dataClass = r.dataClass === undefined ? 'internal' : r.dataClass
+        if (!['public', 'internal', 'pii', 'payment'].includes(String(dataClass))) {
+          errors.push(`"${r.name}" needs dataClass public, internal, pii or payment.`)
+          continue
+        }
+        if (r.autoIssue !== undefined && typeof r.autoIssue !== 'boolean') {
+          errors.push(`"${r.name}" needs autoIssue to be true or false.`)
+          continue
+        }
         // The method is the authority. A caller-supplied `kind` cannot
         // downgrade DELETE/POST/PUT/PATCH to a read that runs unattended;
         // GET and HEAD are the only methods that can be read-only.
         const kind = r.method === 'GET' || r.method === 'HEAD' ? 'read' : 'write'
+        const autoIssue = r.autoIssue === true
+        // Auto-issue skips the human grant. It is only defensible for data the
+        // business has already published. The governor enforces this too; this
+        // check keeps an invalid draft from ever reaching it.
+        if (autoIssue && kind !== 'read') {
+          errors.push(`"${r.name}" cannot auto-issue a write.`)
+          continue
+        }
+        if (autoIssue && dataClass !== 'public') {
+          errors.push(`"${r.name}" cannot auto-issue ${String(dataClass)} data; only public reads may auto-issue.`)
+          continue
+        }
         extraNames.add(r.name)
         extra.push({
           name: r.name,
@@ -164,6 +204,8 @@ export function validateCapabilities(p: unknown): { ok: true; value: Capabilitie
           // Reads are already unattended. A write is held unless the merchant
           // made the opt-in explicit for this exact route.
           allowUnattended: kind === 'write' && r.allowUnattended === true,
+          dataClass: dataClass as DataClass,
+          autoIssue,
         })
       }
     }
@@ -261,13 +303,7 @@ export function compileLiveFrom(drafts: {
   }
 
   let hidden: Record<string, string[]> = { createOrder: ['amountMinor'] }
-  let extra: Array<{
-    name: string
-    method: string
-    path: string
-    kind: 'read' | 'write'
-    allowUnattended?: boolean
-  }> = []
+  let extra: ValidatedCapability[] = []
   if (capsRaw) {
     const c = validateCapabilities(capsRaw)
     if (!c.ok) return { ok: false, reason: `Capabilities draft is invalid: ${c.errors[0]}` }
