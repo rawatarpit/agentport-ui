@@ -2,23 +2,20 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { AgentPortLogo } from '@/components/brand/agentport-logo'
 import { StatusPill } from '@/components/ui/status-pill'
 
-/**
- * Wayfinding is the product's table of contents, not its checklist.
- *
- * "Go live" is first because that is the job; the other groups are what you
- * operate once it is done. Map routes sits next to Capabilities because a
- * mapped route is the only thing that becomes an executable capability — the
- * catalogue alone is not a runtime. Setup remains a shortcut, not a
- * competing flow.
- */
-const GROUPS = [
+const BASE_GROUPS = [
   {
-    label: 'Workspace',
+    label: 'Get started',
     items: [
-      { href: '/', label: 'Overview' },
+      { href: '/setup', label: 'Setup' },
+    ],
+  },
+  {
+    label: 'Go live',
+    items: [
       { href: '/go-live', label: 'Go live' },
     ],
   },
@@ -28,22 +25,27 @@ const GROUPS = [
       { href: '/approvals', label: 'Approvals' },
       { href: '/ledger', label: 'Ledger' },
       { href: '/analytics', label: 'Analytics' },
-      { href: '/marketing-analytics', label: 'Marketing & Sales' },
-      { href: '/team', label: 'Team' },
     ],
   },
   {
     label: 'Govern',
     items: [
       { href: '/rules', label: 'Rules' },
+      { href: '/capabilities', label: 'Capabilities' },
       { href: '/policies', label: 'Limits & stop' },
     ],
   },
   {
-    label: 'Build',
+    label: 'Connect',
     items: [
-      { href: '/map', label: 'Map routes' },
-      { href: '/capabilities', label: 'Capabilities' },
+      { href: '/connect', label: 'Connect' },
+      { href: '/team', label: 'Team' },
+    ],
+  },
+  {
+    label: 'Insights',
+    items: [
+      { href: '/marketing-analytics', label: 'Marketing & Sales' },
     ],
   },
 ]
@@ -56,6 +58,35 @@ export function Sidebar({
   published: boolean | null
 }) {
   const path = usePathname()
+  const [setupComplete, setSetupComplete] = useState<boolean | null>(null)
+
+  // Setup is the first step of the journey. Once a setup draft exists it has
+  // served its purpose and the group retires so the sidebar stays focused on
+  // what the merchant operates day to day.
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/drafts/setup')
+      .then(async (r) => {
+        if (!r.ok) return null
+        return r.json()
+      })
+      .then((body) => {
+        if (cancelled) return
+        setSetupComplete(body?.draft !== null && body?.draft !== undefined)
+      })
+      .catch(() => setSetupComplete(null))
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const groups =
+    setupComplete === null
+      ? BASE_GROUPS
+      : BASE_GROUPS.map((g) => ({
+          label: g.label,
+          items: g.label === 'Get started' && setupComplete ? [] : g.items,
+        })).filter((g) => g.items.length > 0)
 
   const item = (href: string, label: string) => {
     const active = href === '/' ? path === '/' : path === href || path.startsWith(`${href}/`)
@@ -97,7 +128,7 @@ export function Sidebar({
       </Link>
 
       <nav aria-label="Console" className="space-y-5">
-        {GROUPS.map((group) => (
+        {groups.map((group) => (
           <div key={group.label}>
             <p className="label px-2.5">{group.label}</p>
             <ul className="mt-1 space-y-0.5">

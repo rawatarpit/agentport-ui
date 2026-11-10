@@ -6,6 +6,8 @@ export type RailStep = {
   title: string
   summary?: string
   state: StepState
+  /** Optional override for the anchor href. Defaults to `#${id}`. */
+  href?: string
 }
 
 const DOT: Record<StepState, string> = {
@@ -36,7 +38,7 @@ export function StepRail({ steps }: { steps: RailStep[] }) {
         {steps.map((s) => (
           <li key={s.id} className="min-w-[220px] shrink-0 lg:min-w-0">
             <a
-              href={`#${s.id}`}
+              href={s.href ?? `#${s.id}`}
               aria-current={s.state === 'current' ? 'step' : undefined}
               className={`flex items-start gap-3 rounded-lg border px-3 py-3 transition-colors ${
                 s.state === 'current'

@@ -2,10 +2,10 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { AgentPortLogo } from '@/components/brand/agentport-logo'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { StatusPill } from '@/components/ui/status-pill'
-
 function externalHref(url: string): string {
   return /^https?:\/\//i.test(url) ? url : `https://${url}`
 }
@@ -15,6 +15,10 @@ function externalHref(url: string): string {
  * it forward. The page itself owns the detail; the topbar never repeats a
  * checklist. Sign-out stays visible because it is the action people need
  * fastest when something is wrong.
+ *
+ * A small GitHub connection indicator sits beside the publish status so the
+ * merchant can always see whether the discovery package is installed — the
+ * first thing that must be true before anything can go live.
  */
 export function Topbar({
   email,
@@ -30,6 +34,25 @@ export function Topbar({
   siteUrl: string | null
 }) {
   const router = useRouter()
+  const [githubConnected, setGithubConnected] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/github/installations')
+      .then(async (r) => {
+        if (!r.ok) return null
+        return r.json()
+      })
+      .then((body) => {
+        if (cancelled) return
+        const installations = body?.installations ?? body ?? []
+        setGithubConnected(Array.isArray(installations) && installations.length > 0)
+      })
+      .catch(() => setGithubConnected(null))
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const signOut = async () => {
     await fetch('/api/auth/signout', { method: 'POST' })
@@ -60,6 +83,13 @@ export function Topbar({
             <StatusPill tone="unknown">Unknown</StatusPill>
           ) : (
             <StatusPill tone={published ? 'live' : 'draft'}>{published ? 'Live' : 'Setup'}</StatusPill>
+          )}
+        </span>
+        <span className="hidden sm:inline-flex font-mono text-[10px]">
+          {githubConnected === null ? null : githubConnected ? (
+            <span className="text-verdant">GitHub connected</span>
+          ) : (
+            <span className="text-bone-faint">GitHub not connected</span>
           )}
         </span>
         <div className="w-24">

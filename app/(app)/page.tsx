@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { Badge, Stat } from '@/components/stat'
 import { PageHeader } from '@/components/ui/page-header'
 import { Section } from '@/components/ui/section'
+import { StepRail, type RailStep } from '@/components/ui/step-rail'
 import { listDecisions, listHolds } from '@/lib/console-reads'
 import { getHome } from '@/lib/backend-reads'
 import { getGoLiveState, type GoLiveStepId } from '@/lib/go-live'
@@ -25,6 +26,17 @@ const NEXT_HREF: Record<GoLiveStepId, string> = {
   capabilities: '/map',
   rules: '/rules',
   github: '/go-live#github',
+  'pull-request': '/go-live#pull-request',
+  publish: '/go-live#publish',
+  verify: '/go-live#verify',
+}
+
+/** Journey rail hrefs used on the Overview page (page links, not anchors). */
+const STEP_HREF: Record<GoLiveStepId, string> = {
+  site: '/setup',
+  capabilities: '/map',
+  rules: '/rules',
+  github: '/connect',
   'pull-request': '/go-live#pull-request',
   publish: '/go-live#publish',
   verify: '/go-live#verify',
@@ -163,6 +175,20 @@ export default async function OverviewPage() {
           tone={decisionsRead.failed || decisionsRead.rows.length === 0 ? 'warn' : 'default'}
         />
       </section>
+
+      {state.steps && state.steps.length > 0 ? (
+        <Section
+          title="Onboarding journey"
+          description="Where you are in the journey from setup to live. Each step links to the page where you do the work."
+        >
+          <StepRail
+            steps={state.steps.map((s) => ({
+              ...s,
+              href: STEP_HREF[s.id as GoLiveStepId],
+            })) as RailStep[]}
+          />
+        </Section>
+      ) : null}
 
       {next ? (
         <div className="panel flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
