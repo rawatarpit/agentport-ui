@@ -59,6 +59,7 @@ export type InventoryCap = {
   path: string
   kind: 'read' | 'write'
   origin: string
+  dataClass: DataClass
 }
 
 const CAPS: Cap[] = [
@@ -216,6 +217,7 @@ export function CapabilitiesEditor({
   const [newName, setNewName] = useState('')
   const [newMethod, setNewMethod] = useState('GET')
   const [newPath, setNewPath] = useState('')
+  const [newDataClass, setNewDataClass] = useState<DataClass>('internal')
   const [addError, setAddError] = useState<string | null>(null)
   const [applying, setApplying] = useState(false)
   const [applyMsg, setApplyMsg] = useState<string | null>(null)
@@ -305,7 +307,7 @@ export function CapabilitiesEditor({
     const kind: 'read' | 'write' = newMethod === 'GET' || newMethod === 'HEAD' ? 'read' : 'write'
     const next: ExtraCap[] = [
       ...extra,
-      { name, method: newMethod, path, kind, dataClass: 'internal', autoIssue: false },
+      { name, method: newMethod, path, kind, dataClass: newDataClass, autoIssue: false },
     ]
     setNewName('')
     setNewPath('')
@@ -427,6 +429,23 @@ export function CapabilitiesEditor({
                   onChange={(e) => setNewPath(e.target.value)}
                   placeholder="/.netlify/functions/submit-contact"
                 />
+              </label>
+              <label className="flex flex-col gap-1 text-[11px] text-bone-faint sm:col-span-2">
+                <span className="label">Data class</span>
+                <select
+                  className="input text-[12px]"
+                  value={newDataClass}
+                  onChange={(e) => setNewDataClass(e.target.value as DataClass)}
+                >
+                  {DATA_CLASSES.map((value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ))}
+                </select>
+                <span className="max-w-72 text-[11px] leading-snug text-bone-faint">
+                  {DATA_CLASS_HELP[newDataClass]}
+                </span>
               </label>
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -561,7 +580,7 @@ export function CapabilitiesEditor({
                   <div className="flex items-center gap-2">
                     <Badge tone={e.kind === 'write' ? 'held' : 'allow'}>{e.kind}</Badge>
                     <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-bone-faint">
-                      {e.origin}
+                      {e.origin} · {e.dataClass}
                     </span>
                   </div>
                 </li>

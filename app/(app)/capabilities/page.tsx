@@ -72,7 +72,7 @@ export default async function CapabilitiesPage() {
   const [{ data, error }, activeNames] = await Promise.all([
     tenant.supabase
       .from('agent_capabilities')
-      .select('name,method,path,kind,origin')
+      .select('name,method,path,kind,origin,dataClass')
       .eq('tenant_id', tenant.active.tenantId)
       .order('name', { ascending: true }),
     readActiveCapabilityNames(tenant.active.tenantId),

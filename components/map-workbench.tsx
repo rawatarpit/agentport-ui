@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import Link from 'next/link'
 import { Badge } from '@/components/stat'
+import type { DataClass } from '@/lib/contracts'
 import {
   parseInventory,
   propose,
@@ -12,7 +13,15 @@ import {
   type CapabilityProposal,
 } from '@/lib/map'
 
-type Row = CapabilityProposal & { checked: boolean; name: string }
+type Row = Omit<CapabilityProposal, 'dataClass'> & { checked: boolean; name: string; dataClass: DataClass }
+
+const DATA_CLASSES: DataClass[] = ['public', 'internal', 'pii', 'payment']
+const DATA_CLASS_HELP: Record<DataClass, string> = {
+  public: 'Already published; safe to auto-issue to agents.',
+  internal: 'Business data. Requires a human grant.',
+  pii: 'Personal data. Requires a human grant and is redacted in the ledger.',
+  payment: 'Payment data. Requires a human grant.',
+}
 
 const SAMPLE = JSON.stringify(
   {
@@ -58,6 +67,7 @@ export function MapWorkbench() {
         ...p,
         checked: p.bucket === 'corroborated',
         name: p.name,
+        dataClass: p.dataClass,
       })),
     )
   }
@@ -68,6 +78,10 @@ export function MapWorkbench() {
 
   function rename(key: string, name: string) {
     setRows((rs) => rs.map((r) => (r.key === key ? { ...r, name } : r)))
+  }
+
+  function updateDataClass(key: string, value: DataClass) {
+    setRows((rs) => rs.map((r) => (r.key === key ? { ...r, dataClass: value } : r)))
   }
 
   async function save() {
@@ -292,6 +306,9 @@ export function MapWorkbench() {
               <th key="kind" className="label px-4 py-3 font-normal">
                 Type
               </th>
+              <th key="dataClass" className="label px-4 py-3 font-normal">
+                Data class
+              </th>
               <th key="bucket" className="label px-4 py-3 font-normal">
                 Surface
               </th>
@@ -329,6 +346,20 @@ export function MapWorkbench() {
                   <td className="px-4 py-3">
                     <Badge tone={r.kind === 'write' ? 'held' : 'allow'}>{r.kind}</Badge>
                   </td>
+                  <td className="px-4 py-3">
+                    <select
+                      className="border border-ink-line bg-transparent px-2 py-1 font-mono text-[11px] outline-none focus:border-verdant"
+                      value={r.dataClass}
+                      onChange={(e) => updateDataClass(r.key, e.target.value as DataClass)}
+                      aria-label={`Data class for ${r.name}`}
+                    >
+                      {DATA_CLASSES.map((dc) => (
+                        <option key={dc} value={dc}>
+                          {dc}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
                   <td className="px-4 py-3 font-mono text-[11px] text-bone-faint uppercase tracking-[0.08em]">
                     {r.bucket}
                   </td>
@@ -351,8 +382,9 @@ export function MapWorkbench() {
               <span className="text-bone">held for your approval</span> before they run.
             </li>
             <li>
-              Every mapped route starts as <span className="text-bone">internal</span>. Set its
-              data class and auto-issue choice on Capabilities; only a public read may auto-issue.
+              Each route is given a data class above — set it here or change it later on
+              Capabilities. Only a public read may auto-issue; writes and private reads
+              require a human grant.
             </li>
             <li>
               Nothing is live for your visitors until you publish from Go-live.

@@ -48,10 +48,20 @@ export default async function GoLivePage() {
     getGoLiveState(tenant.active.tenantId, { role }),
     tenant.supabase
       .from('agent_capabilities')
-      .select('name')
+      .select('name,dataClass')
       .eq('tenant_id', tenant.active.tenantId),
   ])
   const inventoryCount = inventory.error ? null : (inventory.data ?? []).length
+  const byDataClass = inventory.error
+    ? null
+    : (inventory.data ?? []).reduce(
+        (acc, row) => {
+          const dc = (row as { dataClass?: string }).dataClass ?? 'internal'
+          acc[dc] = (acc[dc] ?? 0) + 1
+          return acc
+        },
+        {} as Record<string, number>,
+      )
 
   const worker = normaliseWorkerUrl(process.env.AGENTPORT_WORKER_URL ?? '', tenant.active.tenantId)
   const canonicalUrl = worker.ok ? `${worker.url}/.well-known/agent.json` : null
@@ -126,24 +136,34 @@ export default async function GoLivePage() {
                 {state.draftMapped} in draft
               </Badge>
             </div>
-            <div className="panel flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-[13px] leading-relaxed text-bone-dim">
-                {inventoryCount === null ? (
-                  <p className="text-rust" role="alert">
-                    The approved inventory could not be read. This is unknown — not zero.
-                  </p>
-                ) : (
-                  <p>
-                    <span className="text-bone">{inventoryCount}</span> approved route
-                    {inventoryCount === 1 ? '' : 's'} in the active inventory.
-                  </p>
-                )}
-                <p className="mt-1">
-                  <span className="text-bone">{state.draftMapped}</span> route
-                  {state.draftMapped === 1 ? '' : 's'} in the current draft. Draft edits do not
-                  reach the governor until you publish.
-                </p>
-              </div>
+              <div className="panel flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-[13px] leading-relaxed text-bone-dim">
+                  {inventoryCount === null ? (
+                    <p className="text-rust" role="alert">
+                      The approved inventory could not be read. This is unknown — not zero.
+                    </p>
+                  ) : (
+                    <>
+                      <p>
+                        <span className="text-bone">{inventoryCount}</span> approved route
+                        {inventoryCount === 1 ? '' : 's'} in the active inventory.
+                      </p>
+                      {byDataClass && Object.keys(byDataClass).length > 0 && (
+                        <p className="mt-1 text-[12px] text-bone-faint">
+                          By data class:{' '}
+                          {Object.entries(byDataClass)
+                            .map(([dc, count]) => `${count} ${dc}`)
+                            .join(' · ')}
+                        </p>
+                      )}
+                      <p className="mt-1">
+                        <span className="text-bone">{state.draftMapped}</span> route
+                        {state.draftMapped === 1 ? '' : 's'} in the current draft. Draft edits do not
+                        reach the governor until you publish.
+                      </p>
+                    </>
+                  )}
+                </div>
               <div className="flex shrink-0 flex-wrap gap-2">
                 <Link href="/map" className="btn btn-primary">
                   {state.mappedCount > 0 ? 'Review routes' : 'Map routes'}
