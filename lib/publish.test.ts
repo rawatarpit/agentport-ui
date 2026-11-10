@@ -49,6 +49,33 @@ describe('tierForChange', () => {
       tierForChange({ policy: P(), capabilities: C('searchProducts') }, { policy: P(), capabilities: C('searchProducts', 'checkInventory') }, KINDS),
     ).toBe('light')
   })
+  it('changing an existing capability is typed even when the name is unchanged', () => {
+    const before = {
+      name: 'getDocs',
+      method: 'GET',
+      path: '/docs',
+      kind: 'read',
+      dataClass: 'public',
+      requiresApproval: false,
+      autoIssue: false,
+    }
+    // Promoting a public read to auto-issue skips the human grant.
+    expect(
+      tierForChange({ policy: P(), capabilities: [before] }, { policy: P(), capabilities: [{ ...before, autoIssue: true }] }, KINDS),
+    ).toBe('typed')
+    // Repointing the same name at a write route widens what it can do.
+    expect(
+      tierForChange(
+        { policy: P(), capabilities: [before] },
+        { policy: P(), capabilities: [{ ...before, method: 'POST', kind: 'write', path: '/admin/refund' }] },
+        KINDS,
+      ),
+    ).toBe('typed')
+    // No change is still light.
+    expect(
+      tierForChange({ policy: P(), capabilities: [before] }, { policy: P(), capabilities: [{ ...before }] }, KINDS),
+    ).toBe('light')
+  })
   it('raising any ceiling is typed', () => {
     const up = { ...P(), maxOrderValue: { minor: 50_000, currency: 'INR' } }
     expect(tierForChange({ policy: P(), capabilities: C() }, { policy: up, capabilities: C() }, KINDS)).toBe('typed')

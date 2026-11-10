@@ -22,8 +22,34 @@ export type { SignedArtifact }
 
 export type RiskTier = 'light' | 'typed'
 
-type Caps = Array<{ name: string }>
+/**
+ * The security-relevant shape of a capability. A name alone is not enough:
+ * method, path, kind, data class, approval and auto-issue can all change under
+ * the same name, and every one of those can widen what an agent may do.
+ */
+type CapBlueprint = {
+  name: string
+  method?: string
+  path?: string
+  kind?: string
+  dataClass?: string
+  requiresApproval?: boolean
+  autoIssue?: boolean
+}
+type Caps = CapBlueprint[]
 type Policy = Record<string, unknown>
+
+/** Stable, order-independent fingerprint of the fields that widen access. */
+function blueprint(c: CapBlueprint): string {
+  return JSON.stringify([
+    c.method ?? '',
+    c.path ?? '',
+    c.kind ?? '',
+    c.dataClass ?? '',
+    c.requiresApproval === true,
+    c.autoIssue === true,
+  ])
+}
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)
 const money = (p: Policy, key: string): number | null => {
@@ -56,6 +82,16 @@ export function tierForChange(
   // Added capabilities: any write (or unknown) addition widens.
   for (const c of next.capabilities) {
     if (!prevNames.has(c.name) && kindOf(c.name) !== 'read') return 'typed'
+  }
+  // A capability that keeps its name can still widen. Promoting a public read
+  // to auto-issue, turning a GET into a POST, repointing a path, dropping
+  // approval, or relaxing its data class all happen under the same name, so a
+  // name-set comparison is not a security check. Any change to a shared
+  // blueprint fails toward the typed ceremony.
+  const prevByName = new Map(prev.capabilities.map((c) => [c.name, c]))
+  for (const c of next.capabilities) {
+    const before = prevByName.get(c.name)
+    if (before && blueprint(before) !== blueprint(c)) return 'typed'
   }
   // Removed capabilities narrow — always light (removal cannot widen).
   // Ceilings: any increase widens.

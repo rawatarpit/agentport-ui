@@ -348,6 +348,7 @@ export async function handlePrOpen(args: {
     installationToken: minted.token,
     repoFullName: repo,
     files: pkg.value.files,
+    deletePaths: pkg.value.deletes,
     prTitle: PR_TITLE,
     prBody: PR_BODY,
   })

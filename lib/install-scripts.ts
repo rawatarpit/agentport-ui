@@ -106,7 +106,13 @@ const termsUrl = String(config.termsUrl || '').trim()
 
 mkdirSync(join(target, '.well-known'), { recursive: true })
 mkdirSync(join(target, guideDir), { recursive: true })
-writeFileSync(at('.well-known/agent.json'), text)
+// Redirect mode serves the manifest from a server route. Writing a local copy
+// would both go stale and collide with that route, so remove it instead.
+if (config.manifestMode === 'redirect') {
+  rmSync(at('.well-known/agent.json'), { force: true })
+} else {
+  writeFileSync(at('.well-known/agent.json'), text)
+}
 
 const digest = createHash('sha256').update(text).digest('hex')
 if (config.manifestSha256 !== digest || config.business !== business) {
@@ -555,7 +561,17 @@ if (live !== null) {
 }
 
 let servedText = null
-if (localOnly) {
+if (localOnly && config.manifestMode === 'redirect') {
+  const route = readSource('app/.well-known/agent.json/route.ts')
+  check(route !== null, 'no redirect route found at app/.well-known/agent.json/route.ts')
+  if (route !== null) {
+    check(route.includes(config.manifestUrl), 'redirect route does not point at the canonical manifest')
+  }
+  check(
+    read('.well-known/agent.json') === null,
+    'a stale .well-known/agent.json snapshot is still present in the publish dir',
+  )
+} else if (localOnly) {
   servedText = read('.well-known/agent.json')
   check(servedText !== null, 'no local published manifest found; run publish first')
 } else {

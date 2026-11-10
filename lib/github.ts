@@ -568,6 +568,8 @@ export async function openInstallPr(opts: {
   installationToken: string
   repoFullName: string
   files: InstallPrFile[]
+  /** Repo-relative paths to remove in the same commit (redirect-mode cleanup). */
+  deletePaths?: string[]
   prTitle: string
   prBody: string
   branch?: string
@@ -583,6 +585,13 @@ export async function openInstallPr(opts: {
       return { ok: false, reason: `file is too large: ${file.path}` }
     }
     seen.add(file.path)
+  }
+  const deleteSet = new Set<string>()
+  for (const path of opts.deletePaths ?? []) {
+    if (!isSafeRepoPath(path)) return { ok: false, reason: `delete path is not safe: ${path}` }
+    if (seen.has(path)) return { ok: false, reason: `path is both written and deleted: ${path}` }
+    if (deleteSet.has(path)) return { ok: false, reason: `duplicate delete path: ${path}` }
+    deleteSet.add(path)
   }
   const branch = opts.branch ?? 'agentport/install'
   if (
@@ -639,7 +648,10 @@ export async function openInstallPr(opts: {
   )
   if (!head.ok) return { ok: false, reason: 'could not read the base commit' }
 
-  const treeEntries: Array<{ path: string; mode: '100644'; type: 'blob'; sha: string }> = []
+  type TreeEntry =
+    | { path: string; mode: '100644'; type: 'blob'; sha: string }
+    | { path: string; sha: null }
+  const treeEntries: TreeEntry[] = []
   for (const file of opts.files) {
     const blob = await gh<{ sha: string }>(`/repos/${owner}/${repo}/git/blobs`, opts.installationToken, {
       method: 'POST',
@@ -652,6 +664,9 @@ export async function openInstallPr(opts: {
     if (!blob.ok) return { ok: false, reason: `could not write ${file.path}: ${blob.reason}` }
     treeEntries.push({ path: file.path, mode: '100644', type: 'blob', sha: blob.value.sha })
   }
+  // A null blob SHA removes the path in the commit built from this tree. This
+  // is how a redirect-mode upgrade removes a previously committed snapshot.
+  for (const path of deleteSet) treeEntries.push({ path, sha: null })
 
   const tree = await gh<{ sha: string }>(`/repos/${owner}/${repo}/git/trees`, opts.installationToken, {
     method: 'POST',

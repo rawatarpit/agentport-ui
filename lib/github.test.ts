@@ -128,6 +128,26 @@ describe('repo listing + PR shapes (offline guards)', () => {
     }
   })
 
+  it('openInstallPr refuses an unsafe, duplicate, or overlapping delete path before the network', async () => {
+    const { openInstallPr } = await import('./github.js')
+    for (const deletePaths of [
+      ['../escape.txt'],
+      ['.git/config'],
+      ['public/.well-known/agent.json', 'public/.well-known/agent.json'],
+      ['agentport/config.json'],
+    ]) {
+      const r = await openInstallPr({
+        installationToken: 'x',
+        repoFullName: 'o/r',
+        files: [{ path: 'agentport/config.json', content: '{}' }],
+        deletePaths,
+        prTitle: 't',
+        prBody: 'b',
+      })
+      assert.equal(r.ok, false)
+    }
+  })
+
   it('readRepoFile refuses unsafe paths before touching the network', async () => {
     const { readRepoFile } = await import('./github.js')
     const r = await readRepoFile({
@@ -237,6 +257,37 @@ describe('install PR branch handling', () => {
     expect(commit?.body?.parents).toEqual(['open-sha'])
     const patch = calls.find((c) => c.method === 'PATCH')
     expect(patch?.body?.force).toBe(false)
+  })
+
+  it('redacts a stale snapshot by adding a null-sha tree entry', async () => {
+    const calls = stub((url) => {
+      if (url.endsWith('/repos/o/r')) return json({ full_name: 'o/r', default_branch: 'main' })
+      if (url.endsWith('/git/ref/heads/main')) return json({ object: { sha: 'base-sha' } })
+      if (url.endsWith('/git/ref/heads/agentport%2Finstall')) return json({ object: { sha: 'open-sha' } })
+      if (url.includes('/pulls?state=open')) return json([{ number: 1 }])
+      if (url.endsWith('/git/commits/open-sha')) return json({ tree: { sha: 'open-tree' } })
+      if (url.endsWith('/git/blobs')) return json({ sha: 'blob-sha' })
+      if (url.endsWith('/git/trees')) return json({ sha: 'new-tree' })
+      if (url.endsWith('/git/commits')) return json({ sha: 'new-commit' })
+      if (url.includes('/git/refs/heads/')) return json({ object: { sha: 'new-commit' } })
+      if (url.endsWith('/pulls')) return json({ html_url: 'https://github.com/o/r/pull/1', number: 1 })
+      return null
+    })
+    const { openInstallPr } = await import('./github.js')
+    const r = await openInstallPr({
+      installationToken: 'x',
+      repoFullName: 'o/r',
+      files: [{ path: 'app/.well-known/agent.json/route.ts', content: 'export function GET() {}' }],
+      deletePaths: ['public/.well-known/agent.json'],
+      prTitle: 't',
+      prBody: 'b',
+    })
+    expect(r.ok).toBe(true)
+    const tree = calls.find((c) => c.method === 'POST' && c.url.endsWith('/git/trees'))
+    expect(tree?.body?.tree).toContainEqual({
+      path: 'public/.well-known/agent.json',
+      sha: null,
+    })
   })
 })
 

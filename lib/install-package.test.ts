@@ -53,7 +53,10 @@ describe('detectPublishTarget', () => {
       dir: 'public',
       mode: 'direct',
       framework: 'next',
+      serverRoutes: 'next-app',
     })
+    // The pages router has no route at this path, so it keeps the snapshot.
+    expect(detectPublishTarget(['next.config.mjs', 'pages/index.tsx']).serverRoutes).toBe(null)
     expect(detectPublishTarget(['svelte.config.js'])).toMatchObject({
       dir: 'static',
       mode: 'direct',
@@ -146,6 +149,33 @@ describe('buildInstallPackageFrom', () => {
     expect((r.value.manifest.capabilities as unknown[]).length).toBe(0)
     expect(r.value.config).not.toHaveProperty('signingSecret')
     expect(r.value.config).not.toHaveProperty('serviceRoleKey')
+  })
+
+  it('serves a Next app manifest from a live redirect, not a stale snapshot', () => {
+    const target = detectPublishTarget(['next.config.mjs', 'app/page.tsx'])
+    const r = buildInstallPackageFrom({ ...base, publishTarget: target })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    const route = r.value.files.find((f) => f.path === 'app/.well-known/agent.json/route.ts')
+    expect(route).toBeTruthy()
+    expect(route?.content).toContain(
+      'Response.redirect("https://governor.agentport.dev/t/tenant-1/.well-known/agent.json", 307)',
+    )
+    expect(r.value.config.manifestMode).toBe('redirect')
+    expect(r.value.config.publishDir).toBe('public')
+    // A committed snapshot would shadow the route on hosts that serve public
+    // first, so the install PR must remove it in the same commit.
+    expect(r.value.deletes).toEqual(['public/.well-known/agent.json'])
+  })
+
+  it('keeps the build-time snapshot for frameworks without a server redirect', () => {
+    const target = detectPublishTarget(['index.html'])
+    const r = buildInstallPackageFrom({ ...base, publishTarget: target })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.value.files.some((f) => f.path.endsWith('route.ts'))).toBe(false)
+    expect(r.value.config).not.toHaveProperty('manifestMode')
+    expect(r.value.deletes).toEqual([])
   })
 
   it('matches the SDK manifest vocabulary and holds mapped writes', () => {
