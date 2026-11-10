@@ -5,13 +5,14 @@ const nextConfig = {
   reactStrictMode: true,
 
   /**
-   * Security headers on every response — pages and API routes alike.
+   * Static security headers on every response — pages and API routes alike.
    *
    * HSTS is emitted only from a production build, so `next dev` never pins
-   * http://localhost for two years. The CSP is report-only until the reports
-   * have been reviewed; lib/security-headers.mjs documents the exact path to
-   * enforcement (nonce + renamed header). Source of truth lives there so the
-   * policy is unit-tested rather than copied between config and docs.
+   * http://localhost for two years. The CSP is NOT here: middleware emits it
+   * per-request so script-src can carry a nonce (Next's inline RSC flight data
+   * is page-specific and cannot be hashed). lib/security-headers.mjs documents
+   * the path to enforcement; the policy is unit-tested there rather than
+   * copied between config and docs.
    */
   async headers() {
     return securityHeaderGroups()

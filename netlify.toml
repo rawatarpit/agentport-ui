@@ -48,8 +48,9 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
-# Security headers for an enterprise console. CSP stays loose enough for
-# Next.js inline runtime; tighten script-src with nonces if this becomes strict.
+# Static security headers for an enterprise console. The CSP is emitted
+# per-request by middleware (script-src carries a nonce), so it is not
+# duplicated here — a second static copy would report every RSC page.
 [[headers]]
   for = "/*"
   [headers.values]
