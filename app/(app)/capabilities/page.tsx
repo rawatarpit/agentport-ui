@@ -72,7 +72,10 @@ export default async function CapabilitiesPage() {
   const [{ data, error }, activeNames] = await Promise.all([
     tenant.supabase
       .from('agent_capabilities')
-      .select('name,method,path,kind,origin,dataClass')
+      // The column is snake_case (data_class); PostgREST columns are
+      // case-sensitive, so a bare `dataClass` here errors 42703 and the whole
+      // inventory reads unknown. Alias it to the shape the editor expects.
+      .select('name,method,path,kind,origin,dataClass:data_class')
       .eq('tenant_id', tenant.active.tenantId)
       .order('name', { ascending: true }),
     readActiveCapabilityNames(tenant.active.tenantId),

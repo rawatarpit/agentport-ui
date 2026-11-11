@@ -48,7 +48,9 @@ export default async function GoLivePage() {
     getGoLiveState(tenant.active.tenantId, { role }),
     tenant.supabase
       .from('agent_capabilities')
-      .select('name,dataClass')
+      // PostgREST columns are snake_case and case-sensitive; a bare `dataClass`
+      // errors 42703 and this page would render the count as unknown.
+      .select('name,dataClass:data_class')
       .eq('tenant_id', tenant.active.tenantId),
   ])
   const inventoryCount = inventory.error ? null : (inventory.data ?? []).length
