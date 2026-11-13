@@ -82,7 +82,7 @@ export default async function OverviewPage() {
   const tenantId = tenant.active.tenantId
   const role = tenant.active.membership.role
 
-  const [state, home, holdsRead, decisionsRead, inventory] = await Promise.all([
+  const [state, home, holdsRead, decisionsRead, inventory, sectorRead] = await Promise.all([
     getGoLiveState(tenantId, { role }),
     getHome(tenantId),
     readOrUnknown(listHolds(tenantId, 200)),
@@ -92,6 +92,10 @@ export default async function OverviewPage() {
       .select('name, method, path, kind')
       .eq('tenant_id', tenantId)
       .order('name', { ascending: true }),
+    fetch('/api/analytics/sector').then(async (r) => {
+      if (!r.ok) return null
+      return r.json()
+    }),
   ])
 
   // A failed inventory read is unknown, not an empty inventory. The mapping
@@ -175,6 +179,28 @@ export default async function OverviewPage() {
                 : 'No push heard yet — unknown, not healthy.'
           }
           tone={decisionsRead.failed || decisionsRead.rows.length === 0 ? 'warn' : 'default'}
+        />
+        <Stat
+          label="Sector benchmark"
+          value={
+            sectorRead === null || sectorRead === undefined
+              ? 'unknown'
+              : sectorRead.hasSector === false
+                ? 'not set'
+                : sectorRead.percentile === null
+                  ? 'unknown'
+                  : `top ${101 - sectorRead.percentile}%`
+          }
+          hint={
+            sectorRead === null || sectorRead === undefined
+              ? 'Sector benchmark could not be read.'
+              : sectorRead.hasSector === false
+                ? 'Set your industry and sector in setup to see benchmarks.'
+                : sectorRead.medianEvents === null
+                  ? 'Not enough peers in your sector yet.'
+                  : `You are at ${sectorRead.myEvents ?? 0} events vs. sector median ${sectorRead.medianEvents}.`
+          }
+          tone={sectorRead === null || sectorRead === undefined || sectorRead.hasSector === false ? 'default' : 'good'}
         />
       </section>
 

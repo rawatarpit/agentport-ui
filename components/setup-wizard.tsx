@@ -16,6 +16,10 @@ import { useEffect, useMemo, useState } from 'react'
  * currency: 'INR'` reads as one lakh rupees while the engine compares 90,000
  * *paise* — both round numbers, 100x apart. A UI that collected "₹100,000" into
  * an `amount` field would reintroduce exactly that bug one layer up.
+ *
+ * Industry and sector are collected once during onboarding. They are stored
+ * per-tenant and used only for sector-wise benchmark aggregates — never for
+ * cross-tenant reads, never for enforcement.
  */
 
 type Answers = {
@@ -30,6 +34,16 @@ const DEFAULT_ANSWERS: Answers = {
   hardCeiling: '1000',
   alwaysAsk: true,
   forbidden: true,
+}
+
+type TenantMeta = {
+  industry: string
+  sector: string
+}
+
+const DEFAULT_META: TenantMeta = {
+  industry: '',
+  sector: '',
 }
 
 const STEPS = [
@@ -49,12 +63,15 @@ const STEPS = [
 
 export function SetupWizard() {
   const [a, setA] = useState<Answers>(DEFAULT_ANSWERS)
+  const [m, setM] = useState<TenantMeta>(DEFAULT_META)
   const [step, setStep] = useState(0)
   const [copied, setCopied] = useState(false)
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [loadError, setLoadError] = useState(false)
+  const [metaLoaded, setMetaLoaded] = useState(false)
+  const [metaSaving, setMetaSaving] = useState(false)
 
   const minor = useMemo(() => {
     const toMinor = (v: string): number | null => {
@@ -130,6 +147,46 @@ export function SetupWizard() {
     }
   }, [])
 
+  // Load existing tenant metadata (industry/sector) if already set.
+  useEffect(() => {
+    let live = true
+    fetch('/api/tenant-metadata')
+      .then((r) => r.json())
+      .then((body: { status?: string; industry?: string | null; sector?: string | null }) => {
+        if (!live || body.status !== 'ok') return
+        setM({
+          industry: body.industry ?? '',
+          sector: body.sector ?? '',
+        })
+        setMetaLoaded(true)
+      })
+      .catch(() => {
+        if (live) setMetaLoaded(true) // treat load failure as "no existing meta"
+      })
+    return () => {
+      live = false
+    }
+  }, [])
+
+  const saveMeta = async () => {
+    if (!m.industry.trim() || !m.sector.trim()) return
+    setMetaSaving(true)
+    try {
+      const res = await fetch('/api/tenant-metadata', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ industry: m.industry.trim(), sector: m.sector.trim() }),
+      })
+      const body = (await res.json()) as { status: string; reason?: string }
+      if (body.status !== 'ok') throw new Error(body.reason ?? 'Save refused.')
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : 'Save refused.')
+    } finally {
+      setMetaSaving(false)
+    }
+  }
+
+  // Answers persist as the setup draft (minor units at the edge, like rules).
   const save = async () => {
     if (minor.ceiling === null || minor.hard === null) return
     setSaving(true)
@@ -152,52 +209,99 @@ export function SetupWizard() {
     }
   }
 
+  const metaReady = m.industry.trim().length > 0 && m.sector.trim().length > 0
+
   return (
     <div className="space-y-6">
       <ol className="flex flex-wrap gap-2" aria-label="Progress">
-        {([...STEPS.map((s) => s.key), 'approval', 'forbidden'] as string[]).map(
-          (k, i) => (
-            <li key={k}>
-              <span
-                className={`inline-block rounded px-2 py-0.5 font-mono text-[11px] ${
-                  i <= step
-                    ? 'border border-verdant/40 text-verdant'
-                    : 'border border-ink-line text-bone-faint'
-                }`}
-              >
-                {i + 1}
-              </span>
-            </li>
-          ),
-        )}
+        {(
+          [
+            'industry',
+            'sector',
+            ...STEPS.map((s) => s.key),
+            'approval',
+            'forbidden',
+          ] as string[]
+        ).map((k, i) => (
+          <li key={k}>
+            <span
+              className={`inline-block rounded px-2 py-0.5 font-mono text-[11px] ${
+                i <= step
+                  ? 'border border-verdant/40 text-verdant'
+                  : 'border border-ink-line text-bone-faint'
+              }`}
+            >
+              {i + 1}
+            </span>
+          </li>
+        ))}
       </ol>
 
       {step === 0 && (
-        <div className="panel border-verdant/30 p-5">
-          <p className="text-[13px] leading-relaxed text-bone-dim">
-            Two money questions, two permission questions. Your answers become
-            the rules agents follow on your site — <span className="text-bone">ask me first above ₹X</span>,{' '}
-            <span className="text-bone">always refuse above ₹Y</span>,{' '}
-            <span className="text-bone">always wait on orders</span>,{' '}
-            <span className="text-bone">never refund</span>. Change any of it
-            later; nothing is final.
+        <div className="panel p-6">
+          <h3 className="font-display text-2xl text-bone">What industry are you in?</h3>
+          <p className="mt-2 text-[13px] leading-relaxed text-bone-dim">
+            This is used only for sector benchmarks — how your agent volume
+            compares with similar businesses. It is never shared with other
+            merchants and never affects enforcement.
           </p>
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-700">
+                Industry
+              </label>
+              <input
+                className="w-full border border-ink-line bg-transparent px-3 py-2 font-mono text-sm text-bone outline-none focus:border-verdant focus-visible:ring-2 focus-visible:ring-verdant/60"
+                value={m.industry}
+                placeholder="e.g. Retail"
+                onChange={(e) => setM({ ...m, industry: e.target.value })}
+                aria-label="Industry"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-700">
+                Sector
+              </label>
+              <input
+                className="w-full border border-ink-line bg-transparent px-3 py-2 font-mono text-sm text-bone outline-none focus:border-verdant focus-visible:ring-2 focus-visible:ring-verdant/60"
+                value={m.sector}
+                placeholder="e.g. E-commerce"
+                onChange={(e) => setM({ ...m, sector: e.target.value })}
+                aria-label="Sector"
+              />
+            </div>
+          </div>
+          <div className="mt-6 flex items-center gap-3">
+            <button
+              type="button"
+              className="btn"
+              disabled={metaSaving || !metaReady}
+              onClick={saveMeta}
+            >
+              {metaSaving ? 'Saving…' : 'Save industry & sector'}
+            </button>
+            {metaLoaded && !metaReady && (
+              <span className="font-mono text-[11px] text-rust">
+                Both fields are required.
+              </span>
+            )}
+          </div>
         </div>
       )}
 
-      {step < STEPS.length && (
+      {step >= 1 && step < STEPS.length + 1 && (
         <div className="panel p-6">
-          <h3 className="font-display text-2xl text-bone">{STEPS[step]!.question}</h3>
-          <p className="mt-2 text-[13px] leading-relaxed text-bone-dim">{STEPS[step]!.help}</p>
+          <h3 className="font-display text-2xl text-bone">{STEPS[step - 1]!.question}</h3>
+          <p className="mt-2 text-[13px] leading-relaxed text-bone-dim">{STEPS[step - 1]!.help}</p>
           <div className="mt-4 flex items-center gap-3">
             <span aria-hidden="true" className="font-display text-2xl text-bone-faint">₹</span>
             <input
               className="w-40 border border-ink-line bg-transparent px-3 py-2 font-display text-2xl text-bone outline-none focus:border-verdant focus-visible:ring-2 focus-visible:ring-verdant/60"
-              value={a[STEPS[step]!.key]}
+              value={a[STEPS[step - 1]!.key]}
               inputMode="decimal"
-              placeholder={STEPS[step]!.placeholder}
-              onChange={(e) => setA({ ...a, [STEPS[step]!.key]: e.target.value })}
-              aria-label={STEPS[step]!.question}
+              placeholder={STEPS[step - 1]!.placeholder}
+              onChange={(e) => setA({ ...a, [STEPS[step - 1]!.key]: e.target.value })}
+              aria-label={STEPS[step - 1]!.question}
             />
           </div>
         </div>
@@ -262,7 +366,7 @@ export function SetupWizard() {
         </div>
       )}
 
-      {step >= STEPS.length + 2 && (
+      {step >= STEPS.length + 3 && (
         <div className="space-y-4">
           <div className="panel p-6">
             <h3 className="font-display text-2xl text-bone">Your answers, ready</h3>
@@ -333,9 +437,9 @@ export function SetupWizard() {
         >
           Back
         </button>
-        {step < STEPS.length + 2 && (
+        {step < STEPS.length + 3 && (
           <button type="button" className="btn btn-primary" onClick={() => setStep(step + 1)}>
-            Next
+            {step === STEPS.length + 2 ? 'Finish' : 'Next'}
           </button>
         )}
       </div>

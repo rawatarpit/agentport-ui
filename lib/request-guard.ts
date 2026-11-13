@@ -47,6 +47,7 @@ export const RATE_LIMITS = {
   // removed; the dashboard now calls publish:apply.
   'publish:approve': { limit: 30, windowMs: 60_000 },
   'publish:artifact': { limit: 30, windowMs: 60_000 },
+  'tenant-metadata:write': { limit: 30, windowMs: 60_000 },
 } as const satisfies Record<string, RateLimitOptions>
 
 export type RateLimitBucket = keyof typeof RATE_LIMITS
