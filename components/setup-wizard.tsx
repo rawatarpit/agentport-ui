@@ -46,6 +46,30 @@ const DEFAULT_META: TenantMeta = {
   sector: '',
 }
 
+const INDUSTRY_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'retail', label: 'Retail' },
+  { value: 'healthcare', label: 'Healthcare' },
+  { value: 'finance', label: 'Financial Services' },
+  { value: 'education', label: 'Education' },
+  { value: 'hospitality', label: 'Hospitality' },
+  { value: 'manufacturing', label: 'Manufacturing' },
+  { value: 'technology', label: 'Technology' },
+  { value: 'logistics', label: 'Logistics' },
+  { value: 'other', label: 'Other' },
+]
+
+const SECTOR_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'e-commerce', label: 'E-commerce' },
+  { value: 'clinic', label: 'Clinics' },
+  { value: 'bank', label: 'Banks' },
+  { value: 'school', label: 'Schools' },
+  { value: 'hotel', label: 'Hotels' },
+  { value: 'factory', label: 'Factories' },
+  { value: 'saas', label: 'SaaS' },
+  { value: 'warehouse', label: 'Warehousing' },
+  { value: 'other', label: 'Other' },
+]
+
 const STEPS = [
   {
     key: 'ceiling' as const,
@@ -250,25 +274,43 @@ export function SetupWizard() {
               <label className="block text-sm font-medium text-slate-700">
                 Industry
               </label>
-              <input
-                className="w-full border border-ink-line bg-transparent px-3 py-2 font-mono text-sm text-bone outline-none focus:border-verdant focus-visible:ring-2 focus-visible:ring-verdant/60"
+              <select
+                className="w-full border border-ink-line bg-transparent px-4 py-2.5 text-sm text-bone outline-none focus:border-verdant focus:ring-1 focus:ring-green-600 rounded-lg"
                 value={m.industry}
-                placeholder="e.g. Retail"
                 onChange={(e) => setM({ ...m, industry: e.target.value })}
                 aria-label="Industry"
-              />
+              >
+                <option value="">Select an industry</option>
+                {INDUSTRY_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              {m.industry === '' && (
+                <p className="text-[11px] text-rust mt-1">Please select an industry.</p>
+              )}
             </div>
             <div className="space-y-2">
               <label className="block text-sm font-medium text-slate-700">
                 Sector
               </label>
-              <input
-                className="w-full border border-ink-line bg-transparent px-3 py-2 font-mono text-sm text-bone outline-none focus:border-verdant focus-visible:ring-2 focus-visible:ring-verdant/60"
+              <select
+                className="w-full border border-ink-line bg-transparent px-4 py-2.5 text-sm text-bone outline-none focus:border-verdant focus:ring-1 focus:ring-green-600 rounded-lg"
                 value={m.sector}
-                placeholder="e.g. E-commerce"
                 onChange={(e) => setM({ ...m, sector: e.target.value })}
                 aria-label="Sector"
-              />
+              >
+                <option value="">Select a sector</option>
+                {SECTOR_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              {m.sector === '' && (
+                <p className="text-[11px] text-rust mt-1">Please select a sector.</p>
+              )}
             </div>
           </div>
           <div className="mt-6 flex items-center gap-3">
