@@ -92,10 +92,12 @@ export default async function OverviewPage() {
       .select('name, method, path, kind')
       .eq('tenant_id', tenantId)
       .order('name', { ascending: true }),
-    fetch('/api/analytics/sector').then(async (r) => {
-      if (!r.ok) return null
-      return r.json()
-    }),
+    fetch('/api/analytics/sector')
+      .then(async (r) => {
+        if (!r.ok) return null
+        return r.json()
+      })
+      .catch(() => null),
   ])
 
   // A failed inventory read is unknown, not an empty inventory. The mapping
