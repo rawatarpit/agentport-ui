@@ -23,6 +23,8 @@ type ConsoleRow = {
   held_request_id: string | null
   at: string
   agent_id: string
+  agent_label: string | null
+  agent_label_source: 'declared' | 'credential' | 'none' | null
   assurance: 'verified' | 'unverified'
   capability: string
   capability_registered: boolean | null
@@ -47,6 +49,8 @@ function toEntry(r: ConsoleRow): LedgerEntry {
     heldRequestId: r.held_request_id ?? undefined,
     at: r.at,
     agentId: r.agent_id,
+    agentLabel: r.agent_label ?? undefined,
+    agentLabelSource: r.agent_label_source ?? undefined,
     assurance: r.assurance,
     capability: r.capability,
     capabilityRegistered: r.capability_registered ?? undefined,
@@ -80,7 +84,7 @@ export async function listDecisions(tenantId: string, limit = 200): Promise<Ledg
   const { data, error } = await db
     .from('ledger_console_view')
     .select(
-      'tenant_id, request_id, held_request_id, at, agent_id, assurance, capability, capability_registered, access, decision, reason, rule, approval, result, config_hash, row_digest, duration_ms',
+      'tenant_id, request_id, held_request_id, at, agent_id, agent_label, agent_label_source, assurance, capability, capability_registered, access, decision, reason, rule, approval, result, config_hash, row_digest, duration_ms',
     )
     .eq('tenant_id', tenantId)
     .order('at', { ascending: false })

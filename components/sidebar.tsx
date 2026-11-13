@@ -39,6 +39,7 @@ const BASE_GROUPS = [
     label: 'Connect',
     items: [
       { href: '/connect', label: 'Connect' },
+      { href: '/identity', label: 'User sessions' },
       { href: '/team', label: 'Team' },
     ],
   },
@@ -95,9 +96,9 @@ export function Sidebar({
         key={href}
         href={href}
         aria-current={active ? 'page' : undefined}
-        className={`flex items-center justify-between rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors ${
+        className={`relative flex items-center justify-between rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors ${
           active
-            ? 'bg-verdant/10 text-bone'
+            ? 'bg-verdant/10 text-bone before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-verdant'
             : 'text-bone-dim hover:bg-ink-soft hover:text-bone'
         }`}
       >

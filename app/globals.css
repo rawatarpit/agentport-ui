@@ -95,6 +95,16 @@ body {
   background: rgba(120, 200, 150, 0.25);
 }
 
+/* Keyboard focus is a first-class state, not a removed outline. Buttons and
+   inputs opt into their own ring in the components layer; everything else
+   (links, table rows with tabindex, native controls) gets this baseline. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid rgb(var(--verdant) / 0.7);
+    outline-offset: 2px;
+  }
+}
+
 @layer components {
   .panel {
     @apply rounded-lg border border-ink-line bg-ink-soft;
@@ -109,6 +119,26 @@ body {
   }
   .label {
     @apply font-mono text-[11px] uppercase tracking-[0.14em] text-bone-faint;
+  }
+  /* Dense data tables: one rhythm for headers, rows and cells, so the ledger
+     and the overview stop drifting apart class by class. */
+  .table {
+    @apply w-full text-left text-[13px];
+  }
+  .table thead tr {
+    @apply border-b border-ink-line;
+  }
+  .table tbody tr {
+    @apply border-b border-ink-line/60 transition-colors last:border-0 hover:bg-ink/40;
+  }
+  .table th {
+    @apply px-4 py-3 font-mono text-[10.5px] font-normal uppercase tracking-[0.12em] text-bone-faint;
+  }
+  .table td {
+    @apply px-4 py-3 align-top;
+  }
+  .console .table th {
+    @apply font-sans font-medium tracking-[0.08em];
   }
   .prose-bone {
     @apply text-[15px] leading-[1.7] text-bone-dim;

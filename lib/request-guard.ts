@@ -41,6 +41,7 @@ export const RATE_LIMITS = {
   'github:pr': { limit: 20, windowMs: 60_000 },
   contact: { limit: 5, windowMs: 10 * 60_000 },
   'map:crawl': { limit: 5, windowMs: 5 * 60_000 },
+  'identity:write': { limit: 30, windowMs: 60_000 },
   'publish:apply': { limit: 30, windowMs: 60_000 },
   // Legacy artifact publish path, retained only until the old routes are
   // removed; the dashboard now calls publish:apply.

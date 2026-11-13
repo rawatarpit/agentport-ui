@@ -76,6 +76,15 @@ export interface LedgerEntry {
   heldRequestId?: string
   at: string
   agentId: string
+  /**
+   * The name the agent acted under. `agentId` is redacted for a self-issued
+   * public token, so without this the console could only say that *an*
+   * anonymous agent acted. The label is telemetry, not proof: read
+   * `agentLabelSource` before presenting it as a name we vouch for.
+   */
+  agentLabel?: string
+  /** `declared` is caller-supplied and unverified; `credential` came from us. */
+  agentLabelSource?: 'declared' | 'credential' | 'none'
   assurance: 'verified' | 'unverified'
   configHash?: string
   /** The numbers the rule was measured against, when the row carries them. */

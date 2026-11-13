@@ -11,7 +11,8 @@ const COLOURS: Record<Tone, string> = {
 
 /**
  * One KPI tile. The value is the number the merchant came for; the hint is the
- * honesty label underneath it. A null value renders “unknown”, never 0.
+ * honesty label underneath it. Callers pass 'unknown' when a value could not
+ * be read; the component never invents a zero.
  */
 export function KpiCard({
   label,

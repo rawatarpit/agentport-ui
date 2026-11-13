@@ -1,11 +1,13 @@
 import Link from 'next/link'
 import { Badge, Stat } from '@/components/stat'
+import { Chip } from '@/components/ui/chip'
 import { PageHeader } from '@/components/ui/page-header'
 import { Section } from '@/components/ui/section'
 import { StepRail, type RailStep } from '@/components/ui/step-rail'
 import { listDecisions, listHolds } from '@/lib/console-reads'
 import { getHome } from '@/lib/backend-reads'
 import { getGoLiveState, type GoLiveStepId } from '@/lib/go-live'
+import { agentAttribution, decisionLabel } from '@/lib/ledger-summary'
 import { resolveRequestTenant } from '@/lib/tenant-server'
 import type { LedgerEntry } from '@/lib/contracts'
 
@@ -283,30 +285,50 @@ export default async function OverviewPage() {
           </div>
         ) : (
           <div className="panel overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left text-[13px]">
+            <table className="table min-w-[760px]">
+              <caption className="sr-only">
+                Recent decisions: when, agent name and attribution source, capability and access, decision, and rule
+              </caption>
               <thead>
-                <tr className="border-b border-ink-line">
+                <tr>
                   {['When', 'Agent', 'Capability', 'Decision', 'Rule'].map((h) => (
-                    <th key={h} scope="col" className="label px-4 py-2.5 font-normal">
+                    <th key={h} scope="col">
                       {h}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {decisionsRead.rows.map((d) => (
-                  <tr key={`${d.requestId}-${d.at}`} className="border-b border-ink-line/60 last:border-0">
-                    <td className="px-4 py-2.5 font-mono text-[11px] text-bone-faint">{when(d.at)}</td>
-                    <td className="px-4 py-2.5 font-mono text-[12px] text-bone-dim">{d.agentId}</td>
-                    <td className="px-4 py-2.5 font-mono text-[12px] text-bone">{d.capability}</td>
-                    <td className="px-4 py-2.5">
-                      <Badge tone={decisionTone(d.decision)}>
-                        {d.decision === 'require_approval' ? 'held' : d.decision}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-2.5 text-[12px] text-bone-faint">{d.rule || '—'}</td>
-                  </tr>
-                ))}
+                {decisionsRead.rows.map((d) => {
+                  const agent = agentAttribution(d)
+                  return (
+                    <tr key={`${d.requestId}-${d.at}`}>
+                      <td className="font-mono text-[11px] text-bone-faint">{when(d.at)}</td>
+                      <td>
+                        <div className="font-mono text-[12px] text-bone-dim">{agent.name}</div>
+                        {!agent.trusted ? (
+                          <div className="mt-1">
+                            <Chip tone={agent.source === 'declared' ? 'warn' : 'neutral'} title={agent.title}>
+                              {agent.chip}
+                            </Chip>
+                          </div>
+                        ) : null}
+                      </td>
+                      <td>
+                        <div className="font-mono text-[12px] text-bone">{d.capability}</div>
+                        {d.access ? (
+                          <div className="mt-1">
+                            <Chip tone={d.access === 'write' ? 'warn' : 'neutral'}>{d.access}</Chip>
+                          </div>
+                        ) : null}
+                      </td>
+                      <td>
+                        <Badge tone={decisionTone(d.decision)}>{decisionLabel(d.decision)}</Badge>
+                      </td>
+                      <td className="text-[12px] text-bone-faint">{d.rule || '—'}</td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
