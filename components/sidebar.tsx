@@ -6,47 +6,40 @@ import { useEffect, useState } from 'react'
 import { AgentPortLogo } from '@/components/brand/agentport-logo'
 import { StatusPill } from '@/components/ui/status-pill'
 
+/**
+ * Sidebar groups collapsed from ~15 items to ~7, organized by merchant
+ * mental model instead of abstract labels:
+ *
+ *   Today   = things needing attention today (approvals, ledger)
+ *   Configure = things you change occasionally (capabilities, rules, limits)
+ *   Settings  = set once, rarely touch (go live, connect, identity, team)
+ *   Setup   = appears only until the first draft exists, then retires
+ *
+ * Every item keeps its original route; nothing is removed, just regrouped.
+ */
 const BASE_GROUPS = [
   {
-    label: 'Get started',
-    items: [
-      { href: '/setup', label: 'Setup' },
-    ],
-  },
-  {
-    label: 'Go live',
-    items: [
-      { href: '/go-live', label: 'Go live' },
-    ],
-  },
-  {
-    label: 'Operate',
+    label: 'Today',
     items: [
       { href: '/approvals', label: 'Approvals' },
       { href: '/ledger', label: 'Ledger' },
-      { href: '/analytics', label: 'Analytics' },
     ],
   },
   {
-    label: 'Govern',
+    label: 'Configure',
     items: [
-      { href: '/rules', label: 'Rules' },
       { href: '/capabilities', label: 'Capabilities' },
+      { href: '/rules', label: 'Rules' },
       { href: '/policies', label: 'Limits & stop' },
     ],
   },
   {
-    label: 'Connect',
+    label: 'Settings',
     items: [
+      { href: '/go-live', label: 'Go live' },
       { href: '/connect', label: 'Connect' },
       { href: '/identity', label: 'User sessions' },
       { href: '/team', label: 'Team' },
-    ],
-  },
-  {
-    label: 'Insights',
-    items: [
-      { href: '/marketing-analytics', label: 'Marketing & Sales' },
     ],
   },
 ]
@@ -62,8 +55,8 @@ export function Sidebar({
   const [setupComplete, setSetupComplete] = useState<boolean | null>(null)
 
   // Setup is the first step of the journey. Once a setup draft exists it has
-  // served its purpose and the group retires so the sidebar stays focused on
-  // what the merchant operates day to day.
+  // served its purpose and retires so the sidebar stays focused on what the
+  // merchant operates day to day.
   useEffect(() => {
     let cancelled = false
     fetch('/api/drafts/setup')
@@ -83,11 +76,8 @@ export function Sidebar({
 
   const groups =
     setupComplete === null
-      ? BASE_GROUPS
-      : BASE_GROUPS.map((g) => ({
-          label: g.label,
-          items: g.label === 'Get started' && setupComplete ? [] : g.items,
-        })).filter((g) => g.items.length > 0)
+      ? BASE_GROUPS.concat([{ label: 'Setup', items: [{ href: '/setup', label: 'Setup' }] }])
+      : BASE_GROUPS
 
   const item = (href: string, label: string) => {
     const active = href === '/' ? path === '/' : path === href || path.startsWith(`${href}/`)

@@ -1,15 +1,12 @@
 import Link from 'next/link'
-import { Badge, Stat } from '@/components/stat'
-import { Chip } from '@/components/ui/chip'
+import { Stat } from '@/components/stat'
 import { PageHeader } from '@/components/ui/page-header'
 import { Section } from '@/components/ui/section'
 import { StepRail, type RailStep } from '@/components/ui/step-rail'
 import { listDecisions, listHolds } from '@/lib/console-reads'
 import { getHome } from '@/lib/backend-reads'
 import { getGoLiveState, type GoLiveStepId } from '@/lib/go-live'
-import { agentAttribution, decisionLabel } from '@/lib/ledger-summary'
 import { resolveRequestTenant } from '@/lib/tenant-server'
-import type { LedgerEntry } from '@/lib/contracts'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,11 +48,7 @@ function when(value: string | null | undefined): string {
   return `${new Date(parsed).toISOString().replace('T', ' ').slice(0, 16)} UTC`
 }
 
-function decisionTone(decision: LedgerEntry['decision']): 'allow' | 'deny' | 'held' {
-  if (decision === 'allow') return 'allow'
-  if (decision === 'deny') return 'deny'
-  return 'held'
-}
+
 
 /** A failed read is `unknown`, never an empty list that reads as zero. */
 async function readOrUnknown<T>(read: Promise<T[]>): Promise<{ rows: T[]; failed: boolean }> {
@@ -124,17 +117,16 @@ export default async function OverviewPage() {
         }
       />
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <Stat
-          label="Mapped routes"
-          value={capabilities === null ? 'unknown' : capabilities.length}
+          label="Waiting on you"
+          value={holdsRead.failed ? 'unknown' : holdsRead.rows.length}
           hint={
-            capabilities === null
-              ? 'The capability inventory could not be read.'
-              : capabilities.length === 0
-                ? 'No routes approved yet. The catalogue alone is not a runtime.'
-                : 'Approved inventory; the governor serves only what is published. Draft edits do not count.'
+            holdsRead.failed
+              ? 'The approval queue could not be read. Unknown, not zero.'
+              : 'Held requests in the latest 200 decisions. None of these have run.'
           }
+          tone={!holdsRead.failed && holdsRead.rows.length > 0 ? 'warn' : 'default'}
         />
         <Stat
           label="Published version"
@@ -153,16 +145,6 @@ export default async function OverviewPage() {
                 : 'A saved draft is not live. Publish from go-live.'
           }
           tone={state.liveArtifactUnknown ? 'warn' : state.liveArtifact ? 'good' : 'warn'}
-        />
-        <Stat
-          label="Waiting on you"
-          value={holdsRead.failed ? 'unknown' : holdsRead.rows.length}
-          hint={
-            holdsRead.failed
-              ? 'The approval queue could not be read. Unknown, not zero.'
-              : 'Held requests in the latest 200 decisions. None of these have run.'
-          }
-          tone={!holdsRead.failed && holdsRead.rows.length > 0 ? 'warn' : 'default'}
         />
         <Stat
           label="Last agent activity"
@@ -235,133 +217,64 @@ export default async function OverviewPage() {
         </div>
       ) : null}
 
-      <Section
-        title="Mapped capabilities"
-        description="The approved inventory, not the draft in the editor. A route runs only once it is in the applied config the governor serves."
-        action={
-          <Link href="/map" className="btn">
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="panel flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <p className="label">Mapped routes</p>
+            <p className="text-sm font-semibold text-slate-600">{capabilities === null ? 'unknown' : capabilities.length}</p>
+            <p className="text-xs text-slate-400">
+              {capabilities === null
+                ? 'The capability inventory could not be read.'
+                : capabilities.length === 0
+                  ? 'No routes approved yet.'
+                  : 'The governor serves only what is published.'}
+            </p>
+          </div>
+          <Link href="/map" className="btn btn-sm">
             Review routes
           </Link>
-        }
-      >
-        {capabilities === null ? (
-          <div className="panel p-5">
-            <p className="text-[13px] text-rust" role="alert">
-              The capability inventory could not be read. This is unknown — not an empty inventory.
+        </div>
+        <div className="panel flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <p className="label">Held decisions</p>
+            <p className="text-sm font-semibold text-slate-600">{holdsRead.failed ? 'unknown' : holdsRead.rows.length}</p>
+            <p className="text-xs text-slate-400">
+              {holdsRead.failed ? 'The approval queue could not be read.' : 'Policy required approval. Nothing has executed.'}
             </p>
           </div>
-        ) : capabilities.length === 0 ? (
-          <div className="panel p-5">
-            <p className="text-[13px] text-bone-dim">
-              No routes are mapped yet. Map at least one before publishing; an empty inventory is an honest empty state, not a live agent.
-            </p>
-            <Link href="/map" className="btn mt-3">
-              Map routes
-            </Link>
-          </div>
-        ) : (
-          <div className="panel overflow-x-auto">
-            <table className="w-full min-w-[560px] text-left text-[13px]">
-              <thead>
-                <tr className="border-b border-ink-line">
-                  {['Capability', 'Method', 'Path', 'Access'].map((h) => (
-                    <th key={h} scope="col" className="label px-4 py-2.5 font-normal">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {capabilities.map((c) => (
-                  <tr key={`${c.method}-${c.path}-${c.name}`} className="border-b border-ink-line/60 last:border-0">
-                    <td className="px-4 py-2.5 font-mono text-[12px] text-bone">{c.name}</td>
-                    <td className="px-4 py-2.5 font-mono text-[11px] uppercase tracking-[0.12em] text-bone-faint">
-                      {c.method}
-                    </td>
-                    <td className="px-4 py-2.5 font-mono text-[12px] text-bone-dim">{c.path}</td>
-                    <td className="px-4 py-2.5">
-                      <Badge tone={c.kind === 'write' ? 'held' : 'idle'}>{c.kind}</Badge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Section>
-
-      <Section
-        title="Recent decisions"
-        description="The latest rows from the merchant's own ledger. Counts and outcomes only; amounts and parameters never reach this projection."
-        action={
-          <Link href="/ledger" className="btn">
-            Full ledger
+          <Link href="/ledger" className="btn btn-sm">
+            Read the ledger
           </Link>
-        }
-      >
-        {decisionsRead.failed ? (
-          <div className="panel p-5">
-            <p className="text-[13px] text-rust" role="alert">
-              The ledger could not be read. This is unknown — not an empty ledger. Reload to try again.
+        </div>
+        <div className="panel flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <p className="label">Published version</p>
+            <p className="text-sm font-semibold text-slate-600">
+              {state.liveArtifactUnknown ? 'unknown' : state.liveArtifact ? `v${state.liveArtifact.version}` : 'not published'}
+            </p>
+            <p className="text-xs text-slate-400">
+              {state.liveArtifactUnknown ? 'The live config read failed.' : state.published ? 'Activated on its next poll.' : 'A saved draft is not live.'}
             </p>
           </div>
-        ) : decisionsRead.rows.length === 0 ? (
-          <div className="panel p-5">
-            <p className="text-[13px] text-bone-dim">
-              No decisions recorded yet. That is unknown, not zero — nothing has been heard from an agent.
+          <Link href="/go-live" className="btn btn-sm">
+            Publish channel
+          </Link>
+        </div>
+        <div className="panel flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <p className="label">Sector benchmark</p>
+            <p className="text-sm font-semibold text-slate-600">
+              {sectorRead === null || sectorRead === undefined ? 'unknown' : sectorRead.hasSector === false ? 'not set' : sectorRead.percentile === null ? 'unknown' : `top ${101 - sectorRead.percentile}%`}
+            </p>
+            <p className="text-xs text-slate-400">
+              {sectorRead === null || sectorRead === undefined ? 'Sector benchmark could not be read.' : sectorRead.hasSector === false ? 'Set your industry and sector in setup.' : 'Compared against merchants in your sector.'}
             </p>
           </div>
-        ) : (
-          <div className="panel overflow-x-auto">
-            <table className="table min-w-[760px]">
-              <caption className="sr-only">
-                Recent decisions: when, agent name and attribution source, capability and access, decision, and rule
-              </caption>
-              <thead>
-                <tr>
-                  {['When', 'Agent', 'Capability', 'Decision', 'Rule'].map((h) => (
-                    <th key={h} scope="col">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {decisionsRead.rows.map((d) => {
-                  const agent = agentAttribution(d)
-                  return (
-                    <tr key={`${d.requestId}-${d.at}`}>
-                      <td className="font-mono text-[11px] text-bone-faint">{when(d.at)}</td>
-                      <td>
-                        <div className="font-mono text-[12px] text-bone-dim">{agent.name}</div>
-                        {!agent.trusted ? (
-                          <div className="mt-1">
-                            <Chip tone={agent.source === 'declared' ? 'warn' : 'neutral'} title={agent.title}>
-                              {agent.chip}
-                            </Chip>
-                          </div>
-                        ) : null}
-                      </td>
-                      <td>
-                        <div className="font-mono text-[12px] text-bone">{d.capability}</div>
-                        {d.access ? (
-                          <div className="mt-1">
-                            <Chip tone={d.access === 'write' ? 'warn' : 'neutral'}>{d.access}</Chip>
-                          </div>
-                        ) : null}
-                      </td>
-                      <td>
-                        <Badge tone={decisionTone(d.decision)}>{decisionLabel(d.decision)}</Badge>
-                      </td>
-                      <td className="text-[12px] text-bone-faint">{d.rule || '—'}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Section>
+          <Link href="/setup" className="btn btn-sm">
+            Set sector
+          </Link>
+        </div>
+      </section>
 
       <div className="panel p-5">
         <p className="label">The one rule this page follows</p>
