@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Badge } from '@/components/stat'
+import { TechnicalDetails } from '@/components/ui/technical-details'
 import { ageLabel, type EnforcingState } from '@/lib/enforcing'
 
 /**
@@ -47,9 +48,12 @@ export function EnforcingPanel({ draftLabel }: { draftLabel: string }) {
       {state.status === 'live' ? (
         <div className="mt-3 space-y-2">
           <p className="font-mono text-[13px] text-bone">
-            version <span className="text-bone">{state.digest.slice(0, 8)}</span>
+            live configuration
             <span className="ml-2 text-bone-faint">checked {ageLabel(state.pushedAt)}</span>
           </p>
+          <TechnicalDetails label="Live config fingerprint">
+            <span>{state.digest}</span>
+          </TechnicalDetails>
           <p className="text-[13px] leading-relaxed text-bone-dim">
             This is what your site is actually doing — not what is typed below. The two match only after you publish
             and your site picks it up.

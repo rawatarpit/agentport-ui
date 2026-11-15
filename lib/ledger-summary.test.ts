@@ -134,6 +134,12 @@ describe('filterEntries', () => {
     ).toEqual(['req_deny'])
   })
 
+  it('does not use the raw label as a search oracle', () => {
+    const rows = [entry({ agentLabel: 'buyer@example.com', agentLabelSource: 'declared' })]
+    expect(filterEntries(rows, { ...EMPTY_FILTER, query: 'buyer@example.com' })).toEqual([])
+    expect(filterEntries(rows, { ...EMPTY_FILTER, query: '[redacted]' })).toHaveLength(1)
+  })
+
   it('returns an empty list rather than every row when nothing matches', () => {
     expect(filterEntries(rows, { ...EMPTY_FILTER, query: 'nothing-matches' })).toEqual([])
   })

@@ -6,7 +6,8 @@ import { Chip } from '@/components/ui/chip'
 import { EmptyState } from '@/components/ui/empty-state'
 import { KpiCard } from '@/components/ui/kpi-card'
 import { PageHeader } from '@/components/ui/page-header'
-import { configHash } from '@/lib/agentport'
+import { Select } from '@/components/ui/select'
+import { TechnicalDetails } from '@/components/ui/technical-details'
 import { listDecisions } from '@/lib/console-reads'
 import type { LedgerEntry } from '@/lib/contracts'
 import {
@@ -17,6 +18,7 @@ import {
   parseLedgerFilter,
   summarise,
 } from '@/lib/ledger-summary'
+import { safeAgentLabel } from '@/lib/safe-display'
 import { resolveRequestTenant } from '@/lib/tenant-server'
 
 export const dynamic = 'force-dynamic'
@@ -27,6 +29,19 @@ const tone = (e: LedgerEntry) =>
 function when(value: string): string {
   const parsed = Date.parse(value)
   return Number.isFinite(parsed) ? new Date(parsed).toLocaleString() : value
+}
+
+/**
+ * `agentId` is an opaque ledger reference, never a display name. Only the
+ * labelled name is safe to put in front of a merchant; an unlabelled row is
+ * honestly unidentified.
+ */
+function displayAgent(e: LedgerEntry): string {
+  const label = safeAgentLabel(e.agentLabel)
+  if (label) return label
+  // A credential with no label is still an identified caller; calling it
+  // "unidentified" contradicts the credential chip beside it.
+  return e.agentLabelSource === 'credential' ? 'Unnamed credential' : 'Unidentified agent'
 }
 
 /** A labelled pair in the mobile card. Desktop uses the table instead. */
@@ -160,26 +175,36 @@ export default async function LedgerPage({
                     className="input"
                   />
                 </div>
-                <div>
+                <div className="sm:w-44">
                   <label htmlFor="ledger-decision" className="field-label">
                     Decision
                   </label>
-                  <select id="ledger-decision" name="decision" defaultValue={filter.decision} className="input">
-                    <option value="all">All decisions</option>
-                    <option value="allow">Allowed</option>
-                    <option value="deny">Denied</option>
-                    <option value="held">Held</option>
-                  </select>
+                  <Select
+                    id="ledger-decision"
+                    name="decision"
+                    defaultValue={filter.decision}
+                    options={[
+                      { value: 'all', label: 'All decisions' },
+                      { value: 'allow', label: 'Allowed' },
+                      { value: 'deny', label: 'Denied' },
+                      { value: 'held', label: 'Held' },
+                    ]}
+                  />
                 </div>
-                <div>
+                <div className="sm:w-36">
                   <label htmlFor="ledger-access" className="field-label">
                     Access
                   </label>
-                  <select id="ledger-access" name="access" defaultValue={filter.access} className="input">
-                    <option value="all">All access</option>
-                    <option value="read">Read</option>
-                    <option value="write">Write</option>
-                  </select>
+                  <Select
+                    id="ledger-access"
+                    name="access"
+                    defaultValue={filter.access}
+                    options={[
+                      { value: 'all', label: 'All access' },
+                      { value: 'read', label: 'Read' },
+                      { value: 'write', label: 'Write' },
+                    ]}
+                  />
                 </div>
                 <div className="flex items-center gap-2">
                   <button type="submit" className="btn btn-primary">
@@ -230,7 +255,7 @@ export default async function LedgerPage({
                       </caption>
                       <thead>
                         <tr>
-                          {['Request', 'Agent', 'Capability', 'Decision', 'Reason', 'Rule', 'Approval', 'Result', 'Config'].map(
+                          {['When', 'Agent', 'Capability', 'Decision', 'Reason', 'Rule', 'Approval', 'Result'].map(
                             (h) => (
                               <th key={h} scope="col">
                                 {h}
@@ -245,19 +270,18 @@ export default async function LedgerPage({
                           return (
                             <tr key={`${e.tenantId}:${e.requestId}`}>
                               <td>
-                                <div className="font-mono text-[11px] text-bone-faint">{e.requestId}</div>
                                 <div className="font-mono text-[10.5px] text-bone-faint/70">
                                   <time dateTime={e.at}>{when(e.at)}</time>
                                 </div>
-                                {/* TASKS.md 2.5 — the digest that lets a counted row be
-                                  verified against the merchant's local row. Absent on rows
-                                  written before digests existed; absence renders as nothing,
-                                  not as a broken value. */}
-                                {e.rowDigest ? (
-                                  <div className="mt-1 break-all font-mono text-[10px] text-bone-faint/60">
-                                    {e.rowDigest}
-                                  </div>
-                                ) : null}
+                                {/* TASKS.md 2.5 — the digest lets a counted row be
+                                  verified against the merchant's local row. Kept behind a
+                                  disclosure so the console shows decisions, not UUIDs. */}
+                                <TechnicalDetails>
+                                  <div>request {e.requestId}</div>
+                                  <div>agent {e.agentId}</div>
+                                  {e.rowDigest ? <div>digest {e.rowDigest}</div> : null}
+                                  {e.configHash ? <div>config {e.configHash}</div> : null}
+                                </TechnicalDetails>
                               </td>
 
                               {/*
@@ -267,7 +291,7 @@ export default async function LedgerPage({
                                 name that reads like authority.
                               */}
                               <td>
-                                <div className="text-[12.5px] text-bone">{agent.name}</div>
+                                <div className="text-[12.5px] text-bone">{displayAgent(e)}</div>
                                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
                                   <Chip
                                     tone={
@@ -329,16 +353,6 @@ export default async function LedgerPage({
                                   <span className="text-bone-faint">—</span>
                                 )}
                               </td>
-
-                              {/*
-                                The config version that produced this row. Without it a merchant
-                                can see that a ceiling fired but cannot tell which ceiling, and
-                                the table has no update path — so a row written without it can
-                                never be given one later.
-                              */}
-                              <td className="break-all font-mono text-[10.5px] text-bone-faint">
-                                {e.configHash ?? '—'}
-                              </td>
                             </tr>
                           )
                         })}
@@ -385,7 +399,7 @@ export default async function LedgerPage({
 
                           <dl className="space-y-1.5 text-[13px]">
                             <Pair label="Agent">
-                              <span className="font-mono text-[12px] text-bone-dim">{agent.name}</span>
+                              <span className="font-mono text-[12px] text-bone-dim">{displayAgent(e)}</span>
                             </Pair>
                             <Pair label="Reason">
                               <span className="font-mono text-[12px] text-bone-dim">{e.reason}</span>
@@ -401,18 +415,18 @@ export default async function LedgerPage({
                                   : '—'}
                             </Pair>
                             <Pair label="Result">{e.result ?? '—'}</Pair>
-                            <Pair label="Config">
-                              <span className="break-all font-mono text-[11px] text-bone-faint">
-                                {e.configHash ?? '—'}
-                              </span>
-                            </Pair>
-                            <Pair label="Request">
-                              <span className="font-mono text-[11px] text-bone-faint">{e.requestId}</span>
-                            </Pair>
                             <Pair label="When">
                               <span className="font-mono text-[11px] text-bone-faint">
                                 <time dateTime={e.at}>{when(e.at)}</time>
                               </span>
+                            </Pair>
+                            <Pair label="Details">
+                              <TechnicalDetails className="mt-0 text-right">
+                                <div>request {e.requestId}</div>
+                                <div>agent {e.agentId}</div>
+                                {e.rowDigest ? <div>digest {e.rowDigest}</div> : null}
+                                {e.configHash ? <div>config {e.configHash}</div> : null}
+                              </TechnicalDetails>
                             </Pair>
                           </dl>
                         </li>
@@ -430,8 +444,8 @@ export default async function LedgerPage({
               evaluated figures are not projected: the console renders the decision, not the merchant request.
             </p>
             <p className="font-mono text-[11px] text-bone-faint">
-              Config <span className="text-bone-dim">{configHash}</span> · entries are append-only, and there is no
-              edit or delete path, because an audit trail that can be changed is not an audit trail.
+              Entries are append-only, and there is no edit or delete path, because an audit trail that can be
+              changed is not an audit trail.
             </p>
           </div>
         </>

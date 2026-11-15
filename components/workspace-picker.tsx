@@ -58,7 +58,7 @@ export function WorkspacePicker({
       ) : null}
 
       <ul className="space-y-2">
-        {workspaces.map((w) => {
+        {workspaces.map((w, index) => {
           const selected = w.tenantId === activeTenantId
           return (
             <li key={w.tenantId}>
@@ -73,10 +73,10 @@ export function WorkspacePicker({
               >
                 <span className="min-w-0">
                   <span className="block truncate text-[14px] text-bone">
-                    {w.displayName ?? w.tenantId}
+                    {w.displayName || `Unnamed workspace ${index + 1}`}
                   </span>
                   <span className="mt-0.5 block font-mono text-[11px] text-bone-faint">
-                    {w.role} · {w.tenantId.slice(0, 8)}…
+                    {w.role}
                   </span>
                 </span>
                 <span className="shrink-0 font-mono text-[11px] text-bone-faint">

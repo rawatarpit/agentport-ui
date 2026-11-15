@@ -63,7 +63,7 @@ export function PullRequestCard() {
         <div>
           <p className="label">Pull request</p>
           <p className="mt-1 font-mono text-[13px] text-bone">
-            {pr.repo} · #{pr.number} · {pr.state}
+            {pr.repo} · {pr.state}
             {pr.state === 'open' ? <span className="ml-2 text-bone-faint">checks {pr.checks}</span> : null}
           </p>
         </div>

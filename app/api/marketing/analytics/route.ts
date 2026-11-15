@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server'
+import { agentKey } from '@/lib/analytics-shape'
+import { safeAgentLabel } from '@/lib/safe-display'
 import { resolveRequestTenant, type RequestTenant } from '@/lib/tenant-server'
 
 type ActivityRow = {
@@ -22,6 +24,10 @@ type ConversionRow = {
 
 type DemandRow = {
   agent_id: string
+  /** The human label the ledger recorded. `agent_id` is an opaque reference. */
+  agent_label?: string | null
+  /** Where the label came from. A declared label is never verified identity. */
+  agent_label_source?: 'declared' | 'credential' | 'none' | null
   assurance: 'verified' | 'unverified'
   capability: string
   decision: 'allow' | 'deny' | 'require_approval'
@@ -108,7 +114,10 @@ export type MarketingAnalytics = {
   }>
   refusalReasons: Array<{ reason: string; count: number }>
   agents: Array<{
+    key: string
     agent_id: string
+    label: string
+    labelSource: 'declared' | 'credential' | 'none' | null
     source: string
     assurance: 'verified' | 'unverified'
     requests: number
@@ -144,7 +153,7 @@ async function fetchMarketingAnalytics(
       // plus the settled result and the rule that fired.
       supabase
         .from('ledger_console_view')
-        .select('agent_id,assurance,capability,decision,result,rule')
+        .select('agent_id,agent_label,agent_label_source,assurance,capability,decision,result,rule')
         .eq('tenant_id', tenantId)
         .limit(1000),
       supabase
@@ -197,7 +206,7 @@ async function fetchMarketingAnalytics(
       cur = { agents: new Set(), requests: 0, allowed: 0, held: 0, refused: 0, executed: 0 }
       bySource.set(source, cur)
     }
-    cur.agents.add(r.agent_id)
+    cur.agents.add(agentKey(r))
     cur.requests += 1
     if (r.decision === 'allow') cur.allowed += 1
     else if (r.decision === 'deny') cur.refused += 1
@@ -348,7 +357,11 @@ async function fetchMarketingAnalytics(
 
   // --- Agent detail ---
   const byAgent = new Map<string, {
+    key: string
+    agent_id: string
     source: string
+    label: string
+    labelSource: 'declared' | 'credential' | 'none' | null
     assurance: 'verified' | 'unverified'
     requests: number
     allowed: number
@@ -361,10 +374,35 @@ async function fetchMarketingAnalytics(
 
   for (const r of demand) {
     const source = resolveSource(r)
-    let cur = byAgent.get(r.agent_id)
+    const key = agentKey(r)
+    let cur = byAgent.get(key)
     if (!cur) {
-      cur = { source, assurance: r.assurance, requests: 0, allowed: 0, held: 0, refused: 0, executed: 0, capabilities: new Set(), lastSeen: null }
-      byAgent.set(r.agent_id, cur)
+      cur = {
+        key,
+        agent_id: r.agent_id,
+        source,
+        label: safeAgentLabel(r.agent_label) ||
+          (r.agent_label_source === 'credential' ? 'Unnamed credential' : 'Unidentified agent'),
+        labelSource: r.agent_label_source ?? null,
+        assurance: r.assurance,
+        requests: 0,
+        allowed: 0,
+        held: 0,
+        refused: 0,
+        executed: 0,
+        capabilities: new Set(),
+        lastSeen: null,
+      }
+      byAgent.set(key, cur)
+    }
+    // A later row for the same agent may carry the label the first one lacked.
+    // Take the label and its provenance from the same row so a declared label
+    // never inherits a credential chip.
+    const label = safeAgentLabel(r.agent_label)
+    if (label && (cur.label === 'Unidentified agent' || cur.label === 'Unnamed credential')) {
+      cur.label = label
+      cur.labelSource = r.agent_label_source ?? null
+      cur.assurance = r.assurance
     }
     cur.requests += 1
     if (r.decision === 'allow') cur.allowed += 1
@@ -375,8 +413,11 @@ async function fetchMarketingAnalytics(
   }
 
   const agents = [...byAgent.entries()]
-    .map(([agent_id, c]) => ({
-      agent_id,
+    .map(([key, c]) => ({
+      key,
+      agent_id: c.agent_id,
+      label: c.label,
+      labelSource: c.labelSource,
       source: c.source,
       assurance: c.assurance,
       requests: c.requests,
@@ -391,7 +432,7 @@ async function fetchMarketingAnalytics(
 
   // --- KPIs ---
   const totalRequests = activity.reduce((n, r) => n + (typeof r.asked === 'number' ? r.asked : 0), 0)
-  const totalAgents = new Set(demand.map((d) => d.agent_id)).size
+  const totalAgents = new Set(demand.map(agentKey)).size
   const totalExecuted = activity.reduce((n, r) => n + (typeof r.executed === 'number' ? r.executed : 0), 0)
   const totalHeld = activity.reduce((n, r) => n + (typeof r.held === 'number' ? r.held : 0), 0)
   const totalRefused = activity.reduce((n, r) => n + (typeof r.denied === 'number' ? r.denied : 0), 0)

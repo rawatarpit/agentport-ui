@@ -12,7 +12,7 @@ export default function AnalyticsPage() {
       <PageHeader
         eyebrow="Evidence"
         title="A week later"
-        description="See what agents asked for, what was refused or held, and what executed — by week, capability, and agent. Hover the chart or click a capability to filter. Counts only; nothing to redact."
+        description="See what agents asked for, what was refused or held, and what executed — by week, capability, and agent. Hover the chart or click a capability to filter. Counts and agent names only; parameters are never projected. A declared name is not verified identity."
         actions={
           <Link href="/ledger" className="btn">
             Read the ledger

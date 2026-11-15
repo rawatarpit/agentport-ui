@@ -250,10 +250,10 @@ export default async function GoLivePage() {
                   >
                     <div className="min-w-0">
                       <p className="font-mono text-[12px] text-bone">
-                        {pr.repo} #{pr.number}
+                        {pr.repo}
                       </p>
                       <p className="mt-0.5 font-mono text-[11px] text-bone-faint">
-                        branch {pr.branch} · recorded {pr.recordedAt.slice(0, 10)}
+                        pull request · branch {pr.branch} · recorded {pr.recordedAt.slice(0, 10)}
                       </p>
                     </div>
                     <a href={pr.url} target="_blank" rel="noreferrer" className="btn btn-sm">

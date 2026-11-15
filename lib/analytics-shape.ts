@@ -4,6 +4,8 @@
  * never zero; conversion stays capability-level and is never joined per agent.
  */
 
+import { safeAgentLabel } from './safe-display'
+
 export type ActivityRow = {
   capability: string
   window_start: string
@@ -25,6 +27,10 @@ export type ConversionRow = {
 
 export type DemandRow = {
   agent_id: string
+  /** The human label the ledger recorded. `agent_id` is an opaque reference. */
+  agent_label?: string | null
+  /** Where the label came from. A declared label is never verified identity. */
+  agent_label_source?: 'declared' | 'credential' | 'none' | null
   assurance: 'verified' | 'unverified'
   capability: string
   decision: 'allow' | 'deny' | 'require_approval'
@@ -61,7 +67,13 @@ export type AgentCapabilityRow = {
 }
 
 export type AgentRow = {
+  /** Stable grouping key. Distinct from `agent_id` for public-token callers. */
+  key: string
   agent_id: string
+  /** Display name. Falls back to a plain phrase, never to the opaque id. */
+  name: string
+  /** Provenance of `name`; a declared label is not verified identity. */
+  labelSource: 'declared' | 'credential' | 'none' | null
   assurance: 'verified' | 'unverified'
   allow: number
   deny: number
@@ -99,6 +111,21 @@ export type AgentSourceRow = {
   total: number
 }
 
+type AgentIdentity = Pick<DemandRow, 'agent_id' | 'agent_label' | 'agent_label_source'>
+
+/**
+ * Public-token callers share the redacted id `public:[redacted]`. Grouping by
+ * id alone merges unrelated callers under one name, so a public row is keyed
+ * by id + label + provenance. Credentialed agents keep their stable id.
+ */
+export function agentKey(r: AgentIdentity): string {
+  if (r.agent_id.startsWith('public:')) {
+    // The key crosses to the client, so it must not carry the raw label.
+    return `${r.agent_id}|${r.agent_label_source ?? 'unknown'}|${safeAgentLabel(r.agent_label) ?? ''}`
+  }
+  return r.agent_id
+}
+
 /** Group demand by agent source so the merchant can see where traffic
  *  comes from — e.g. how much is ChatGPT vs unverified bots. */
 export function buildAgentSourceRows(demand: DemandRow[]): AgentSourceRow[] {
@@ -131,7 +158,7 @@ export function buildAgentSourceRows(demand: DemandRow[]): AgentSourceRow[] {
     const source = r.integration_ref ?? agentSource(r.agent_id)
     let set = agentsBySource.get(source)
     if (!set) { set = new Set(); agentsBySource.set(source, set) }
-    set.add(r.agent_id)
+    set.add(agentKey(r))
   }
   for (const [source, agents] of agentsBySource) {
     const row = bySource.get(source)
@@ -232,14 +259,30 @@ export function buildCapabilityRows(activity: ActivityRow[], conversion: Convers
 export function buildAgentRows(demand: DemandRow[]): AgentRow[] {
   const byAgent = new Map<string, AgentRow>()
   for (const r of demand) {
-    const cur = byAgent.get(r.agent_id) ?? {
+    const key = agentKey(r)
+    const label = safeAgentLabel(r.agent_label)
+    const cur = byAgent.get(key) ?? {
+      key,
       agent_id: r.agent_id,
+      name: label || (r.agent_label_source === 'credential' ? 'Unnamed credential' : 'Unidentified agent'),
+      labelSource: r.agent_label_source ?? null,
       assurance: r.assurance,
       allow: 0,
       deny: 0,
       held: 0,
       total: 0,
       capabilities: [],
+    }
+    // A later row for the same agent may carry the label the first one lacked.
+    // Take the label and its provenance from the same row: a label must never
+    // inherit a trusted chip from a different row.
+    if (
+      label &&
+      (cur.name === 'Unidentified agent' || cur.name === 'Unnamed credential')
+    ) {
+      cur.name = label
+      cur.labelSource = r.agent_label_source ?? null
+      cur.assurance = r.assurance
     }
     if (r.decision === 'allow') cur.allow += 1
     else if (r.decision === 'deny') cur.deny += 1
@@ -256,7 +299,7 @@ export function buildAgentRows(demand: DemandRow[]): AgentRow[] {
     else cap.held += 1
     cap.total += 1
 
-    byAgent.set(r.agent_id, cur)
+    byAgent.set(key, cur)
   }
   for (const agent of byAgent.values()) {
     agent.capabilities.sort((a, b) => b.total - a.total || a.capability.localeCompare(b.capability))
@@ -272,6 +315,6 @@ export function buildKpis(activity: ActivityRow[], demand: DemandRow[]): Analyti
     denied: activity.reduce((n, r) => n + num(r.denied), 0),
     held: activity.reduce((n, r) => n + num(r.held), 0),
     executed: activity.reduce((n, r) => n + num(r.executed), 0),
-    agents: new Set(demand.map((d) => d.agent_id)).size,
+    agents: new Set(demand.map(agentKey)).size,
   }
 }

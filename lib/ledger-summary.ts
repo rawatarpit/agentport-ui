@@ -1,4 +1,5 @@
 import type { LedgerEntry } from '@/lib/contracts'
+import { safeAgentLabel } from '@/lib/safe-display'
 
 /**
  * Pure projections for the ledger screen.
@@ -56,7 +57,7 @@ export function filterEntries(entries: LedgerEntry[], filter: LedgerFilter): Led
     if (filter.decision !== 'all' && decisionBucket(e) !== filter.decision) return false
     if (filter.access !== 'all' && e.access !== filter.access) return false
     if (!needle) return true
-    const haystack = [e.capability, e.agentLabel, e.agentId, e.rule, e.reason, e.requestId]
+    const haystack = [e.capability, safeAgentLabel(e.agentLabel), e.agentId, e.rule, e.reason, e.requestId]
       .filter((value): value is string => typeof value === 'string')
       .join(' ')
       .toLowerCase()
@@ -128,7 +129,7 @@ export interface AgentAttribution {
 export function agentAttribution(
   e: Pick<LedgerEntry, 'agentId' | 'agentLabel' | 'agentLabelSource' | 'assurance'>,
 ): AgentAttribution {
-  const name = e.agentLabel?.trim() || e.agentId || 'unidentified'
+  const name = safeAgentLabel(e.agentLabel) || e.agentId || 'unidentified'
   if (e.agentLabelSource === 'credential') {
     const trusted = e.assurance === 'verified'
     return {

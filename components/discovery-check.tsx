@@ -16,6 +16,14 @@ type ManifestShape = {
 }
 
 /**
+ * Governor addresses embed the tenant id in `/t/<uuid>`. Show the shape, not
+ * the id; the copy button still yields the exact address an agent needs.
+ */
+function maskTenantPath(url: string): string {
+  return url.replace(/\/t\/[^/?#]+/i, '/t/••••••••')
+}
+
+/**
  * The last step is a fetch, not a badge.
  *
  * A saved config row proves the merchant applied something. It does not prove a
@@ -32,6 +40,7 @@ export function DiscoveryCheck({
 }) {
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<CheckResult | null>(null)
+  const [copied, setCopied] = useState<string | null>(null)
 
   const check = async () => {
     setBusy(true)
@@ -56,6 +65,18 @@ export function DiscoveryCheck({
   const capabilities = manifest && Array.isArray(manifest.capabilities) ? manifest.capabilities.length : null
   const state = result === null ? 'idle' : result.status === 'ok' ? 'live' : 'blocked'
 
+  const copy = async (url: string, key: string) => {
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopied(key)
+      window.setTimeout(() => {
+        setCopied((current) => (current === key ? null : current))
+      }, 1500)
+    } catch {
+      setCopied(null)
+    }
+  }
+
   return (
     <div className="panel-strong space-y-4 p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -73,11 +94,33 @@ export function DiscoveryCheck({
 
       {canonicalUrl ? (
         <div className="space-y-1.5">
-          <p className="break-all rounded-md border border-ink-line bg-ink/50 px-3 py-2 font-mono text-[11.5px] text-bone-dim">
-            {canonicalUrl}
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="break-all rounded-md border border-ink-line bg-ink/50 px-3 py-2 font-mono text-[11.5px] text-bone-dim">
+              {maskTenantPath(canonicalUrl)}
+            </p>
+            <button
+              type="button"
+              className="btn btn-sm btn-quiet"
+              onClick={() => void copy(canonicalUrl, 'canonical')}
+              aria-label="Copy canonical manifest address"
+            >
+              {copied === 'canonical' ? 'Copied' : 'Copy'}
+            </button>
+          </div>
           {invokeUrl ? (
-            <p className="break-all px-3 font-mono text-[11px] text-bone-faint">execute: {invokeUrl}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="break-all px-3 font-mono text-[11px] text-bone-faint">
+                execute: {maskTenantPath(invokeUrl)}
+              </p>
+              <button
+                type="button"
+                className="btn btn-sm btn-quiet"
+                onClick={() => void copy(invokeUrl, 'invoke')}
+                aria-label="Copy execute address"
+              >
+                {copied === 'invoke' ? 'Copied' : 'Copy'}
+              </button>
+            </div>
           ) : null}
         </div>
       ) : (

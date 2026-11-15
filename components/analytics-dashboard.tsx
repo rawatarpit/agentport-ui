@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { TrendChart } from '@/components/charts/trend-chart'
+import { Chip } from '@/components/ui/chip'
 import { KpiCard } from '@/components/ui/kpi-card'
+import { agentAttribution } from '@/lib/ledger-summary'
 import {
   buildAgentRows,
   buildAgentSourceRows,
@@ -113,18 +115,33 @@ function AgentCard({
 }: {
   agent: ReturnType<typeof buildAgentRows>[number]
   selected: string | null
-  onSelect: (agentId: string) => void
+  onSelect: (agentKey: string) => void
 }) {
-  const isSelected = selected === agent.agent_id
+  const isSelected = selected === agent.key
   const source = agentSource(agent.agent_id)
+  const attribution = agentAttribution({
+    agentId: agent.agent_id,
+    agentLabel:
+      agent.name === 'Unidentified agent' || agent.name === 'Unnamed credential'
+        ? undefined
+        : agent.name,
+    agentLabelSource: agent.labelSource ?? undefined,
+    assurance: agent.assurance,
+  })
+  const provenanceTone =
+    attribution.source === 'credential' && attribution.trusted
+      ? 'good'
+      : attribution.source === 'declared'
+        ? 'warn'
+        : 'neutral'
   return (
     <article
-      key={agent.agent_id}
-      onClick={() => onSelect(agent.agent_id)}
+      key={agent.key}
+      onClick={() => onSelect(agent.key)}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {
-        if (e.key === 'Enter') onSelect(agent.agent_id)
+        if (e.key === 'Enter') onSelect(agent.key)
       }}
       className={`rounded-lg border p-4 transition-colors cursor-pointer ${
         isSelected
@@ -135,13 +152,14 @@ function AgentCard({
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex items-center gap-2">
           <span className={`font-mono text-[11.5px] font-semibold ${isSelected ? 'text-verdant' : 'text-bone'}`}>
-            {agent.agent_id}
+            {agent.name}
           </span>
+          <Chip tone={provenanceTone} title={attribution.title}>{attribution.chip}</Chip>
           <span className={`text-[10px] uppercase tracking-[0.12em] text-bone-faint`}>
             {source}
           </span>
           <span className={`text-[10px] uppercase tracking-[0.12em] text-bone-faint ${agent.assurance === 'verified' ? 'text-verdant' : 'text-rust'}`}>
-            {agent.assurance}
+            {agent.assurance === 'verified' ? 'token verified' : 'token unverified'}
           </span>
         </div>
         <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
@@ -301,7 +319,7 @@ export function AnalyticsDashboard({
           <KpiCard label="Refused" value={kpis.denied} hint="Blocked before execution" tone={kpis.denied > 0 ? 'bad' : 'default'} />
           <KpiCard label="Held" value={kpis.held} hint="Waiting on a human decision" tone={kpis.held > 0 ? 'warn' : 'default'} />
           <KpiCard label="Executed" value={kpis.executed} hint="Ran after an allow or approval" tone="good" />
-          <KpiCard label="Agents" value={kpis.agents} hint="Distinct credentialed agents seen" />
+          <KpiCard label="Agents" value={kpis.agents} hint="Distinct agent identities seen" />
           <KpiCard label="Sources" value={sourceRows.length} hint="Where traffic comes from (ChatGPT, Claude, …)" />
         </div>
       ) : null}
@@ -321,7 +339,7 @@ export function AnalyticsDashboard({
               onClick={() => setSelectedAgent(null)}
               className="btn btn-sm"
             >
-              Clear filter: <span className="font-mono text-bone">{selectedAgent}</span>
+              Clear filter: <span className="font-mono text-bone">{agentRows.find((r) => r.key === selectedAgent)?.name ?? 'this agent'}</span>
             </button>
           ) : null}
         </div>
@@ -344,7 +362,7 @@ export function AnalyticsDashboard({
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {agentRows.slice(0, 9).map((r) => (
-            <AgentCard key={r.agent_id} agent={r} selected={selectedAgent} onSelect={setSelectedAgent} />
+            <AgentCard key={r.key} agent={r} selected={selectedAgent} onSelect={setSelectedAgent} />
           ))}
         </div>
         {agentRows.length > 9 && (

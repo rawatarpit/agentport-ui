@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  agentKey,
   agentSource,
   buildAgentRows,
   buildAgentSourceRows,
@@ -69,7 +70,10 @@ describe('analytics shape', () => {
     const rows = buildAgentRows(demand)
     const agent = rows.find((r) => r.agent_id === 'gpt-shopping')
     expect(agent).toEqual({
+      key: 'gpt-shopping',
       agent_id: 'gpt-shopping',
+      name: 'Unidentified agent',
+      labelSource: null,
       assurance: 'verified',
       allow: 2,
       deny: 0,
@@ -81,6 +85,92 @@ describe('analytics shape', () => {
       ],
     })
     expect(agent && 'succeeded' in agent).toBe(false)
+  })
+
+  it('shows the recorded label, never the opaque agent id', () => {
+    const rows = buildAgentRows([
+      {
+        agent_id: 'public:[redacted]',
+        agent_label: 'flow-bot',
+        agent_label_source: 'declared',
+        assurance: 'verified',
+        capability: 'createOrder',
+        decision: 'allow',
+      },
+      {
+        agent_id: 'opaque-agent-reference',
+        assurance: 'unverified',
+        capability: 'searchProducts',
+        decision: 'deny',
+      },
+    ])
+    expect(rows.find((r) => r.agent_id === 'public:[redacted]')?.name).toBe('flow-bot')
+    expect(rows.find((r) => r.agent_id === 'public:[redacted]')?.labelSource).toBe('declared')
+    expect(rows.find((r) => r.agent_id === 'opaque-agent-reference')?.name).toBe('Unidentified agent')
+  })
+
+  it('masks PII-shaped labels before display', () => {
+    const rows = buildAgentRows([
+      {
+        agent_id: 'public:[redacted]',
+        agent_label: 'buyer 4111 1111 1111 1111',
+        agent_label_source: 'declared',
+        assurance: 'unverified',
+        capability: 'createOrder',
+        decision: 'allow',
+      },
+    ])
+    expect(rows[0].name).toBe('buyer [redacted]')
+  })
+
+  it('never puts the raw label into the public grouping key', () => {
+    const key = agentKey({
+      agent_id: 'public:[redacted]',
+      agent_label: 'buyer 4111 1111 1111 1111',
+      agent_label_source: 'declared',
+    })
+    expect(key).not.toContain('4111')
+    expect(key).toContain('[redacted]')
+  })
+
+  it('splits public-token callers that share the redacted agent id', () => {
+    const publicRows: DemandRow[] = [
+      {
+        agent_id: 'public:[redacted]',
+        agent_label: 'flow-bot',
+        agent_label_source: 'declared',
+        assurance: 'unverified',
+        capability: 'createOrder',
+        decision: 'allow',
+      },
+      {
+        agent_id: 'public:[redacted]',
+        agent_label: 'flow-bot',
+        agent_label_source: 'declared',
+        assurance: 'unverified',
+        capability: 'searchProducts',
+        decision: 'deny',
+      },
+      {
+        agent_id: 'public:[redacted]',
+        agent_label: 'gift-finder',
+        agent_label_source: 'declared',
+        assurance: 'unverified',
+        capability: 'createOrder',
+        decision: 'allow',
+      },
+    ]
+    const rows = buildAgentRows(publicRows)
+    expect(rows).toHaveLength(2)
+    expect(rows.map((r) => r.name).sort()).toEqual(['flow-bot', 'gift-finder'])
+    expect(rows.every((r) => r.agent_id === 'public:[redacted]')).toBe(true)
+    expect(rows.find((r) => r.name === 'flow-bot')?.total).toBe(2)
+
+    const activity: ActivityRow[] = [
+      { capability: 'createOrder', window_start: '2026-11-10', asked: 3, denied: 0, held: 0, approved: 0, executed: 3 },
+    ]
+    expect(buildKpis(activity, publicRows)?.agents).toBe(2)
+    expect(buildAgentSourceRows(publicRows).find((s) => s.source === 'Unknown agent')?.agents).toBe(2)
   })
 
   it('keeps each agent’s capability breakdown without inventing conversion', () => {

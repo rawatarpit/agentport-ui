@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { PageHeader } from '@/components/ui/page-header'
+import { Select } from '@/components/ui/select'
+import { TechnicalDetails } from '@/components/ui/technical-details'
 import { SESSION_SCOPES, SESSION_SCOPE_LABELS, type SessionScope } from '@/lib/identity-settings'
 
 type Identity = {
@@ -159,7 +161,7 @@ export default function IdentityPage() {
         {identity?.updatedAt ? (
           <p className="mt-3 font-mono text-[11px] text-bone-faint">
             Last changed {new Date(identity.updatedAt).toLocaleString()}
-            {identity.updatedBy ? ` by ${identity.updatedBy.slice(0, 8)}…` : ''}
+            {identity.updatedBy ? ' by a team member' : ''}
           </p>
         ) : null}
       </div>
@@ -224,18 +226,17 @@ export default function IdentityPage() {
 
         <label className="block space-y-1.5">
           <span className="field-label">Default session ceiling</span>
-          <select
-            className="input md:w-96"
+          <Select
+            className="md:w-96"
+            ariaLabel="Default session ceiling"
             value={defaultScope}
-            onChange={(e) => setDefaultScope(e.target.value as SessionScope)}
+            onChange={(value) => setDefaultScope(value as SessionScope)}
             disabled={!canEdit || busy}
-          >
-            {SESSION_SCOPES.map((scope) => (
-              <option key={scope} value={scope}>
-                {SESSION_SCOPE_LABELS[scope]}
-              </option>
-            ))}
-          </select>
+            options={SESSION_SCOPES.map((scope) => ({
+              value: scope,
+              label: SESSION_SCOPE_LABELS[scope],
+            }))}
+          />
           <span className="block text-[12px] text-bone-faint">
             Applies to any verified user without an override. Least privilege is read.
           </span>
@@ -279,14 +280,17 @@ export default function IdentityPage() {
           <p className="text-[13px] text-bone-faint">No overrides — everyone uses the default.</p>
         ) : (
           <ul className="space-y-2 text-[13px]">
-            {overrides.map(([userId, scope]) => (
+            {overrides.map(([userId, scope], index) => (
               <li
                 key={userId}
                 className="flex flex-wrap items-center justify-between gap-3 border-b border-ink-line/60 py-2 last:border-0"
               >
-                <span className="font-mono text-[12px] text-bone" title={userId}>
-                  {userId}
-                </span>
+                <div className="min-w-0">
+                  <p className="text-[13px] text-bone">Override {index + 1}</p>
+                  <TechnicalDetails label="User reference">
+                    <span>{userId}</span>
+                  </TechnicalDetails>
+                </div>
                 <span className="flex items-center gap-2">
                   <span className="font-mono text-[11px] text-bone-faint">{scope}</span>
                   {canEdit ? (
@@ -295,6 +299,7 @@ export default function IdentityPage() {
                       className="btn"
                       disabled={busy}
                       onClick={() => removeOverride(userId)}
+                      aria-label={`Remove user override ${index + 1}`}
                     >
                       Remove
                     </button>
@@ -315,19 +320,14 @@ export default function IdentityPage() {
               disabled={busy}
               aria-label="User id"
             />
-            <select
-              className="input w-auto"
+            <Select
+              className="w-auto"
+              ariaLabel="Override scope"
               value={overrideScope}
-              onChange={(e) => setOverrideScope(e.target.value as SessionScope)}
+              onChange={(value) => setOverrideScope(value as SessionScope)}
               disabled={busy}
-              aria-label="Override scope"
-            >
-              {SESSION_SCOPES.map((scope) => (
-                <option key={scope} value={scope}>
-                  {scope}
-                </option>
-              ))}
-            </select>
+              options={SESSION_SCOPES.map((scope) => ({ value: scope, label: scope }))}
+            />
             <button
               type="button"
               className="btn btn-primary"

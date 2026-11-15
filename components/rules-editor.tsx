@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { Badge } from '@/components/stat'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Select } from '@/components/ui/select'
 
 /**
  * Rules editor — rebuilt as an Excel-like grid.
@@ -271,18 +272,20 @@ export function RulesEditor() {
                       </td>
                       <td className="px-4 py-3">
                         {isEditing ? (
-                          <select
+                          <Select
+                            autoFocus
                             value={current}
-                            onChange={(e) => setRule(cap.name, (e.target.value as Rule))}
-                            onBlur={() => setEditingCell(null)}
-                            className="w-full border border-ink-line rounded px-3 py-2 text-[12px] font-mono text-bone outline-none focus:border-verdant focus-visible:ring-1 focus-visible:ring-verdant/50"
-                          >
-                            {ruleOptions.map((o) => (
-                              <option key={o.value} value={o.value}>
-                                {o.label}
-                              </option>
-                            ))}
-                          </select>
+                            onChange={(value) => {
+                              setRule(cap.name, value as Rule)
+                              setEditingCell(null)
+                            }}
+                            onClose={() => setEditingCell(null)}
+                            ariaLabel={`Rule for ${cap.name}`}
+                            options={ruleOptions.map((option) => ({
+                              value: option.value,
+                              label: option.label,
+                            }))}
+                          />
                         ) : (
                           <button
                             type="button"

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { Badge } from '@/components/stat'
+import { Select } from '@/components/ui/select'
 import type { DataClass } from '@/lib/contracts'
 
 /**
@@ -411,15 +412,15 @@ export function CapabilitiesEditor({
               </label>
               <label className="flex flex-col gap-1 text-[11px] text-bone-faint">
                 <span className="label">Method</span>
-                <select
-                  className="input text-[12px]"
+                <Select
                   value={newMethod}
-                  onChange={(e) => setNewMethod(e.target.value)}
-                >
-                  {['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'].map((m) => (
-                    <option key={m} value={m}>{m}</option>
-                  ))}
-                </select>
+                  onChange={setNewMethod}
+                  ariaLabel="Method"
+                  options={['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'].map((m) => ({
+                    value: m,
+                    label: m,
+                  }))}
+                />
               </label>
               <label className="flex flex-col gap-1 text-[11px] text-bone-faint sm:col-span-2">
                 <span className="label">Path</span>
@@ -432,17 +433,12 @@ export function CapabilitiesEditor({
               </label>
               <label className="flex flex-col gap-1 text-[11px] text-bone-faint sm:col-span-2">
                 <span className="label">Data class</span>
-                <select
-                  className="input text-[12px]"
+                <Select
                   value={newDataClass}
-                  onChange={(e) => setNewDataClass(e.target.value as DataClass)}
-                >
-                  {DATA_CLASSES.map((value) => (
-                    <option key={value} value={value}>
-                      {value}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(value) => setNewDataClass(value as DataClass)}
+                  ariaLabel="Data class"
+                  options={DATA_CLASSES.map((value) => ({ value, label: value }))}
+                />
                 <span className="max-w-72 text-[11px] leading-snug text-bone-faint">
                   {DATA_CLASS_HELP[newDataClass]}
                 </span>
@@ -505,20 +501,13 @@ export function CapabilitiesEditor({
                   <div className="mt-3 flex flex-wrap items-end gap-4">
                     <label className="flex flex-col gap-1 text-[11px] text-bone-faint">
                       <span className="label">Data class</span>
-                      <select
-                        className="input min-w-36 text-[12px]"
+                      <Select
+                        className="min-w-36"
                         value={e.dataClass}
-                        onChange={(event) =>
-                          updateExtra(key, { dataClass: event.target.value as DataClass })
-                        }
-                        aria-label={`Data class for ${e.name}`}
-                      >
-                        {DATA_CLASSES.map((value) => (
-                          <option key={value} value={value}>
-                            {value}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(value) => updateExtra(key, { dataClass: value as DataClass })}
+                        ariaLabel={`Data class for ${e.name}`}
+                        options={DATA_CLASSES.map((value) => ({ value, label: value }))}
+                      />
                       <span className="max-w-72 text-[11px] leading-snug text-bone-faint">
                         {DATA_CLASS_HELP[e.dataClass]}
                       </span>

@@ -5,6 +5,9 @@ import { useEffect, useState } from 'react'
 import { PageHeader } from '@/components/ui/page-header'
 import { Section } from '@/components/ui/section'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Chip } from '@/components/ui/chip'
+import { agentAttribution } from '@/lib/ledger-summary'
+import { safeAgentLabel } from '@/lib/safe-display'
 
 export type MarketingAnalytics = {
   kpis: {
@@ -54,7 +57,11 @@ export type MarketingAnalytics = {
   }>
   refusalReasons: Array<{ reason: string; count: number }>
   agents: Array<{
+    /** Stable row key; public-token callers are split by label. */
+    key: string
     agent_id: string
+    label: string
+    labelSource: 'declared' | 'credential' | 'none' | null
     source: string
     assurance: 'verified' | 'unverified'
     requests: number
@@ -221,7 +228,7 @@ export default function MarketingAnalyticsPage() {
       <PageHeader
         eyebrow="Marketing & Sales"
         title="Agent traffic and demand"
-        description="Where agents come from, what they ask for, and what converts — so you can see which capabilities drive business and where traffic drops off. Counts only; nothing to redact."
+        description="Where agents come from, what they ask for, and what converts — so you can see which capabilities drive business and where traffic drops off. Counts and agent names only; parameters are never projected. A declared name is not verified identity."
         actions={
           <Link href="/analytics" className="btn">
             Agent-level evidence
@@ -240,7 +247,7 @@ export default function MarketingAnalyticsPage() {
         <MarketingKpiCard
           label="Active agents"
           value={data.kpis.totalAgents}
-          hint="Distinct credentialed agents seen"
+          hint="Distinct agent identities seen"
           tone="default"
         />
         <MarketingKpiCard
@@ -400,7 +407,7 @@ export default function MarketingAnalyticsPage() {
       {/* Agent detail */}
       <Section
         title="Agent detail"
-        description="Each agent, where they come from, and what they asked for. Verified agents have passed identity checks."
+        description="Each agent, where they come from, and what they asked for. Agent names are self-declared unless the provenance tag says credential. A verified token means the request carried a credential this business issued — not that the name was verified."
       >
         {data.agents.length === 0 ? (
           <EmptyState title="No agents seen yet" body="No distinct agents have made requests." />
@@ -409,7 +416,7 @@ export default function MarketingAnalyticsPage() {
             <table className="w-full text-left text-[13px]">
               <thead>
                 <tr className="border-b border-ink-line">
-                  {['Agent', 'Source', 'Assurance', 'Requests', 'Allowed', 'Held', 'Refused', 'Executed', 'Capabilities'].map((h) => (
+                  {['Agent', 'Source', 'Token', 'Requests', 'Allowed', 'Held', 'Refused', 'Executed', 'Capabilities'].map((h) => (
                     <th key={h} scope="col" className="label px-4 py-2.5 font-normal">
                       {h}
                     </th>
@@ -417,30 +424,50 @@ export default function MarketingAnalyticsPage() {
                 </tr>
               </thead>
               <tbody>
-                {data.agents.map((a) => (
-                  <tr key={a.agent_id} className="border-b border-ink-line/60 last:border-0">
-                    <td className="px-4 py-2.5 font-mono text-[12px] text-bone truncate max-w-[160px]">
-                      {a.agent_id}
-                    </td>
-                    <td className="px-4 py-2.5 text-[12px] text-bone-faint truncate max-w-[120px]">
-                      {a.source}
-                    </td>
-                    <td className="px-4 py-2.5 text-[12px]">
-                      <span className={`font-mono text-[11px] uppercase tracking-[0.12em] ${a.assurance === 'verified' ? 'text-verdant' : 'text-rust'}`}>
-                        {a.assurance}
-                      </span>
-                    </td>
-                    <td className="tabular px-4 py-2.5 text-bone-dim">{a.requests}</td>
-                    <td className="tabular px-4 py-2.5 text-verdant">{a.allowed}</td>
-                    <td className="tabular px-4 py-2.5 text-amber">{a.held}</td>
-                    <td className="tabular px-4 py-2.5 text-rust">{a.refused}</td>
-                    <td className="tabular px-4 py-2.5 text-verdant">{a.executed}</td>
-                    <td className="px-4 py-2.5 text-[12px] text-bone-faint truncate max-w-[200px]">
-                      {a.capabilities.slice(0, 3).join(', ')}
-                      {a.capabilities.length > 3 ? ` +${a.capabilities.length - 3}` : ''}
-                    </td>
-                  </tr>
-                ))}
+                {data.agents.map((a) => {
+                  const label = safeAgentLabel(a.label) ||
+                    (a.labelSource === 'credential' ? 'Unnamed credential' : 'Unidentified agent')
+                  const attribution = agentAttribution({
+                    agentId: a.agent_id,
+                    agentLabel:
+                      label === 'Unidentified agent' || label === 'Unnamed credential'
+                        ? undefined
+                        : label,
+                    agentLabelSource: a.labelSource ?? undefined,
+                    assurance: a.assurance,
+                  })
+                  const provenanceTone =
+                    attribution.source === 'credential' && attribution.trusted
+                      ? 'good'
+                      : attribution.source === 'declared'
+                        ? 'warn'
+                        : 'neutral'
+                  return (
+                    <tr key={a.key} className="border-b border-ink-line/60 last:border-0">
+                      <td className="px-4 py-2.5 font-mono text-[12px] text-bone">
+                        <span className="block max-w-[160px] truncate">{label}</span>
+                        <Chip tone={provenanceTone} title={attribution.title}>{attribution.chip}</Chip>
+                      </td>
+                      <td className="px-4 py-2.5 text-[12px] text-bone-faint truncate max-w-[120px]">
+                        {a.source}
+                      </td>
+                      <td className="px-4 py-2.5 text-[12px]">
+                        <span className={`font-mono text-[11px] uppercase tracking-[0.12em] ${a.assurance === 'verified' ? 'text-verdant' : 'text-rust'}`}>
+                          {a.assurance === 'verified' ? 'token verified' : 'token unverified'}
+                        </span>
+                      </td>
+                      <td className="tabular px-4 py-2.5 text-bone-dim">{a.requests}</td>
+                      <td className="tabular px-4 py-2.5 text-verdant">{a.allowed}</td>
+                      <td className="tabular px-4 py-2.5 text-amber">{a.held}</td>
+                      <td className="tabular px-4 py-2.5 text-rust">{a.refused}</td>
+                      <td className="tabular px-4 py-2.5 text-verdant">{a.executed}</td>
+                      <td className="px-4 py-2.5 text-[12px] text-bone-faint truncate max-w-[200px]">
+                        {a.capabilities.slice(0, 3).join(', ')}
+                        {a.capabilities.length > 3 ? ` +${a.capabilities.length - 3}` : ''}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

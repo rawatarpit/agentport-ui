@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import Link from 'next/link'
 import { Badge } from '@/components/stat'
+import { Select } from '@/components/ui/select'
 import type { DataClass } from '@/lib/contracts'
 import {
   parseInventory,
@@ -347,18 +348,13 @@ export function MapWorkbench() {
                     <Badge tone={r.kind === 'write' ? 'held' : 'allow'}>{r.kind}</Badge>
                   </td>
                   <td className="px-4 py-3">
-                    <select
-                      className="border border-ink-line bg-transparent px-2 py-1 font-mono text-[11px] outline-none focus:border-verdant"
+                    <Select
+                      className="inline-block min-w-36"
                       value={r.dataClass}
-                      onChange={(e) => updateDataClass(r.key, e.target.value as DataClass)}
-                      aria-label={`Data class for ${r.name}`}
-                    >
-                      {DATA_CLASSES.map((dc) => (
-                        <option key={dc} value={dc}>
-                          {dc}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(value) => updateDataClass(r.key, value as DataClass)}
+                      ariaLabel={`Data class for ${r.name}`}
+                      options={DATA_CLASSES.map((value) => ({ value, label: value }))}
+                    />
                   </td>
                   <td className="px-4 py-3 font-mono text-[11px] text-bone-faint uppercase tracking-[0.08em]">
                     {r.bucket}

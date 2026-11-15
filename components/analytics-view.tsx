@@ -1,5 +1,6 @@
 import { resolveRequestTenant } from '@/lib/tenant-server'
 import { AnalyticsDashboard } from '@/components/analytics-dashboard'
+import { safeAgentLabel } from '@/lib/safe-display'
 import type { ActivityRow, ConversionRow, DemandRow } from '@/lib/analytics-shape'
 
 /**
@@ -41,11 +42,12 @@ export async function AnalyticsView() {
       // Demand is read from the console projection, not the legacy
       // v_ledger_agent_demand view: authenticated has no grant on
       // ledger_entries.integration_ref, so that view errors for every
-      // merchant. The projection carries the same four fields this screen
-      // uses and is the boundary the rest of the console already trusts.
+      // merchant. The projection carries the fields this screen uses,
+      // including the label and its provenance, and is the boundary the rest
+      // of the console already trusts.
       supabase
         .from('ledger_console_view')
-        .select('agent_id,assurance,capability,decision')
+        .select('agent_id,agent_label,agent_label_source,assurance,capability,decision')
         .eq('tenant_id', tenantId)
         .limit(500),
     ])
@@ -61,11 +63,19 @@ export async function AnalyticsView() {
     )
   }
 
+  // `AnalyticsDashboard` is a client component, so these rows are serialized
+  // into the RSC payload. Mask the caller-supplied label here, at the server
+  // boundary, rather than relying on the client renderer to do it.
+  const safeDemand = ((demand ?? []) as DemandRow[]).map((row) => ({
+    ...row,
+    agent_label: safeAgentLabel(row.agent_label) ?? null,
+  }))
+
   return (
     <AnalyticsDashboard
       activity={(activity ?? []) as ActivityRow[]}
       conversion={(conversion ?? []) as ConversionRow[]}
-      demand={(demand ?? []) as DemandRow[]}
+      demand={safeDemand}
       fallback={null}
     />
   )

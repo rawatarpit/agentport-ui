@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
+import { Select } from '@/components/ui/select'
 
 type Installation = { installationId: number; accountLogin: string; receivedAt: string }
 type Repo = { id: number; fullName: string; defaultBranch: string; private: boolean }
@@ -197,19 +198,18 @@ export function GithubPanel({
           <div className="space-y-4">
             <div>
               <label className="field-label" htmlFor="gh-install">Installed on</label>
-              <select
+              <Select
                 id="gh-install"
-                className="input"
-                value={installationId ?? ''}
-                onChange={(e) => setInstallationId(Number(e.target.value))}
-              >
-                <option value="" disabled>Choose…</option>
-                {installations.map((i) => (
-                  <option key={i.installationId} value={i.installationId}>
-                    {i.accountLogin || `installation ${i.installationId}`}
-                  </option>
-                ))}
-              </select>
+                value={installationId === null ? '' : String(installationId)}
+                onChange={(value) => setInstallationId(value === '' ? null : Number(value))}
+                placeholder="Choose…"
+                options={installations.map((i, index) => ({
+                  value: String(i.installationId),
+                  // An installation with no account login would otherwise be
+                  // indistinguishable from its siblings. An ordinal is not an id.
+                  label: i.accountLogin || `GitHub installation ${index + 1}`,
+                }))}
+              />
             </div>
             <div>
               <p className="field-label">Repositories</p>

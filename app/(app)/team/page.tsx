@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { PageHeader } from '@/components/ui/page-header'
+import { Select } from '@/components/ui/select'
+import { TechnicalDetails } from '@/components/ui/technical-details'
 
 type Member = { user_id: string; role: string; created_at: string }
 
@@ -97,23 +99,28 @@ export default function TeamPage() {
           <p className="mt-2 text-[13px] text-bone-dim">Just you, so far.</p>
         ) : (
           <ul className="mt-3 space-y-2 text-[13px]">
-            {members.map((m) => (
+            {members.map((m, index) => (
               <li
                 key={m.user_id}
                 className="flex flex-wrap items-center justify-between gap-3 border-b border-ink-line/60 py-2 last:border-0"
               >
-                <span className="font-mono text-[12px] text-bone" title={m.user_id}>
-                  {m.user_id.slice(0, 8)}…
-                </span>
+                <div className="min-w-0">
+                  <p className="text-[13px] text-bone">Team member</p>
+                  <p className="mt-0.5 font-mono text-[11px] text-bone-faint">
+                    {m.role} · joined {new Date(m.created_at).toLocaleDateString()}
+                  </p>
+                  <TechnicalDetails label="Member reference">
+                    <span>{m.user_id}</span>
+                  </TechnicalDetails>
+                </div>
                 <span className="flex items-center gap-2">
-                  <span className="font-mono text-[11px] text-bone-faint">{m.role}</span>
                   {m.role !== 'owner' ? (
                     <button
                       type="button"
                       className="btn"
                       disabled={busy}
                       onClick={() => act('remove', { userId: m.user_id })}
-                      aria-label={`Remove member ${m.user_id.slice(0, 8)}`}
+                      aria-label={`Remove team member ${index + 1}`}
                     >
                       Remove
                     </button>
@@ -139,15 +146,16 @@ export default function TeamPage() {
           <label className="field-label" htmlFor="team-role">
             Role
           </label>
-          <select
+          <Select
             id="team-role"
-            className="input w-auto"
+            className="w-auto"
             value={role}
-            onChange={(e) => setRole(e.target.value)}
-          >
-            <option value="viewer">Viewer — can only look</option>
-            <option value="admin">Admin — can invite people</option>
-          </select>
+            onChange={setRole}
+            options={[
+              { value: 'viewer', label: 'Viewer — can only look' },
+              { value: 'admin', label: 'Admin — can invite people' },
+            ]}
+          />
           <button
             type="button"
             className="btn btn-primary"

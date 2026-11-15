@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { Select } from '@/components/ui/select'
 
 /**
  * Setup: four questions, then one line.
@@ -274,19 +275,12 @@ export function SetupWizard() {
               <label className="block text-sm font-medium text-slate-700">
                 Industry
               </label>
-              <select
-                className="w-full border border-ink-line bg-transparent px-4 py-2.5 text-sm text-bone outline-none focus:border-verdant focus:ring-1 focus:ring-green-600 rounded-lg"
+              <Select
                 value={m.industry}
-                onChange={(e) => setM({ ...m, industry: e.target.value })}
-                aria-label="Industry"
-              >
-                <option value="">Select an industry</option>
-                {INDUSTRY_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
+                onChange={(value) => setM({ ...m, industry: value })}
+                ariaLabel="Industry"
+                options={[{ value: '', label: 'Select an industry' }, ...INDUSTRY_OPTIONS]}
+              />
               {m.industry === '' && (
                 <p className="text-[11px] text-rust mt-1">Please select an industry.</p>
               )}
@@ -295,19 +289,12 @@ export function SetupWizard() {
               <label className="block text-sm font-medium text-slate-700">
                 Sector
               </label>
-              <select
-                className="w-full border border-ink-line bg-transparent px-4 py-2.5 text-sm text-bone outline-none focus:border-verdant focus:ring-1 focus:ring-green-600 rounded-lg"
+              <Select
                 value={m.sector}
-                onChange={(e) => setM({ ...m, sector: e.target.value })}
-                aria-label="Sector"
-              >
-                <option value="">Select a sector</option>
-                {SECTOR_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
+                onChange={(value) => setM({ ...m, sector: value })}
+                ariaLabel="Sector"
+                options={[{ value: '', label: 'Select a sector' }, ...SECTOR_OPTIONS]}
+              />
               {m.sector === '' && (
                 <p className="text-[11px] text-rust mt-1">Please select a sector.</p>
               )}

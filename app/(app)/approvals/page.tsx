@@ -1,6 +1,10 @@
 import Link from 'next/link'
 import { Badge } from '@/components/stat'
+import { Chip } from '@/components/ui/chip'
 import { PageHeader } from '@/components/ui/page-header'
+import { TechnicalDetails } from '@/components/ui/technical-details'
+import { agentAttribution } from '@/lib/ledger-summary'
+import { safeAgentLabel } from '@/lib/safe-display'
 import { listHolds } from '@/lib/console-reads'
 import { resolveRequestTenant } from '@/lib/tenant-server'
 
@@ -94,7 +98,15 @@ export default async function ApprovalsPage() {
         </div>
       ) : (
         <ul className="space-y-3">
-          {holds.map((p) => (
+          {holds.map((p) => {
+            const agent = agentAttribution(p)
+            const provenanceTone =
+              agent.source === 'credential' && agent.trusted
+                ? 'good'
+                : agent.source === 'declared'
+                  ? 'warn'
+                  : 'neutral'
+            return (
             <li key={p.requestId} className="panel p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -104,15 +116,18 @@ export default async function ApprovalsPage() {
                   </div>
                   <p className="mt-2 text-[14px] text-bone-dim">Held for approval — awaiting a human decision.</p>
                 </div>
-                <div className="text-right">
-                  <p className="font-mono text-[11px] text-bone-faint">{p.requestId}</p>
-                </div>
               </div>
 
               <dl className="mt-4 grid gap-x-8 gap-y-1 border-t border-ink-line/60 pt-4 text-[13px] sm:grid-cols-3">
                 <div>
                   <dt className="label">Agent</dt>
-                  <dd className="mt-1 font-mono text-[12px] text-bone-dim">{p.agentId}</dd>
+                  <dd className="mt-1 text-[12px] text-bone-dim">
+                    <span className="block">
+                      {safeAgentLabel(p.agentLabel) ||
+                        (p.agentLabelSource === 'credential' ? 'Unnamed credential' : 'Unidentified agent')}
+                    </span>
+                    <Chip tone={provenanceTone} title={agent.title}>{agent.chip}</Chip>
+                  </dd>
                 </div>
                 <div>
                   <dt className="label">Rule that fired</dt>
@@ -125,6 +140,12 @@ export default async function ApprovalsPage() {
                   </dd>
                 </div>
               </dl>
+
+              <TechnicalDetails label="Ledger references">
+                <div>request {p.requestId}</div>
+                <div>agent {p.agentId}</div>
+                {p.heldRequestId ? <div>held {p.heldRequestId}</div> : null}
+              </TechnicalDetails>
 
               {/*
                 Disabled with the reason visible, rather than hidden. A button
@@ -144,7 +165,8 @@ export default async function ApprovalsPage() {
                 </span>
               </div>
             </li>
-          ))}
+            )
+          })}
         </ul>
       )}
     </div>
