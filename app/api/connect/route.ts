@@ -1,6 +1,7 @@
-import { getHome, getLatestPush, getLiveArtifact, hasAnalyticsEvents } from '@/lib/backend-reads'
+import { getHome, getLatestPush, hasAnalyticsEvents } from '@/lib/backend-reads'
 import { getPullRequestsDb, listDraftSections } from '@/lib/durable-store'
 import { brokerFetch } from '@/lib/github-broker'
+import { readAppliedConfig } from '@/lib/publish-state'
 import { resolveRequestTenant, tenantRefusalResponse } from '@/lib/tenant-server'
 
 import { enforceRateLimit } from '@/lib/request-guard'
@@ -14,7 +15,7 @@ type Step = { n: string; title: string; body: string; state: 'missing' | 'done';
  *
  * Liveness truth (steps 1, 7, 8, 6-display) comes from Supabase via RLS:
  * session → tenant_members → v_tenant_home / push_batches /
- * analytics_events / policy_artifacts. Installs, drafts, and PR hints come
+ * analytics_events / tenant_config_versions. Installs, drafts, and PR hints come
  * from the durable console tables. No RAM anywhere on this path — an
  * unreadable backend renders `missing`/unknown, never a green guess.
  */
@@ -38,23 +39,15 @@ export async function GET(req: Request) {
   const home = tenantId ? await getHome(tenantId) : null
   const push = tenantId ? await getLatestPush(tenantId) : null
   const analytics = tenantId ? await hasAnalyticsEvents(tenantId) : false
-  let artifact: Awaited<ReturnType<typeof getLiveArtifact>> = null
-  if (tenantId) {
-    try {
-      artifact = await getLiveArtifact(tenantId)
-    } catch {
-      // The connect read cannot prove a version on failure. Leave it null
-      // (missing) rather than turning this endpoint into a 500.
-      artifact = null
-    }
-  }
-
   const sections = tenantId ? await listDraftSections(tenantId) : new Set<string>()
   const setup = sections.has('setup')
   const caps = sections.has('capabilities')
   const rules = sections.has('rules')
   const setupReady = setup || rules
-  const liveVersion = artifact?.version ?? null
+  // Only the applied config version is a publish claim. `readAppliedConfig`
+  // returns `unknown` on failure, which is intentionally not a version.
+  const applied = tenantId ? await readAppliedConfig(tenantId) : { state: 'none' as const }
+  const liveVersion = applied.state === 'live' ? applied.version : null
   const prs = tenantId ? await getPullRequestsDb(tenantId) : []
 
   // Liveness truth comes from the broker, not a local mint. The broker is the

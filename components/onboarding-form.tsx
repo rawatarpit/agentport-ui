@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { track, getVisitorId } from '@/lib/funnel-events'
 
 type Form = {
   businessDescription: string
@@ -86,6 +87,8 @@ export function OnboardingForm() {
         throw new Error(body.errors?.[0] ?? body.reason ?? 'Refused.')
       }
       setSaved(true)
+      const visitorId = getVisitorId()
+      track({ event_type: 'merchant_profile_completed' }, visitorId ? `merchant_profile_completed:${visitorId}` : undefined)
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Refused.')
     } finally {

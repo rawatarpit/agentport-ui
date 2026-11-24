@@ -295,7 +295,7 @@ export default async function GoLivePage() {
                 proves it is being served.
               </p>
             </div>
-            <DiscoveryCheck canonicalUrl={canonicalUrl} invokeUrl={invokeUrl} />
+            <DiscoveryCheck canonicalUrl={canonicalUrl} invokeUrl={invokeUrl} expectedTenantId={tenant.active.tenantId} />
           </section>
         </div>
       </div>

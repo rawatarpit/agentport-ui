@@ -1,4 +1,3 @@
-import { getLiveArtifact } from '@/lib/backend-reads'
 import {
   getDraftDb,
   getInstallationsDb,
@@ -7,6 +6,7 @@ import {
 } from '@/lib/durable-store'
 import { brokerFetchServer } from '@/lib/github-broker'
 import { validateCapabilities } from '@/lib/golive'
+import { appliedConfigToLiveRead, readAppliedConfig } from '@/lib/publish-state'
 import { deriveGoLiveState, type GoLiveState } from '@/lib/go-live-state'
 import { createClient } from '@/lib/supabase/server'
 
@@ -42,9 +42,7 @@ export async function getGoLiveState(
     getDraftDb(tenantId, 'capabilities'),
     getInstallationsDb(tenantId),
     getPullRequestsDb(tenantId),
-    getLiveArtifact(tenantId)
-      .then((row) => ({ row, unknown: false }))
-      .catch(() => ({ row: null, unknown: true })),
+    readAppliedConfig(tenantId).then(appliedConfigToLiveRead),
   ])
 
   const mapped = capabilities ? validateCapabilities(capabilities.payload) : null
@@ -110,7 +108,7 @@ export async function getGoLiveState(
 export type ShellState = {
   businessName: string
   siteUrl: string | null
-  /** Null when the artifact read failed — render "unknown", not "not live". */
+  /** Null when the applied-config read was inconclusive — render "unknown", not "not live". */
   published: boolean | null
 }
 
@@ -122,9 +120,7 @@ export type ShellState = {
 export async function getShellState(tenantId: string): Promise<ShellState> {
   const [profile, liveRead] = await Promise.all([
     getTenantProfileDb(tenantId),
-    getLiveArtifact(tenantId)
-      .then((row) => ({ published: row !== null }))
-      .catch(() => ({ published: null })),
+    readAppliedConfig(tenantId).then(appliedConfigToLiveRead),
   ])
   return {
     businessName: profile?.businessName || 'Your business',

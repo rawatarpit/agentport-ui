@@ -294,3 +294,11 @@ describe('lib/store never reaches runtime code', () => {
     expect(offenders).toEqual([])
   })
 })
+
+describe('report preview is not indexable research', () => {
+  it('noindexes the report and canonicalises it to the unresearched landing page', () => {
+    const page = readFileSync(join(process.cwd(), 'app/(site)/intelligence/report/page.tsx'), 'utf8')
+    expect(page).toMatch(/robots:\s*\{\s*index:\s*false,\s*follow:\s*false\s*\}/)
+    expect(page).toMatch(/canonical:\s*['"]\/intelligence['"]/)
+  })
+})

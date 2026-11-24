@@ -2,45 +2,52 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
 import { AgentPortLogo } from '@/components/brand/agentport-logo'
 import { StatusPill } from '@/components/ui/status-pill'
 
 /**
- * Sidebar groups collapsed from ~15 items to ~7, organized by merchant
- * mental model instead of abstract labels:
- *
- *   Today   = things needing attention today (approvals, ledger)
- *   Configure = things you change occasionally (capabilities, rules, limits)
- *   Settings  = set once, rarely touch (go live, connect, identity, team)
- *   Setup   = appears only until the first draft exists, then retires
- *
- * Every item keeps its original route; nothing is removed, just regrouped.
+ * Navigation is grouped by the merchant's decision, not by the database:
+ * research before install, operate after, and installation as its own step.
+ * Every href here is a route that exists in this app — a dead link in the shell
+ * is worse than a missing one, because it implies a capability we do not have.
  */
-const BASE_GROUPS = [
+const GROUPS = [
   {
-    label: 'Today',
+    label: 'Intelligence',
     items: [
-      { href: '/approvals', label: 'Approvals' },
-      { href: '/ledger', label: 'Ledger' },
+      { href: '/insights', label: 'Insights' },
+      { href: '/insights/opportunities', label: 'Opportunities' },
+      { href: '/insights/readiness', label: 'Readiness' },
+      { href: '/insights/saved', label: 'Saved reports' },
+      { href: '/funnel', label: 'Funnel' },
+      { href: '/assessment', label: 'Assessment' },
     ],
   },
   {
-    label: 'Configure',
+    label: 'Operate',
     items: [
+      { href: '/', label: 'Overview' },
+      { href: '/approvals', label: 'Approvals' },
+      { href: '/ledger', label: 'Ledger' },
+      { href: '/activity', label: 'Activity' },
       { href: '/capabilities', label: 'Capabilities' },
       { href: '/rules', label: 'Rules' },
       { href: '/policies', label: 'Limits & stop' },
-    ],
-  },
-  {
-    label: 'Settings',
-    items: [
+      { href: '/permissions', label: 'Permissions' },
+      { href: '/analytics', label: 'Evidence' },
+      { href: '/agent-analytics', label: 'Agent analytics' },
+      { href: '/marketing-analytics', label: 'Marketing analytics' },
+      { href: '/map', label: 'Map routes' },
+      { href: '/setup', label: 'Setup' },
       { href: '/go-live', label: 'Go live' },
       { href: '/connect', label: 'Connect' },
       { href: '/identity', label: 'User sessions' },
       { href: '/team', label: 'Team' },
     ],
+  },
+  {
+    label: 'Installation',
+    items: [{ href: '/install', label: 'Install' }],
   },
 ]
 
@@ -52,32 +59,6 @@ export function Sidebar({
   published: boolean | null
 }) {
   const path = usePathname()
-  const [setupComplete, setSetupComplete] = useState<boolean | null>(null)
-
-  // Setup is the first step of the journey. Once a setup draft exists it has
-  // served its purpose and retires so the sidebar stays focused on what the
-  // merchant operates day to day.
-  useEffect(() => {
-    let cancelled = false
-    fetch('/api/drafts/setup')
-      .then(async (r) => {
-        if (!r.ok) return null
-        return r.json()
-      })
-      .then((body) => {
-        if (cancelled) return
-        setSetupComplete(body?.draft !== null && body?.draft !== undefined)
-      })
-      .catch(() => setSetupComplete(null))
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  const groups =
-    setupComplete === null
-      ? BASE_GROUPS.concat([{ label: 'Setup', items: [{ href: '/setup', label: 'Setup' }] }])
-      : BASE_GROUPS
 
   const item = (href: string, label: string) => {
     const active = href === '/' ? path === '/' : path === href || path.startsWith(`${href}/`)
@@ -119,7 +100,7 @@ export function Sidebar({
       </Link>
 
       <nav aria-label="Console" className="space-y-5">
-        {groups.map((group) => (
+        {GROUPS.map((group) => (
           <div key={group.label}>
             <p className="label px-2.5">{group.label}</p>
             <ul className="mt-1 space-y-0.5">

@@ -270,12 +270,23 @@ export default function HomePage() {
             </p>
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
-              <a href="#contact" className="btn btn-primary px-5 py-2.5">
-                Request a founding pilot
-              </a>
+              <Link href="/intelligence" className="btn btn-primary px-5 py-2.5">
+                Explore Your Industry
+              </Link>
+              <Link href="/signup" className="btn px-5 py-2.5">
+                Check Website Readiness — after signup
+              </Link>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[11px]">
+              <Link
+                href="/intelligence/report?sample=1"
+                className="text-bone-faint underline decoration-ink-line underline-offset-4 transition-colors hover:text-bone"
+              >
+                See illustrative sample
+              </Link>
               <a
                 href="#how"
-                className="group inline-flex items-center gap-2 px-1 py-2 font-mono text-[12px] text-bone-dim transition-colors hover:text-bone"
+                className="group inline-flex items-center gap-2 text-bone-faint transition-colors hover:text-bone"
               >
                 See how AgentPort works
                 <span aria-hidden="true" className="transition-transform group-hover:translate-x-0.5">

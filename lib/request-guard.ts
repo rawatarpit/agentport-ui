@@ -41,6 +41,9 @@ export const RATE_LIMITS = {
   'github:pr': { limit: 20, windowMs: 60_000 },
   contact: { limit: 5, windowMs: 10 * 60_000 },
   'map:crawl': { limit: 5, windowMs: 5 * 60_000 },
+  // An assessment fans out to seven bounded GETs, so it gets the same small
+  // budget as a crawl rather than a cheaper one that hides the real cost.
+  'assessment:website': { limit: 5, windowMs: 5 * 60_000 },
   'identity:write': { limit: 30, windowMs: 60_000 },
   'publish:apply': { limit: 30, windowMs: 60_000 },
   // Legacy artifact publish path, retained only until the old routes are
@@ -48,6 +51,8 @@ export const RATE_LIMITS = {
   'publish:approve': { limit: 30, windowMs: 60_000 },
   'publish:artifact': { limit: 30, windowMs: 60_000 },
   'tenant-metadata:write': { limit: 30, windowMs: 60_000 },
+  'research:saved-reports:write': { limit: 30, windowMs: 60_000 },
+  'funnel:events': { limit: 120, windowMs: 60_000 },
 } as const satisfies Record<string, RateLimitOptions>
 
 export type RateLimitBucket = keyof typeof RATE_LIMITS

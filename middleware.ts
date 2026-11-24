@@ -9,7 +9,22 @@ import { contentSecurityPolicyReportOnly } from '@/lib/security-headers.mjs'
  * of pages. Data is protected by RLS, which lives in the database and cannot
  * be skipped by a client.
  */
-const PUBLIC = ['/login', '/signup', '/reset-password', '/auth/callback', '/home', '/icon.svg', '/favicon.ico']
+// Public acquisition pages are read-only and carry no tenant data; they stay
+// open so a visitor can reach them before an account exists.
+const PUBLIC = [
+  '/login',
+  '/signup',
+  '/reset-password',
+  '/auth/callback',
+  '/home',
+  '/intelligence',
+  '/how-it-works',
+  '/solutions',
+  '/developers',
+  '/security',
+  '/icon.svg',
+  '/favicon.ico',
+]
 
 export async function middleware(req: NextRequest) {
   // Per-request nonce. Next reads it from the CSP request header below and

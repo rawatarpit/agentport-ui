@@ -1,4 +1,4 @@
-import { lookup } from 'node:dns/promises'
+import { resolve } from 'node:dns/promises'
 
 /**
  * Automated site crawl into the Map flow (Phase 2 of frontend/backend
@@ -72,27 +72,31 @@ function isPublicIpv6(ip: string): boolean {
   return true
 }
 
-/** DNS-rebinding guard: resolve first, refuse non-public answers. */
+async function resolveAllAddresses(host: string): Promise<string[]> {
+  // A and AAAA are queried separately: either family may be absent, and one
+  // missing family must not hide a valid answer from the other. A single
+  // answer is never enough — rebinding only needs one private record.
+  const answers = await Promise.allSettled([resolve(host, 'A'), resolve(host, 'AAAA')])
+  return answers.flatMap((answer) => (answer.status === 'fulfilled' ? answer.value : []))
+}
+
+/** DNS-rebinding guard: resolve every answer first, refuse if any is non-public. */
 export async function checkHostResolvesPublic(
   host: string,
-  resolve: (host: string) => Promise<string[]> = async (h): Promise<string[]> => {
-    // dns/promises typings return LookupAddress here; the wire value carries
-    // .address either way. Never assume the shape — read the field.
-    const r = (await lookup(h)) as unknown as string | { address: string }
-    return [typeof r === 'string' ? r : r.address]
-  },
-): Promise<{ ok: true } | { ok: false; reason: string }> {
+  resolveAnswers: (host: string) => Promise<string[]> = resolveAllAddresses,
+): Promise<{ ok: true; addresses: string[] } | { ok: false; reason: string }> {
   // Localhost is only reachable via the dev exception in parseMerchantOrigin;
-  // anything resolving locally in production is a rebinding, not dev.
+  // anything resolving locally in production is a rebinding, not dev. The
+  // loopback address is explicit so callers pin to it instead of re-resolving.
   if (host === 'localhost' || host === '127.0.0.1') {
     if (process.env.NODE_ENV === 'production') {
       return { ok: false, reason: 'Localhost crawl refused in production.' }
     }
-    return { ok: true }
+    return { ok: true, addresses: ['127.0.0.1'] }
   }
   let addrs: string[]
   try {
-    addrs = await resolve(host)
+    addrs = await resolveAnswers(host)
   } catch {
     return { ok: false, reason: 'Merchant host does not resolve.' }
   }
@@ -103,7 +107,7 @@ export async function checkHostResolvesPublic(
       return { ok: false, reason: 'Merchant host resolves to a non-public address — refusing (DNS-rebinding guard).' }
     }
   }
-  return { ok: true }
+  return { ok: true, addresses: addrs }
 }
 
 /** Shape crawled same-origin paths into reconcile() input: declared, never hit. */

@@ -1,6 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { checkHostResolvesPublic, checkTarget, parseMerchantOrigin, shapeCrawled } from './map-crawl.js'
+
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
 
 /**
  * Crawl guards. Every test asserts the SSRF posture, not the helper: an
@@ -41,8 +45,16 @@ describe('checkHostResolvesPublic', () => {
     }
   })
 
-  it('accepts a public answer and a failed lookup fails closed', async () => {
-    expect(await checkHostResolvesPublic('x.example', async () => ['93.184.216.34'])).toEqual({ ok: true })
+  it('refuses a mixed answer set: one private record is enough to rebind', async () => {
+    const r = await checkHostResolvesPublic('x.example', async () => ['93.184.216.34', '10.0.0.5'])
+    expect(r.ok).toBe(false)
+    const v6 = await checkHostResolvesPublic('x.example', async () => ['2606:4700::1111', '::1'])
+    expect(v6.ok).toBe(false)
+  })
+
+  it('returns every validated address so the caller can pin one', async () => {
+    const answers = ['93.184.216.34', '2606:4700::1111']
+    expect(await checkHostResolvesPublic('x.example', async () => answers)).toEqual({ ok: true, addresses: answers })
     expect((await checkHostResolvesPublic('x.example', async () => [] as string[])).ok).toBe(false)
     expect(
       (
@@ -51,6 +63,17 @@ describe('checkHostResolvesPublic', () => {
         })
       ).ok,
     ).toBe(false)
+  })
+
+  it('keeps the dev localhost exception with an explicit loopback address', async () => {
+    vi.stubEnv('NODE_ENV', 'test')
+    expect(
+      await checkHostResolvesPublic('localhost', async () => {
+        throw new Error('must not resolve')
+      }),
+    ).toEqual({ ok: true, addresses: ['127.0.0.1'] })
+    vi.stubEnv('NODE_ENV', 'production')
+    expect((await checkHostResolvesPublic('localhost', async () => [])).ok).toBe(false)
   })
 })
 

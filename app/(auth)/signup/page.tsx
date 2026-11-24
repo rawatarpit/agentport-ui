@@ -1,7 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { track, getVisitorId } from '@/lib/funnel-events'
 import { AuthShell, FieldError } from '@/components/auth-shell'
 
 /**
@@ -11,8 +13,13 @@ import { AuthShell, FieldError } from '@/components/auth-shell'
  * user exists with no tenant. If confirmation email is on, there is no
  * session yet and the screen says "check your email" instead of navigating
  * anywhere — a new user landing on an empty dashboard reads as broken.
+ *
+ * A report preview's industry, geography and website survive signup as setup
+ * query parameters: the setup wizard uses industry/sector for tenant
+ * metadata, and the assessment step still asks for the website.
  */
 export default function SignupPage() {
+  const searchParams = useSearchParams() as URLSearchParams
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [business, setBusiness] = useState('')
@@ -20,10 +27,29 @@ export default function SignupPage() {
   const [err, setErr] = useState<string | null>(null)
   const [sent, setSent] = useState(false)
 
+  // Track that signup was started.
+  useEffect(() => {
+    const visitorId = getVisitorId()
+    track({ event_type: 'signup_started' }, visitorId ? `signup_started:${visitorId}` : undefined)
+  }, [])
+
+  function signupParams(): URLSearchParams {
+    const to = new URLSearchParams()
+    for (const key of ['industry', 'subIndustry', 'country', 'website', 'objective']) {
+      const value = searchParams.get(key)
+      if (value) to.set(key, value)
+    }
+    return to
+  }
+
   const submit = async () => {
     setBusy(true)
     setErr(null)
     try {
+      // Track that signup was submitted.
+      const visitorId = getVisitorId()
+      track({ event_type: 'signup_submitted' }, visitorId ? `signup_submitted:${visitorId}` : undefined)
+
       const res = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -33,9 +59,11 @@ export default function SignupPage() {
       if (body.status !== 'ok') throw new Error(body.reason ?? 'Signup failed.')
       if (!body.session) {
         setSent(true)
+        track({ event_type: 'verification_email_sent' }, visitorId ? `verification_email_sent:${visitorId}` : undefined)
         return
       }
-      window.location.href = '/'
+      track({ event_type: 'signup_completed' }, visitorId ? `signup_completed:${visitorId}` : undefined)
+      window.location.href = `/setup?${signupParams().toString()}`
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Signup failed.')
     } finally {

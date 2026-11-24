@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Select } from '@/components/ui/select'
 
 /**
@@ -97,6 +98,7 @@ export function SetupWizard() {
   const [loadError, setLoadError] = useState(false)
   const [metaLoaded, setMetaLoaded] = useState(false)
   const [metaSaving, setMetaSaving] = useState(false)
+  const searchParams = useSearchParams() as URLSearchParams
 
   const minor = useMemo(() => {
     const toMinor = (v: string): number | null => {
@@ -172,17 +174,26 @@ export function SetupWizard() {
     }
   }, [])
 
-  // Load existing tenant metadata (industry/sector) if already set.
+  // Seed industry/sector from a signup deep link, but never overwrite a value
+  // the merchant already has or has chosen in this session.
+  useEffect(() => {
+    const industry = searchParams.get('industry') ?? ''
+    const sector = searchParams.get('subIndustry') ?? ''
+    if (industry && !m.industry) setM({ industry, sector: m.sector })
+    if (sector && !m.sector) setM({ industry: m.industry, sector })
+  }, [searchParams, m.industry, m.sector])
+
+  // Load existing tenant metadata (industry/sector) if already set. A stored
+  // value wins over a deep-link seed; an empty stored value leaves the seed in
+  // place so signup context survives registration.
   useEffect(() => {
     let live = true
     fetch('/api/tenant-metadata')
       .then((r) => r.json())
       .then((body: { status?: string; industry?: string | null; sector?: string | null }) => {
         if (!live || body.status !== 'ok') return
-        setM({
-          industry: body.industry ?? '',
-          sector: body.sector ?? '',
-        })
+        if (body.industry) setM((prev) => ({ ...prev, industry: body.industry as string }))
+        if (body.sector) setM((prev) => ({ ...prev, sector: body.sector as string }))
         setMetaLoaded(true)
       })
       .catch(() => {
