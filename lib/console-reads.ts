@@ -17,6 +17,12 @@ import { holdsFromRows } from '@/lib/ledger-view'
  * carry are ABSENT (`evaluated` undefined renders '—'), never fabricated.
  */
 
+/** The exact privacy projection. Selection is the custody boundary. */
+const CONSOLE_COLUMNS =
+  'tenant_id, request_id, held_request_id, at, agent_id, agent_label, agent_label_source, assurance, capability, capability_registered, access, decision, reason, rule, approval, result, config_hash, row_digest, duration_ms'
+
+const REQUEST_REFERENCE_LIMIT = 50
+
 type ConsoleRow = {
   tenant_id: string
   request_id: string
@@ -83,9 +89,7 @@ export async function listDecisions(tenantId: string, limit = 200): Promise<Ledg
   const db = createClient()
   const { data, error } = await db
     .from('ledger_console_view')
-    .select(
-      'tenant_id, request_id, held_request_id, at, agent_id, agent_label, agent_label_source, assurance, capability, capability_registered, access, decision, reason, rule, approval, result, config_hash, row_digest, duration_ms',
-    )
+    .select(CONSOLE_COLUMNS)
     .eq('tenant_id', tenantId)
     .order('at', { ascending: false })
     .limit(limit)
@@ -97,4 +101,41 @@ export async function listDecisions(tenantId: string, limit = 200): Promise<Ledg
 export async function listHolds(tenantId: string, limit = 200): Promise<Array<LedgerEntry & { expiredHold: boolean }>> {
   const rows = await listDecisions(tenantId, limit)
   return holdsFromRows(rows)
+}
+
+/**
+ * Every projection row that can speak about one request: the hold itself, the
+ * hosted commit that names it, and a denial recorded under the same id.
+ *
+ * Two explicit equality reads under the caller's RLS, not a wider scan: a
+ * tenant cannot see another tenant's request through either key. A failed read
+ * throws so the confirmation page renders unknown, never "no such request".
+ */
+export async function listRequestReferences(tenantId: string, requestId: string): Promise<LedgerEntry[]> {
+  const db = createClient()
+  const keys = [
+    { column: 'request_id', value: requestId },
+    { column: 'held_request_id', value: requestId },
+  ] as const
+  const results = await Promise.all(
+    keys.map(async ({ column, value }) => {
+      const { data, error } = await db
+        .from('ledger_console_view')
+        .select(CONSOLE_COLUMNS)
+        .eq('tenant_id', tenantId)
+        .eq(column, value)
+        .order('at', { ascending: false })
+        .limit(REQUEST_REFERENCE_LIMIT)
+      if (error) throw new Error('ledger reference read failed')
+      const rows = (data ?? []) as ConsoleRow[]
+      // A full page may hide an older disagreeing commit. A definite state
+      // from partial evidence would be a lie, so the page renders unknown.
+      if (rows.length === REQUEST_REFERENCE_LIMIT) throw new Error('ledger reference read incomplete')
+      return rows.map(toEntry)
+    }),
+  )
+  // Do not dedupe by request id: a hosted commit can be recorded under the
+  // same request id as the hold it decided. confirmationView identifies the
+  // decision by heldRequestId, so both rows must reach it.
+  return results.flat()
 }

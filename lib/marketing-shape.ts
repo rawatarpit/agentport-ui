@@ -7,18 +7,26 @@
  * (AGENTS.md §6) is respected: names, digests, timestamps, counts only.
  */
 
+import { sumNullableCounts } from './analytics-counts'
 import type { ActivityRow, ConversionRow, DemandRow } from './analytics-shape'
 
-/** A distinct traffic source: which integration/client app made the call. */
+/** Adding a known number to an unknown count must stay unknown, never zero. */
+function addNullable(total: number | null, value: number | null): number | null {
+  if (total === null || value === null) return null
+  return total + value
+}
+
+/** A distinct source bucket: a declared integration ref or an id heuristic. */
 export type SourceRow = {
   source: string
   label: string
+  evidence: 'integration_ref' | 'agent_id_heuristic'
   agents: number
   requests: number
   allowed: number
   held: number
   refused: number
-  executed: number
+  executed: number | null
 }
 
 /** Per-capability demand for marketing: who wants what and how often. */
@@ -29,7 +37,7 @@ export type CapabilityDemandRow = {
   allowed: number
   held: number
   refused: number
-  executed: number
+  executed: number | null
   conversionRate: number | null
 }
 
@@ -48,6 +56,7 @@ export type MarketingWeeklyPoint = {
 export type MarketingAgentRow = {
   agent_id: string
   source: string
+  sourceEvidence: 'integration_ref' | 'agent_id_heuristic'
   assurance: 'verified' | 'unverified'
   requests: number
   allowed: number
@@ -62,7 +71,7 @@ export type MarketingAgentRow = {
 export type FunnelStep = {
   step: string
   label: string
-  count: number
+  count: number | null
   conversionRate: number | null
 }
 
@@ -78,15 +87,15 @@ export type MarketingKpis = {
   holdRate: number | null
 }
 
-/** Detect source from agent_id when integration_ref is absent. */
+/** Detect a bucket from agent_id when integration_ref is absent. Heuristic only. */
 export function marketingAgentSource(agentId: string): string {
   const lower = agentId.toLowerCase()
-  if (lower.includes('chatgpt')) return 'ChatGPT'
-  if (lower.includes('claude')) return 'Claude'
-  if (lower.includes('gpt')) return 'GPT'
-  if (lower.includes('gemini')) return 'Gemini'
-  if (lower.includes('copilot')) return 'Copilot'
-  return 'Unknown agent'
+  if (lower.includes('chatgpt')) return 'Inferred ChatGPT'
+  if (lower.includes('claude')) return 'Inferred Claude'
+  if (lower.includes('gpt')) return 'Inferred GPT'
+  if (lower.includes('gemini')) return 'Inferred Gemini'
+  if (lower.includes('copilot')) return 'Inferred Copilot'
+  return 'Unclassified agent id'
 }
 
 /** Resolve source: prefer integration_ref, fall back to agent_id detection. */
@@ -95,6 +104,14 @@ export function resolveSource(demand: DemandRow): string {
     return demand.integration_ref
   }
   return marketingAgentSource(demand.agent_id)
+}
+
+export function sourceEvidence(
+  demand: DemandRow,
+): 'integration_ref' | 'agent_id_heuristic' {
+  return demand.integration_ref && demand.integration_ref !== ''
+    ? 'integration_ref'
+    : 'agent_id_heuristic'
 }
 
 /** Group demand by source for marketing acquisition analysis. */
@@ -108,8 +125,11 @@ export function buildSourceRows(demand: DemandRow[]): SourceRow[] {
     executed: number
   }>()
 
+  const evidenceBySource = new Map<string, SourceRow['evidence']>()
+
   for (const r of demand) {
     const source = resolveSource(r)
+    evidenceBySource.set(source, sourceEvidence(r))
     let cur = bySource.get(source)
     if (!cur) {
       cur = { agents: new Set(), requests: 0, allowed: 0, held: 0, refused: 0, executed: 0 }
@@ -128,6 +148,7 @@ export function buildSourceRows(demand: DemandRow[]): SourceRow[] {
     .map(([source, c]) => ({
       source,
       label: source,
+      evidence: evidenceBySource.get(source) ?? 'agent_id_heuristic',
       agents: c.agents.size,
       requests: c.requests,
       allowed: c.allowed,
@@ -138,16 +159,16 @@ export function buildSourceRows(demand: DemandRow[]): SourceRow[] {
     .sort((a, b) => b.requests - a.requests)
 }
 
-/** Merge executed counts from activity into source rows. */
+/**
+ * Activity rows carry no source, so an executed count cannot be attributed to
+ * a source. The honest value is null; printing zero would claim a measurement.
+ */
 export function mergeExecutedIntoSources(
   sources: SourceRow[],
   activity: ActivityRow[],
 ): SourceRow[] {
-  const executedBySource = new Map<string, number>()
-  // activity doesn't carry source, so we distribute by capability→source mapping
-  // This is approximate: we count executed per capability, then attribute to
-  // sources that requested that capability. Honest about the limitation.
-  return sources.map((s) => ({ ...s, executed: executedBySource.get(s.source) ?? 0 }))
+  void activity
+  return sources.map((s) => ({ ...s, executed: null }))
 }
 
 /** Per-capability demand for marketing. */
@@ -162,7 +183,7 @@ export function buildCapabilityDemandRows(
     allowed: number
     held: number
     refused: number
-    executed: number
+    executed: number | null
     succeeded: number | null
     failed: number | null
   }>()
@@ -170,7 +191,7 @@ export function buildCapabilityDemandRows(
   for (const r of demand) {
     let cur = byCap.get(r.capability)
     if (!cur) {
-      cur = { access: null, requests: 0, allowed: 0, held: 0, refused: 0, executed: 0, succeeded: null, failed: null }
+      cur = { access: null, requests: 0, allowed: 0, held: 0, refused: 0, executed: null, succeeded: null, failed: null }
       byCap.set(r.capability, cur)
     }
     cur.requests += 1
@@ -183,10 +204,10 @@ export function buildCapabilityDemandRows(
   for (const r of activity) {
     let cur = byCap.get(r.capability)
     if (!cur) {
-      cur = { access: null, requests: 0, allowed: 0, held: 0, refused: 0, executed: 0, succeeded: null, failed: null }
+      cur = { access: null, requests: 0, allowed: 0, held: 0, refused: 0, executed: null, succeeded: null, failed: null }
       byCap.set(r.capability, cur)
     }
-    cur.executed += typeof r.executed === 'number' ? r.executed : 0
+    cur.executed = addNullable(cur.executed, r.executed)
     // access comes from demand; activity doesn't carry it
   }
 
@@ -194,7 +215,7 @@ export function buildCapabilityDemandRows(
   for (const c of conversion) {
     let cur = byCap.get(c.capability)
     if (!cur) {
-      cur = { access: null, requests: 0, allowed: 0, held: 0, refused: 0, executed: 0, succeeded: null, failed: null }
+      cur = { access: null, requests: 0, allowed: 0, held: 0, refused: 0, executed: null, succeeded: null, failed: null }
       byCap.set(c.capability, cur)
     }
     if (c.succeeded_count !== null && c.failed_count !== null) {
@@ -233,9 +254,6 @@ export function buildMarketingWeeklyPoints(
   // (approximate: demand has no window, so we count total agents per week
   //  from activity's distinct agent presence — but demand has no week.
   //  We'll use activity for weeks and totals, and demand for agent source.)
-  const add = (total: number | null, value: number | null): number | null =>
-    total === null || typeof value !== 'number' ? null : total + value
-
   const byWeek = new Map<string, {
     requests: number | null
     executed: number | null
@@ -248,9 +266,9 @@ export function buildMarketingWeeklyPoints(
       cur = { requests: 0, executed: 0, held: 0 }
       byWeek.set(r.window_start, cur)
     }
-    cur.requests = add(cur.requests, r.asked)
-    cur.executed = add(cur.executed, r.executed)
-    cur.held = add(cur.held, r.held)
+    cur.requests = addNullable(cur.requests, r.asked)
+    cur.executed = addNullable(cur.executed, r.executed)
+    cur.held = addNullable(cur.held, r.held)
   }
 
   // The activity view carries no per-week agent identity. Dividing the
@@ -272,14 +290,16 @@ export function buildFunnel(
   activity: ActivityRow[],
   demand: DemandRow[],
 ): FunnelStep[] {
-  const asked = activity.reduce((n, r) => n + (typeof r.asked === 'number' ? r.asked : 0), 0)
-  const approved = activity.reduce((n, r) => n + (typeof r.approved === 'number' ? r.approved : 0), 0)
-  const executed = activity.reduce((n, r) => n + (typeof r.executed === 'number' ? r.executed : 0), 0)
+  const asked = sumNullableCounts(activity.map((r) => r.asked))
+  const approved = sumNullableCounts(activity.map((r) => r.approved))
+  const executed = sumNullableCounts(activity.map((r) => r.executed))
+  const rate = (part: number | null, whole: number | null): number | null =>
+    part !== null && whole !== null && whole > 0 ? Math.round((part / whole) * 100) : null
 
   return [
     { step: 'asked', label: 'Requests received', count: asked, conversionRate: null },
-    { step: 'approved', label: 'Approved for execution', count: approved, conversionRate: asked > 0 ? Math.round((approved / asked) * 100) : null },
-    { step: 'executed', label: 'Successfully executed', count: executed, conversionRate: asked > 0 ? Math.round((executed / asked) * 100) : null },
+    { step: 'approved', label: 'Approved for execution', count: approved, conversionRate: rate(approved, asked) },
+    { step: 'executed', label: 'Successfully executed', count: executed, conversionRate: rate(executed, asked) },
   ]
 }
 
@@ -291,24 +311,24 @@ export function buildMarketingKpis(
 ): MarketingKpis | null {
   if (activity.length === 0 && demand.length === 0) return null
 
-  const totalRequests = activity.reduce((n, r) => n + (typeof r.asked === 'number' ? r.asked : 0), 0)
-  const totalAgents = new Set(demand.map((d) => d.agent_id)).size
-  const totalExecuted = activity.reduce((n, r) => n + (typeof r.executed === 'number' ? r.executed : 0), 0)
-  const totalHeld = activity.reduce((n, r) => n + (typeof r.held === 'number' ? r.held : 0), 0)
-  const totalRefused = activity.reduce((n, r) => n + (typeof r.denied === 'number' ? r.denied : 0), 0)
-  const activeSources = sources.length
-  const conversionRate = totalRequests > 0 ? Math.round((totalExecuted / totalRequests) * 100) : null
-  const holdRate = totalRequests > 0 ? Math.round((totalHeld / totalRequests) * 100) : null
+  const totalRequests = sumNullableCounts(activity.map((r) => r.asked))
+  const totalAgents = demand.length > 0 ? new Set(demand.map((d) => d.agent_id)).size : null
+  const totalExecuted = sumNullableCounts(activity.map((r) => r.executed))
+  const totalHeld = sumNullableCounts(activity.map((r) => r.held))
+  const totalRefused = sumNullableCounts(activity.map((r) => r.denied))
+  const activeSources = demand.length > 0 ? sources.length : null
+  const rate = (part: number | null, whole: number | null): number | null =>
+    part !== null && whole !== null && whole > 0 ? Math.round((part / whole) * 100) : null
 
   return {
-    totalRequests: totalRequests > 0 ? totalRequests : null,
-    totalAgents: totalAgents > 0 ? totalAgents : null,
-    totalExecuted: totalExecuted > 0 ? totalExecuted : null,
-    totalHeld: totalHeld > 0 ? totalHeld : null,
-    totalRefused: totalRefused > 0 ? totalRefused : null,
-    activeSources: activeSources > 0 ? activeSources : null,
-    conversionRate,
-    holdRate,
+    totalRequests,
+    totalAgents,
+    totalExecuted,
+    totalHeld,
+    totalRefused,
+    activeSources,
+    conversionRate: rate(totalExecuted, totalRequests),
+    holdRate: rate(totalHeld, totalRequests),
   }
 }
 

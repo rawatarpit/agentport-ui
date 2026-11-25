@@ -12,7 +12,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 export type AppliedConfigState =
   | { state: 'unknown' }
   | { state: 'none' }
-  | { state: 'live'; version: number; publishedAt: string }
+  | { state: 'live'; version: number; publishedAt: string; policy?: Record<string, unknown> }
 
 export type AppliedLiveRead = {
   row: LiveArtifactRow | null
@@ -32,7 +32,7 @@ export function appliedConfigToLiveRead(state: AppliedConfigState): AppliedLiveR
   return { row: null, unknown: true, published: null }
 }
 
-type ConfigVersionRow = { version?: unknown; created_at?: unknown }
+type ConfigVersionRow = { version?: unknown; created_at?: unknown; policy?: unknown }
 
 /** A malformed row cannot support a "live" claim: that is unknown, not none. */
 export function appliedConfigFromRow(row: unknown): AppliedConfigState {
@@ -49,14 +49,77 @@ export function appliedConfigFromRow(row: unknown): AppliedConfigState {
   ) {
     return { state: 'unknown' }
   }
-  return { state: 'live', version, publishedAt: createdAt }
+  // The version can be live while its policy body is unreadable. Keep the
+  // version claim, but leave `policy` absent so callers render values as
+  // unknown instead of repeating a retired artifact or an invented default.
+  const policy =
+    r.policy && typeof r.policy === 'object' && !Array.isArray(r.policy)
+      ? (r.policy as Record<string, unknown>)
+      : undefined
+  return {
+    state: 'live',
+    version,
+    publishedAt: createdAt,
+    ...(policy ? { policy } : {}),
+  }
+}
+
+export type AppliedPolicyValues = {
+  ask: number | null
+  currency: string | null
+  never: number | null
+  forbidden: string[] | null
+  alwaysAsk: string[] | null
+  rate: number | null
+}
+
+const minorOrNull = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isFinite(value) ? value : null
+
+const listOrNull = (value: unknown): string[] | null =>
+  Array.isArray(value) && value.every((v) => typeof v === 'string') ? (value as string[]) : null
+
+/** Values the applied policy row can actually prove. Null renders as unknown. */
+export function policyValuesFromApplied(policy: Record<string, unknown> | undefined): AppliedPolicyValues {
+  const asObject = (value: unknown): Record<string, unknown> | null =>
+    value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null
+  const max = asObject(policy?.maxOrderValue)
+  const absolute = asObject(policy?.absoluteMaxOrderValue)
+  const rateLimit = asObject(policy?.rateLimit)
+  return {
+    ask: minorOrNull(max?.minor),
+    currency:
+      typeof max?.currency === 'string'
+        ? max.currency
+        : typeof absolute?.currency === 'string'
+          ? absolute.currency
+          : null,
+    never: minorOrNull(absolute?.minor),
+    forbidden: listOrNull(policy?.forbiddenCapabilities),
+    alwaysAsk: listOrNull(policy?.alwaysRequireApproval),
+    rate: minorOrNull(rateLimit?.requestsPerMinute),
+  }
+}
+
+/**
+ * `undefined` means the runtime row or pointer is unreadable (unknown).
+ * `0` means the pointer is explicitly zero: no config is active yet.
+ */
+export function activeVersionFromRow(row: unknown): number | undefined {
+  if (!row || typeof row !== 'object') return undefined
+  const raw = (row as { active_config_version?: unknown }).active_config_version
+  if (raw === null || raw === undefined) return undefined
+  if (typeof raw === 'string' && raw.trim() === '') return undefined
+  const version = Number(raw)
+  if (!Number.isInteger(version) || version < 0) return undefined
+  return version
 }
 
 export async function readAppliedConfig(tenantId: string): Promise<AppliedConfigState> {
   try {
     const { data, error } = await createAdminClient()
       .from('tenant_config_versions')
-      .select('version, created_at')
+      .select('version, created_at, policy')
       .eq('tenant_id', tenantId)
       .order('version', { ascending: false })
       .limit(1)

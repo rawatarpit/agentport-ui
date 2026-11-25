@@ -33,6 +33,11 @@ export type ResearchSource = {
   publishedAt: string | null
   /** The data period the source covers, not the publication date. */
   dataPeriod: string | null
+  /** When this console collected the evidence — distinct from publication date. */
+  collectedAt: string | null
+  /** Geography and industry the provider actually queried, not the merchant's whole market. */
+  geography: string | null
+  industry: string | null
   kind: SourceKind
 }
 
@@ -211,6 +216,25 @@ export function cleanList(value: unknown, maxItems = 8, maxLength = 120): string
   return out
 }
 
+/**
+ * Reconstruct a research profile from the public preview's GET parameters.
+ * These are merchant-declared answers, not evidence; missing fields stay null.
+ */
+export function profileFromParams(params: URLSearchParams): ResearchProfile {
+  return profileFromRecord({
+    industry: params.get('industry'),
+    subIndustry: params.get('subIndustry'),
+    country: params.get('country'),
+    geography: params.get('geography'),
+    companyName: params.get('companyName'),
+    website: params.get('website'),
+    productsServices: params.get('productsServices'),
+    businessModel: params.get('businessModel'),
+    customerSegment: params.get('customerSegment'),
+    objectives: params.get('objective') ?? params.get('objectives'),
+  })
+}
+
 export function profileFromRecord(raw: Record<string, unknown>): ResearchProfile {
   return {
     industry: cleanText(raw.industry, 120) ?? '',
@@ -224,4 +248,17 @@ export function profileFromRecord(raw: Record<string, unknown>): ResearchProfile
     customerSegment: cleanText(raw.customerSegment, 160),
     objectives: cleanList(raw.objectives),
   }
+}
+
+/**
+ * Validate an untrusted profile before it is stored or used to generate a
+ * report. Industry is required so a blank preview cannot become a durable
+ * "report" with an empty body; other fields stay explicitly null/absent.
+ */
+export function parseResearchProfile(value: unknown): ResearchProfile | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const raw = value as Record<string, unknown>
+  if (typeof raw.industry !== 'string' || raw.industry.trim().length === 0) return null
+  if (raw.objectives !== undefined && !Array.isArray(raw.objectives)) return null
+  return profileFromRecord(raw)
 }

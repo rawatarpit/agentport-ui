@@ -1,5 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sectorPercentileBand } from '@/lib/analytics-sector'
+import { SETUP_SECTOR_VALUES } from '@/lib/intelligence/sectors'
 import { resolveCallerRole } from '@/lib/tenant'
 import { readSelectedTenantId, tenantRefusalResponse } from '@/lib/tenant-server'
 import { NextResponse } from 'next/server'
@@ -37,9 +39,11 @@ async function caller() {
  * Safety:
  *   * Reads via createAdminClient() (service_role, server-side only) because
  *     sector aggregation requires reading across tenants.
- *   * Returns only counts and medians — never tenant names, tenant IDs, PII,
- *     amounts, or raw rows.
- *   * If this tenant has not set a sector, returns hasSector: false.
+  *   * Returns only the caller's own count and a coarse band — never tenant
+  *     names, tenant IDs, PII, amounts, exact medians, cohort sizes or raw rows.
+  *     Exact aggregates are reversible when a caller can join a small cohort.
+  *   * Only the reviewed setup vocabulary is accepted as a cohort key.
+  *   * If this tenant has not set a sector, returns hasSector: false.
  */
 export async function GET() {
   const { t } = await caller()
@@ -65,6 +69,23 @@ export async function GET() {
       medianEvents: null,
       myEvents: null,
       percentile: null,
+      percentileBand: null,
+    })
+  }
+
+  // A legacy free-text sector is not a cohort key: letting a caller choose an
+  // arbitrary string is how a two-tenant cohort is engineered.
+  if (!(SETUP_SECTOR_VALUES as readonly string[]).includes(sector)) {
+    return NextResponse.json({
+      status: 'ok',
+      hasSector: true,
+      sector,
+      industry,
+      peerCount: null,
+      medianEvents: null,
+      myEvents: null,
+      percentile: null,
+      percentileBand: null,
     })
   }
 
@@ -85,6 +106,19 @@ export async function GET() {
   }
 
   const peerTenantIds = peers.map((p) => p.tenant_id)
+  if (peerTenantIds.length === 0) {
+    return NextResponse.json({
+      status: 'ok',
+      hasSector: true,
+      sector,
+      industry,
+      peerCount: null,
+      medianEvents: null,
+      myEvents: null,
+      percentile: null,
+      percentileBand: null,
+    })
+  }
 
   // Event counts for all peers in this sector.
   const { data: homes, error: homesError } = await admin
@@ -105,35 +139,22 @@ export async function GET() {
     .filter((c): c is number => typeof c === 'number' && Number.isFinite(c))
     .sort((a, b) => a - b)
 
-  const peerCount = eventCounts.length
   const myRow = homes.find((h) => h.tenant_id === t.tenantId)
-  const myEvents = myRow?.event_count ?? null
+  const myEvents =
+    typeof myRow?.event_count === 'number' && Number.isFinite(myRow.event_count) ? myRow.event_count : null
+  const percentileBand = sectorPercentileBand(myEvents, eventCounts)
 
-  // Median and percentile computed in JS — the DB returns only raw counts.
-  let medianEvents: number | null = null
-  let percentile: number | null = null
-
-  if (eventCounts.length > 0) {
-    const mid = Math.floor(eventCounts.length / 2)
-    medianEvents =
-      eventCounts.length % 2 === 0
-        ? (eventCounts[mid - 1] + eventCounts[mid]) / 2
-        : eventCounts[mid]
-
-    if (myEvents !== null) {
-      const belowOrEqual = eventCounts.filter((c) => c <= myEvents).length
-      percentile = Math.round((belowOrEqual / eventCounts.length) * 100)
-    }
-  }
-
+  // Exact cohort counts, medians and percentiles are deliberately withheld:
+  // with a caller-controlled membership they reveal another tenant's row.
   return NextResponse.json({
     status: 'ok',
     hasSector: true,
     sector,
     industry,
-    peerCount,
-    medianEvents,
+    peerCount: null,
+    medianEvents: null,
     myEvents,
-    percentile,
+    percentile: null,
+    percentileBand,
   })
 }

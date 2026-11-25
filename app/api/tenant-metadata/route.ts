@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { guardStateChange } from '@/lib/request-guard'
+import { SETUP_INDUSTRY_VALUES, SETUP_SECTOR_VALUES } from '@/lib/intelligence/sectors'
 import { resolveCallerRole } from '@/lib/tenant'
 import { readSelectedTenantId, tenantRefusalResponse } from '@/lib/tenant-server'
 import { NextResponse } from 'next/server'
@@ -80,9 +81,13 @@ export async function POST(req: Request) {
   const industry = typeof body.industry === 'string' ? body.industry.trim() : null
   const sector = typeof body.sector === 'string' ? body.sector.trim() : null
 
-  if ((industry !== null && industry.length > 100) || (sector !== null && sector.length > 100)) {
+  // Cohort keys are free-text no longer: a caller could join another tenant's
+  // sector and turn a cross-tenant aggregate into a two-row equation.
+  const industryOk = industry === null || (SETUP_INDUSTRY_VALUES as readonly string[]).includes(industry)
+  const sectorOk = sector === null || (SETUP_SECTOR_VALUES as readonly string[]).includes(sector)
+  if (!industryOk || !sectorOk) {
     return NextResponse.json(
-      { status: 'error', reason: 'Industry and sector must be under 100 characters.' },
+      { status: 'error', reason: 'Industry and sector must use the setup choices.' },
       { status: 400 },
     )
   }

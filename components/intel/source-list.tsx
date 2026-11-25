@@ -3,6 +3,12 @@ import { EmptyState } from '@/components/ui/empty-state'
 import type { ResearchSource } from '@/lib/intelligence/types'
 import { Chip } from '@/components/ui/chip'
 
+function iso(value: string | null): string {
+  if (!value) return 'not recorded'
+  const parsed = Date.parse(value)
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : value
+}
+
 function SourceRow({ source }: { source: ResearchSource }) {
   return (
     <li className="border-t border-ink-line/70 px-4 py-3 first:border-t-0 sm:px-5">
@@ -13,9 +19,14 @@ function SourceRow({ source }: { source: ResearchSource }) {
         </Chip>
       </div>
       <p className="mt-1 font-mono text-[10.5px] text-bone-faint">
-        {source.publishedAt ?? 'No publication date'}
-        {' · '}
-        {source.dataPeriod ?? 'No data period'}
+        published {source.publishedAt ? iso(source.publishedAt) : 'not recorded'}
+        {' · collected '}
+        {iso(source.collectedAt)}
+        {' · period '}
+        {source.dataPeriod ?? 'not recorded'}
+      </p>
+      <p className="mt-1 text-[11px] leading-snug text-bone-dim">
+        Coverage: {source.geography ?? 'geography not recorded'} · {source.industry ?? 'industry not recorded'}
       </p>
       {source.url ? (
         <Link

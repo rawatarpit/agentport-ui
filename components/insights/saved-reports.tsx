@@ -10,8 +10,9 @@ import type { ResearchProfile } from '@/lib/intelligence/types'
  * Durable, tenant-scoped saved research snapshots.
  *
  * Rows live in Supabase under RLS, scoped to the selected workspace. A saved
- * snapshot stores the merchant's research profile; reopening regenerates the
- * report from connected providers. This replaces browser-local-only storage.
+ * snapshot stores the merchant's profile and the report generated on the server
+ * at save time; reopening shows that durable snapshot unchanged. This replaces
+ * browser-local-only storage.
  */
 
 function storageError(message: string): string {
@@ -193,10 +194,10 @@ export function SavedReports({ profile, tenantId }: { profile: ResearchProfile; 
             onClick={saveCurrent}
             className={`btn ${!tenantId ? 'btn-secondary' : 'btn-primary'} px-4 py-2.5`}
           >
-            {saving ? 'Saving…' : 'Save this profile snapshot'}
+            {saving ? 'Saving this report' : 'Save this report'}
           </button>
           <p className="font-mono text-[11px] leading-relaxed text-bone-dim">
-            Saves the profile that feeds your report. Not live, not an install, and not a market claim.
+            Saves the profile and a server-generated report body. Not live, not an install, and not a market claim.
           </p>
         </div>
         {error && <Callout tone="danger">{error}</Callout>}

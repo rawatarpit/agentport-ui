@@ -14,8 +14,8 @@ import { AuthShell, FieldError } from '@/components/auth-shell'
  * session yet and the screen says "check your email" instead of navigating
  * anywhere — a new user landing on an empty dashboard reads as broken.
  *
- * A report preview's industry, geography and website survive signup as setup
- * query parameters: the setup wizard uses industry/sector for tenant
+ * A report preview's industry, sub-industry, country and website survive signup
+ * as setup query parameters: the setup wizard uses industry/sector for tenant
  * metadata, and the assessment step still asks for the website.
  */
 export default function SignupPage() {
@@ -35,7 +35,11 @@ export default function SignupPage() {
 
   function signupParams(): URLSearchParams {
     const to = new URLSearchParams()
-    for (const key of ['industry', 'subIndustry', 'country', 'website', 'objective']) {
+    for (const key of [
+      'industry', 'subIndustry', 'country', 'geography', 'companyName',
+      'website', 'productsServices', 'businessModel', 'customerSegment',
+      'objective', 'setupIndustry', 'setupSector',
+    ]) {
       const value = searchParams.get(key)
       if (value) to.set(key, value)
     }

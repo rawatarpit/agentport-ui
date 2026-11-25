@@ -23,6 +23,7 @@ export type MarketingAnalytics = {
   sources: Array<{
     source: string
     label: string
+    evidence: 'agent_id_heuristic'
     agents: number
     requests: number
     allowed: number
@@ -37,7 +38,7 @@ export type MarketingAnalytics = {
     allowed: number
     held: number
     refused: number
-    executed: number
+    executed: number | null
     conversionRate: number | null
   }>
   weekly: Array<{
@@ -52,7 +53,7 @@ export type MarketingAnalytics = {
   funnel: Array<{
     step: string
     label: string
-    count: number
+    count: number | null
     conversionRate: number | null
   }>
   refusalReasons: Array<{ reason: string; count: number }>
@@ -63,6 +64,7 @@ export type MarketingAnalytics = {
     label: string
     labelSource: 'declared' | 'credential' | 'none' | null
     source: string
+    sourceEvidence: 'agent_id_heuristic'
     assurance: 'verified' | 'unverified'
     requests: number
     allowed: number
@@ -110,12 +112,15 @@ function SourceCard({ s }: { s: MarketingAnalytics['sources'][number] }) {
         <p className="mt-0.5 text-[11px] text-bone-faint">
           {s.agents} agent{s.agents === 1 ? '' : 's'} · {s.requests} request{s.requests === 1 ? '' : 's'}
         </p>
+        <p className="mt-1 text-[11px] text-bone-faint">Inferred from opaque agent ids, not caller identity</p>
       </div>
       <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
         <span className="text-verdant">allow {s.allowed}</span>
         <span className="text-amber">held {s.held}</span>
         <span className="text-rust">refuse {s.refused}</span>
-        <span className="text-verdant">executed {s.executed}</span>
+        <span className={s.executed === null ? 'text-bone-faint' : 'text-verdant'}>
+          {s.executed === null ? 'executed unknown' : `executed ${s.executed}`}
+        </span>
       </div>
     </div>
   )
@@ -125,7 +130,7 @@ function FunnelCard({ f }: { f: MarketingAnalytics['funnel'][number] }) {
   return (
     <div className="panel p-5 text-center">
       <p className="tabular font-display text-[32px] font-semibold leading-none text-bone">
-        {f.count}
+        {f.count === null ? 'unknown' : f.count}
       </p>
       <p className="mt-1 text-[12px] text-bone-faint">{f.label}</p>
       {f.conversionRate !== null ? (
@@ -254,7 +259,7 @@ export default function MarketingAnalyticsPage() {
           label="Executed"
           value={data.kpis.totalExecuted}
           hint="Requests that ran successfully"
-          tone="good"
+          tone={data.kpis.totalExecuted === null ? 'default' : 'good'}
         />
         <MarketingKpiCard
           label="Held for approval"
@@ -284,21 +289,21 @@ export default function MarketingAnalyticsPage() {
           tone="default"
         />
         <MarketingKpiCard
-          label="Traffic sources"
+          label="Agent origin buckets"
           value={data.kpis.activeSources}
-          hint="Distinct agent origins (ChatGPT, Claude, …)"
+          hint="Heuristic labels from opaque agent ids, not verified caller identity"
           tone="default"
         />
       </section>
 
-      {/* Traffic sources */}
+      {/* Agent origin heuristics */}
       <Section
-        title="Where traffic comes from"
-        description="Agent sources detected from caller identity. Use this to see which chatbots and integrations are sending you traffic."
+        title="Agent origin buckets (heuristic)"
+        description="Best-effort labels inferred from opaque agent ids. They are not caller identity, an integration inventory, or verified traffic attribution."
       >
         {data.sources.length === 0 ? (
           <EmptyState
-            title="No traffic sources yet"
+            title="No agent origin buckets yet"
             body="No agent requests have been recorded. This is unknown, not zero."
           />
         ) : (
@@ -339,15 +344,17 @@ export default function MarketingAnalyticsPage() {
                       {c.capability}
                     </td>
                     <td className="px-4 py-2.5 text-[12px] text-bone-faint">
-                      {c.access === 'write' ? 'Write' : c.access === 'read' ? 'Read' : '—'}
+                      {c.access === 'write' ? 'Write' : c.access === 'read' ? 'Read' : 'unknown'}
                     </td>
                     <td className="tabular px-4 py-2.5 text-bone-dim">{c.requests}</td>
                     <td className="tabular px-4 py-2.5 text-verdant">{c.allowed}</td>
                     <td className="tabular px-4 py-2.5 text-amber">{c.held}</td>
                     <td className="tabular px-4 py-2.5 text-rust">{c.refused}</td>
-                    <td className="tabular px-4 py-2.5 text-verdant">{c.executed}</td>
+                    <td className={`tabular px-4 py-2.5 ${c.executed === null ? 'text-bone-faint' : 'text-verdant'}`}>
+                      {c.executed ?? 'unknown'}
+                    </td>
                     <td className="tabular px-4 py-2.5 text-bone-faint">
-                      {c.conversionRate !== null ? `${c.conversionRate}%` : '—'}
+                      {c.conversionRate !== null ? `${c.conversionRate}%` : 'unknown'}
                     </td>
                   </tr>
                 ))}
@@ -392,10 +399,14 @@ export default function MarketingAnalyticsPage() {
                 {data.weekly.map((w) => (
                   <tr key={w.week} className="border-b border-ink-line/60 last:border-0">
                     <td className="px-4 py-2.5 font-mono text-[12px] text-bone">{w.week}</td>
-                    <td className="tabular px-4 py-2.5 text-bone-dim">{w.requests ?? '—'}</td>
-                    <td className="tabular px-4 py-2.5 text-bone-dim">{w.agents ?? '—'}</td>
-                    <td className="tabular px-4 py-2.5 text-verdant">{w.executed ?? '—'}</td>
-                    <td className="tabular px-4 py-2.5 text-amber">{w.held ?? '—'}</td>
+                    <td className="tabular px-4 py-2.5 text-bone-dim">{w.requests ?? 'unknown'}</td>
+                    <td className="tabular px-4 py-2.5 text-bone-dim">{w.agents ?? 'unknown'}</td>
+                    <td className={`tabular px-4 py-2.5 ${w.executed === null ? 'text-bone-faint' : 'text-verdant'}`}>
+                      {w.executed ?? 'unknown'}
+                    </td>
+                    <td className={`tabular px-4 py-2.5 ${w.held === null ? 'text-bone-faint' : 'text-amber'}`}>
+                      {w.held ?? 'unknown'}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -407,7 +418,7 @@ export default function MarketingAnalyticsPage() {
       {/* Agent detail */}
       <Section
         title="Agent detail"
-        description="Each agent, where they come from, and what they asked for. Agent names are self-declared unless the provenance tag says credential. A verified token means the request carried a credential this business issued — not that the name was verified."
+        description="Each agent, its heuristically inferred origin bucket, and what it asked for. Agent names are self-declared unless the provenance tag says credential. A verified token means the request carried a credential this business issued — not that the name or origin was verified."
       >
         {data.agents.length === 0 ? (
           <EmptyState title="No agents seen yet" body="No distinct agents have made requests." />
@@ -416,7 +427,7 @@ export default function MarketingAnalyticsPage() {
             <table className="w-full text-left text-[13px]">
               <thead>
                 <tr className="border-b border-ink-line">
-                  {['Agent', 'Source', 'Token', 'Requests', 'Allowed', 'Held', 'Refused', 'Executed', 'Capabilities'].map((h) => (
+                  {['Agent', 'Origin (inferred)', 'Token', 'Requests', 'Allowed', 'Held', 'Refused', 'Executed', 'Capabilities'].map((h) => (
                     <th key={h} scope="col" className="label px-4 py-2.5 font-normal">
                       {h}
                     </th>
@@ -449,7 +460,8 @@ export default function MarketingAnalyticsPage() {
                         <Chip tone={provenanceTone} title={attribution.title}>{attribution.chip}</Chip>
                       </td>
                       <td className="px-4 py-2.5 text-[12px] text-bone-faint truncate max-w-[120px]">
-                        {a.source}
+                        <span className="block truncate">{a.source}</span>
+                        <span className="block text-[10px] text-bone-faint">heuristic</span>
                       </td>
                       <td className="px-4 py-2.5 text-[12px]">
                         <span className={`font-mono text-[11px] uppercase tracking-[0.12em] ${a.assurance === 'verified' ? 'text-verdant' : 'text-rust'}`}>

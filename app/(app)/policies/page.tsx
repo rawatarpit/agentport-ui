@@ -1,7 +1,7 @@
 import { Badge } from '@/components/stat'
 import { PageHeader } from '@/components/ui/page-header'
 import { KillSwitchPanel } from '@/components/kill-switch-panel'
-import { getLivePolicy } from '@/lib/backend-reads'
+import { policyValuesFromApplied, readAppliedConfig } from '@/lib/publish-state'
 import { resolveRequestTenant } from '@/lib/tenant-server'
 
 export const dynamic = 'force-dynamic'
@@ -59,38 +59,23 @@ const ORDER = [
 ]
 
 export default async function PoliciesPage() {
-  // Live values win for the explicitly selected workspace. Nothing published
-  // yet renders as exactly that — never demo numbers dressed as the
-  // merchant's configuration.
+  // The applied config row is the publish target the governor serves. Policy
+  // values and the version label come from that same row; a retired artifact
+  // table cannot confirm what is live. An unreadable body stays unknown.
   const tenant = await resolveRequestTenant()
-  let live: Awaited<ReturnType<typeof getLivePolicy>> = null
-  let liveUnknown = false
+  let applied: Awaited<ReturnType<typeof readAppliedConfig>> = { state: 'unknown' }
   if (tenant.active.status === 'active') {
-    try {
-      live = await getLivePolicy(tenant.active.tenantId)
-    } catch {
-      // An unreadable artifact is unknown, not "nothing published".
-      liveUnknown = true
-    }
+    applied = await readAppliedConfig(tenant.active.tenantId)
   }
-  const livePolicy = live?.policy as
-    | {
-        maxOrderValue?: { minor?: number; currency?: string }
-        absoluteMaxOrderValue?: { minor?: number; currency?: string }
-        forbiddenCapabilities?: string[]
-        alwaysRequireApproval?: string[]
-        rateLimit?: { requestsPerMinute?: number }
-      }
-    | undefined
-  const shown = {
-    ask: livePolicy?.maxOrderValue?.minor ?? null,
-    currency: livePolicy?.maxOrderValue?.currency ?? livePolicy?.absoluteMaxOrderValue?.currency ?? 'INR',
-    never: livePolicy?.absoluteMaxOrderValue?.minor ?? null,
-    forbidden: livePolicy?.forbiddenCapabilities ?? null,
-    alwaysAsk: livePolicy?.alwaysRequireApproval ?? null,
-    rate: livePolicy?.rateLimit?.requestsPerMinute ?? null,
-  }
-  const fmt = (minor: number | null) => (minor === null ? '—' : `${minor.toLocaleString()} ${shown.currency} minor`)
+  const appliedPolicy = applied.state === 'live' ? applied.policy : undefined
+  const policyUnknown = applied.state === 'unknown' || appliedPolicy === undefined
+  const shown = policyValuesFromApplied(appliedPolicy)
+  const fmt = (minor: number | null) =>
+    minor === null
+      ? 'unknown'
+      : shown.currency
+        ? `${minor.toLocaleString()} ${shown.currency} minor`
+        : `${minor.toLocaleString()} minor — currency not recorded`
 
   return (
     <div className="space-y-6">
@@ -140,15 +125,24 @@ export default async function PoliciesPage() {
 
       <div className="panel p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="label">Currently in force</p>
-          {liveUnknown ? (
-            <Badge tone="idle">unknown</Badge>
-          ) : live ? (
-            <span className="font-mono text-[11px] text-bone-faint">published version {live.version}</span>
+          <p className="label">Applied policy version</p>
+          {applied.state === 'live' ? (
+            <span className="font-mono text-[11px] text-bone-faint">applied v{applied.version}</span>
+          ) : applied.state === 'none' ? (
+            <Badge tone="idle">nothing applied yet</Badge>
           ) : (
-            <Badge tone="idle">nothing published yet</Badge>
+            <Badge tone="idle">unknown</Badge>
           )}
         </div>
+        <p className="mt-2 text-[12px] leading-relaxed text-bone-faint">
+          {applied.state === 'unknown'
+            ? 'The applied config could not be read, so the values below are unknown.'
+            : applied.state === 'none'
+              ? 'No config has been applied for this workspace; the values below are unknown.'
+              : appliedPolicy === undefined
+                ? `Config v${applied.version} is applied, but its policy body could not be read; the values below are unknown.`
+                : `Values below come from applied config v${applied.version}, the row the governor reads.`}
+        </p>
         <dl className="mt-3 grid gap-x-8 gap-y-2 text-[13px] sm:grid-cols-2">
           <div className="flex justify-between gap-3 border-b border-ink-line/60 py-2">
             <dt className="text-bone-faint">Ask you first above</dt>
@@ -160,15 +154,17 @@ export default async function PoliciesPage() {
           </div>
           <div className="flex justify-between gap-3 border-b border-ink-line/60 py-2">
             <dt className="text-bone-faint">Never allowed</dt>
-            <dd className="font-mono text-bone">{shown.forbidden ? shown.forbidden.join(', ') : '—'}</dd>
+            <dd className="font-mono text-bone">{shown.forbidden ? shown.forbidden.join(', ') : 'unknown'}</dd>
           </div>
           <div className="flex justify-between gap-3 border-b border-ink-line/60 py-2">
             <dt className="text-bone-faint">Always needs you</dt>
-            <dd className="font-mono text-bone">{shown.alwaysAsk ? shown.alwaysAsk.join(', ') : '—'}</dd>
+            <dd className="font-mono text-bone">{shown.alwaysAsk ? shown.alwaysAsk.join(', ') : 'unknown'}</dd>
           </div>
           <div className="flex justify-between gap-3 border-b border-ink-line/60 py-2">
             <dt className="text-bone-faint">Rate limit</dt>
-            <dd className="tabular font-mono text-bone">{shown.rate ?? '—'}/min</dd>
+            <dd className="tabular font-mono text-bone">
+              {shown.rate === null ? 'unknown' : `${shown.rate}/min`}
+            </dd>
           </div>
           <div className="flex justify-between gap-3 border-b border-ink-line/60 py-2">
             <dt className="text-bone-faint">Emergency stop</dt>
@@ -177,12 +173,12 @@ export default async function PoliciesPage() {
             </dd>
           </div>
         </dl>
-        {liveUnknown ? (
+        {policyUnknown && applied.state !== 'none' ? (
           <p className="mt-3 text-[13px] text-rust" role="alert">
-            The published policy could not be read. This is unknown — not an empty policy.
+            The applied policy could not be read. This is unknown — not an empty policy.
             Reload to try again.
           </p>
-        ) : !live ? (
+        ) : applied.state === 'none' ? (
           <p className="mt-3 text-[13px] text-bone-dim">
             Answer the setup questions or save a rules draft, then publish — until then there is
             nothing to show here, and this screen will not invent any.

@@ -43,5 +43,9 @@ export const policy: ConsolePolicy = {
   ceilingExempt: ['searchProducts', 'checkInventory'],
 }
 
-/** A hash of the config that produced a decision, so a row can be reconciled later. */
-export const configHash = 'a1b2c3d4e5f6a1b2'
+/**
+ * A test-only placeholder digest, not a production identifier. Production
+ * digests are computed from applied config by the publish path and written by
+ * the governor; this constant is never a proof that anything was deployed.
+ */
+export const DEMO_CONFIG_DIGEST = 'a1b2c3d4e5f6a1b2'

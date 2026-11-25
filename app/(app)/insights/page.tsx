@@ -96,7 +96,7 @@ export default async function InsightsPage() {
 
       <Section
         title="Save this snapshot"
-        description="Optional, browser-local copies of the profile shown above."
+        description="Durable, tenant-scoped snapshots of the report shown above. The body is generated on the server when you save."
       >
         <SavedReports profile={profile} tenantId={tenantId} />
       </Section>

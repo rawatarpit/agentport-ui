@@ -2,8 +2,12 @@ import { Callout } from '@/components/ui/callout'
 
 const TERMS = [
   {
-    term: 'Fact',
-    detail: 'A verified or reported statement tied to a submitted field or a named source with a period.',
+    term: 'Verified',
+    detail: 'Confirmed from a submitted field or a source whose claim this report can tie to a dated record.',
+  },
+  {
+    term: 'Reported',
+    detail: 'Stated by a named provider. It is evidence of what that provider reported, not independent verification of the market.',
   },
   {
     term: 'Estimate',

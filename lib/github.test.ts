@@ -68,13 +68,35 @@ describe('app JWT', () => {
 })
 
 describe('oauth exchange', () => {
-  it('refuses without naming the secret or the code', async () => {
+  // The old version called the real GitHub endpoint and only passed because a
+  // network failure returned a generic reason. That made a redaction regression
+  // indistinguishable from an offline runner. Stub the upstream response so the
+  // assertion exercises the exact branch that echoes provider-controlled text.
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('refuses an upstream error without naming the secret or the code', async () => {
+    const fetchMock = vi.fn(async () => ({
+      json: async () => ({
+        error: 'bad_verification_code',
+        error_description: 'Bad code CODE123 for client SUPERSECRET',
+      }),
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
     const r = await exchangeOAuthCode({ clientId: 'x', clientSecret: 'SUPERSECRET', code: 'CODE123' })
-    // No network in this test's posture is fine — what matters is the shape:
-    // whatever comes back must never carry credential material.
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    assert.equal(r.ok, false)
     const text = JSON.stringify(r)
     assert.ok(!text.includes('SUPERSECRET'), 'the secret reached the reason')
     assert.ok(!text.includes('CODE123'), 'the code reached the reason')
+    if (!r.ok) assert.equal(r.reason, 'bad_verification_code')
+  })
+
+  it('accepts a token without reflecting it into a refusal reason', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ json: async () => ({ access_token: 'gho_testtoken' }) })))
+    const r = await exchangeOAuthCode({ clientId: 'x', clientSecret: 'SUPERSECRET', code: 'CODE123' })
+    expect(r).toEqual({ ok: true, accessToken: 'gho_testtoken' })
   })
 })
 
@@ -413,10 +435,21 @@ describe('install discovery (code-only callback)', () => {
 
   it('listUserInstallations never leaks the user token into its reason', async () => {
     const token = 'USERTOKEN123'
+    const urls: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        urls.push(String(input))
+        return new Response('', { status: 401 })
+      }),
+    )
     const r = await listUserInstallations(token)
     const text = JSON.stringify(r)
     assert.ok(!text.includes(token), 'the user token reached the reason')
-    if (r.ok) assert.ok(Array.isArray(r.value), 'ok carries a list')
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.reason).toBe('github refused the credential')
+    // The token belongs in the Authorization header, never in the requested URL.
+    for (const url of urls) expect(url).not.toContain(token)
   })
 
   it('follows a same-origin rel=next page', async () => {

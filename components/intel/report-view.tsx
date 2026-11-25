@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { track } from '@/lib/funnel-events'
 import { Callout } from '@/components/ui/callout'
 import type { ReportSection, ResearchReport } from '@/lib/intelligence/types'
+import { setupIndustryValue, setupSectorValue } from '@/lib/intelligence/sectors'
 import { Chart } from './chart'
 import { FindingList } from './finding-list'
 import { MetricCard } from './metric-card'
@@ -89,9 +90,19 @@ export function ReportView({
 
   const params = new URLSearchParams()
   params.set('industry', report.profile.industry ?? '')
+  params.set('subIndustry', report.profile.subIndustry ?? '')
   params.set('country', report.profile.country ?? '')
+  params.set('geography', report.profile.geography ?? '')
+  params.set('companyName', report.profile.companyName ?? '')
   params.set('website', report.profile.website ?? '')
+  params.set('productsServices', report.profile.productsServices ?? '')
+  params.set('businessModel', report.profile.businessModel ?? '')
+  params.set('customerSegment', report.profile.customerSegment ?? '')
   params.set('objective', report.profile.objectives.join(', '))
+  if (!isSample) {
+    params.set('setupIndustry', setupIndustryValue(report.profile.industry, report.profile.subIndustry))
+    params.set('setupSector', setupSectorValue(report.profile.industry, report.profile.subIndustry))
+  }
   const signupHref = isSample ? '/signup' : `/signup?${params.toString()}`
 
   return (
@@ -151,15 +162,15 @@ export function ReportView({
       <section className="rounded-xl border border-verdant/30 bg-verdant/[0.05] p-5 sm:p-7">
         <p className="label">Next step</p>
         <h2 className="mt-2 font-display text-[24px] leading-tight text-bone">
-          {isSample ? 'Create an account for your own assessment' : 'Continue to account + website assessment'}
+          {isSample ? 'Create an account for your own assessment' : 'Continue to account + setup'}
         </h2>
         <p className="mt-2 max-w-[75ch] text-[13px] leading-relaxed text-bone-dim">
           {isSample
             ? 'These sample values are not your data. This preview does not save anything, and the link opens plain signup. After signup, enter your own website in the assessment.'
-            : 'This preview does not save your profile. Your answers carry forward as query parameters on the signup link, and setup reads them for your tenant profile. After signup, enter your own website in the assessment if you did not provide one.'}
+            : 'This public preview does not write to your account. Your answers carry forward on the signup link; after signup, setup maps them to the reviewed tenant fields and saves the full answers as your first tenant-scoped report snapshot. Your website is not set from the link — enter it yourself in assessment or Go live. Nothing is claimed live by saving a report.'}
         </p>
         <Link href={signupHref} className="btn btn-primary mt-5">
-          {isSample ? 'Create an account' : 'Continue to account + website assessment'}
+          {isSample ? 'Create an account' : 'Continue to account + setup'}
         </Link>
       </section>
     </div>

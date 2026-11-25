@@ -8,7 +8,8 @@ import { PageHeader } from '@/components/ui/page-header'
 import { TechnicalDetails } from '@/components/ui/technical-details'
 import { agentAttribution } from '@/lib/ledger-summary'
 import { safeAgentLabel } from '@/lib/safe-display'
-import { listHolds } from '@/lib/console-reads'
+import { listRequestReferences } from '@/lib/console-reads'
+import { confirmationView, type ConfirmationState } from '@/lib/ledger-view'
 import { resolveRequestTenant } from '@/lib/tenant-server'
 
 export const dynamic = 'force-dynamic'
@@ -16,20 +17,66 @@ export const dynamic = 'force-dynamic'
 /**
  * Read-only confirmation reference for a held request.
  *
- * Nothing executes on this page. It displays the hold the merchant's agent
- * prepared, shows the exact request ID, and tells the merchant to complete
- * the decision in their own environment with `agent-port approve <requestId>`.
- *
- * The console never issues a WRITE, never mutates an approval row, and never
- * mints or validates a confirmation token. Token issuance, single-use
- * enforcement, expiry, replay protection and execution all belong to the
- * hosted governor and the merchant-side execution component.
+ * Nothing executes on this page. It renders what the tenant's own ledger
+ * projection proves: the hold, a hosted commit that names it, or a recorded
+ * refusal/outcome. Viewing the page and copying the reference are not approval.
+ * Token issuance, single-use enforcement, expiry, replay protection and
+ * execution belong to the hosted governor and the merchant-side component.
  */
 
 function formatIso(value: string | null | undefined): string {
   if (!value) return '—'
   const parsed = Date.parse(value)
   return Number.isFinite(parsed) ? new Date(parsed).toISOString() : '—'
+}
+
+const STATE: Record<
+  ConfirmationState,
+  { label: string; tone: 'allow' | 'deny' | 'held' | 'idle'; callout: 'info' | 'success' | 'warning' | 'danger'; summary: string }
+> = {
+  not_found: { label: 'not found', tone: 'idle', callout: 'info', summary: 'No matching request exists in this workspace.' },
+  pending: {
+    label: 'Pending — awaiting your decision',
+    tone: 'held',
+    callout: 'info',
+    summary: 'Nothing has executed from this request. A hosted decision is still required.',
+  },
+  expired: {
+    label: 'Expired — re-request required',
+    tone: 'deny',
+    callout: 'danger',
+    summary: 'The hold timed out without a hosted commit. It cannot be approved now.',
+  },
+  approved: {
+    label: 'Approval recorded — execution unproven',
+    tone: 'held',
+    callout: 'warning',
+    summary: 'A hosted commit names this request. The console has no execution result for it.',
+  },
+  executed: {
+    label: 'Executed — ledger result ok',
+    tone: 'allow',
+    callout: 'success',
+    summary: 'The hosted ledger records a successful execution for this request.',
+  },
+  failed: {
+    label: 'Execution failed',
+    tone: 'deny',
+    callout: 'danger',
+    summary: 'The hosted ledger records a commit that failed during execution.',
+  },
+  denied: {
+    label: 'Denied',
+    tone: 'deny',
+    callout: 'danger',
+    summary: 'The hosted ledger records a refusal. Nothing was executed.',
+  },
+  unknown: {
+    label: 'Unknown',
+    tone: 'idle',
+    callout: 'warning',
+    summary: 'The ledger row does not prove an approval outcome. Do not infer one.',
+  },
 }
 
 export default async function ConfirmPage({
@@ -50,21 +97,25 @@ export default async function ConfirmPage({
     )
   }
 
-  let holds
+  let rows
   try {
-    holds = await listHolds(tenant.active.tenantId, 200)
+    rows = await listRequestReferences(tenant.active.tenantId, requestId)
   } catch {
     return (
       <div className="panel p-8 text-center">
-        <p className="text-rust" role="alert">The hold could not be read. Nothing is lost — try reloading.</p>
+        <p className="text-rust" role="alert">The ledger reference could not be read. The state is unknown — try reloading.</p>
       </div>
     )
   }
 
-  const hold = holds.find((h) => h.requestId === requestId)
-  if (!hold) return notFound()
+  const view = confirmationView(rows, requestId)
+  if (view.state === 'not_found') return notFound()
 
-  const agent = agentAttribution(hold)
+  const subject = view.hold ?? view.commit ?? view.other
+  if (!subject) return notFound()
+
+  const state = STATE[view.state]
+  const agent = agentAttribution(subject)
   const provenanceTone =
     agent.source === 'credential' && agent.trusted
       ? 'good'
@@ -72,17 +123,18 @@ export default async function ConfirmPage({
         ? 'warn'
         : 'neutral'
   const command = `agent-port approve ${requestId}`
+  const canOfferCommand = view.state === 'pending'
 
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="The human gate"
-        title="Review held request"
+        title="Confirmation reference"
         description={
           <>
-            Request <code className="font-mono">{requestId}</code> is held for your decision. Nothing has
-            executed yet, and nothing will execute from this page. Complete the approval in your own
-            environment with <code className="font-mono">agent-port approve</code>.
+            Request <code className="font-mono">{requestId}</code> is shown read-only from this workspace&apos;s
+            ledger projection. Opening this page, copying the reference, or pressing anything here does not
+            approve or execute the request.
           </>
         }
         actions={
@@ -95,11 +147,9 @@ export default async function ConfirmPage({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="font-display text-[20px] leading-tight text-bone">
-            {hold.capability}
+            {subject.capability}
           </h2>
-          <Badge tone={hold.expiredHold ? 'deny' : 'held'}>
-            {hold.expiredHold ? 'Expired — re-request required' : 'Held, not executed'}
-          </Badge>
+          <Badge tone={state.tone}>{state.label}</Badge>
         </div>
         <div className="flex items-end gap-2">
           <CopyButton text={requestId} />
@@ -109,60 +159,59 @@ export default async function ConfirmPage({
         </div>
       </div>
 
-      {hold.expiredHold ? (
-        <Callout tone="danger">
-          <p className="font-semibold">This request has expired.</p>
-          <p className="mt-2">
-            A held request is frozen at request time and carries an expiry. Once expired it cannot be
-            approved — the agent must prepare a new request. Do not reuse this request ID.
-          </p>
-        </Callout>
-      ) : (
-        <Callout tone="info">
-          <p className="font-semibold">Nothing has executed.</p>
-          <p className="mt-2">
-            This is a reference page only. Copying the request ID below is <strong>not</strong> an
-            approval. To approve, run the command in your merchant environment:
-            <code className="font-mono">{command}</code>. The hosted governor rechecks permissions at
-            execution time and records the outcome.
-          </p>
-        </Callout>
-      )}
+      <Callout tone={state.callout}>
+        <p className="font-semibold">{state.summary}</p>
+        <p className="mt-2">
+          {view.state === 'pending' ? (
+            <>
+              The console has no connection to the hosted approval mechanism and cannot verify whether your
+              merchant-side command is available. If it is configured and running, the decision belongs there —
+              not on this page.
+            </>
+          ) : (
+            <>
+              The state shown comes only from the ledger rows read under your workspace. The console did not
+              approve, decline, or execute anything. Check your merchant environment for the authoritative
+              decision before acting again.
+            </>
+          )}
+        </p>
+      </Callout>
 
       <section className="panel p-5 sm:p-7 space-y-4">
         <h3 className="label">Request details</h3>
         <dl className="grid gap-x-8 gap-y-1 border-t border-ink-line/60 pt-4 text-[13px] sm:grid-cols-3">
           <div>
             <dt className="label">Capability</dt>
-            <dd className="mt-1 font-mono text-[12px] text-bone-dim">{hold.capability}</dd>
+            <dd className="mt-1 font-mono text-[12px] text-bone-dim">{subject.capability}</dd>
           </div>
           <div>
             <dt className="label">Access</dt>
             <dd className="mt-1 text-[12px] text-bone-dim">
-              {hold.access === 'read' ? 'Read' : hold.access === 'write' ? 'Write' : '—'}
+              {subject.access === 'read' ? 'Read' : subject.access === 'write' ? 'Write' : '—'}
             </dd>
           </div>
           <div>
-            <dt className="label">Rule that fired</dt>
-            <dd className="mt-1 font-mono text-[12px] text-bone-dim">{hold.rule}</dd>
+            <dt className="label">Rule recorded</dt>
+            <dd className="mt-1 font-mono text-[12px] text-bone-dim">{subject.rule}</dd>
           </div>
           <div>
-            <dt className="label">Reason for hold</dt>
-            <dd className="mt-1 text-[12px] text-bone-dim">{hold.reason}</dd>
+            <dt className="label">Recorded reason</dt>
+            <dd className="mt-1 text-[12px] text-bone-dim">{subject.reason}</dd>
           </div>
           <div>
             <dt className="label">Requested at</dt>
-            <dd className="mt-1 text-[12px] text-bone-dim">{formatIso(hold.at)}</dd>
+            <dd className="mt-1 text-[12px] text-bone-dim">{formatIso(subject.at)}</dd>
           </div>
           <div>
             <dt className="label">Expires at</dt>
             <dd className="mt-1 text-[12px] text-bone-dim">
-              {hold.approval?.expiresAt ? formatIso(hold.approval.expiresAt) : '— (no expiry set)'}
+              {subject.approval?.expiresAt ? formatIso(subject.approval.expiresAt) : '— (no expiry recorded)'}
             </dd>
           </div>
           <div>
             <dt className="label">Approval required</dt>
-            <dd className="mt-1 text-[12px] text-bone-dim">Yes</dd>
+            <dd className="mt-1 text-[12px] text-bone-dim">{view.hold ? 'Yes, on the hold row' : 'Not shown on this row'}</dd>
           </div>
         </dl>
       </section>
@@ -173,8 +222,8 @@ export default async function ConfirmPage({
           <div>
             <dt className="label">Agent label</dt>
             <dd className="mt-1 text-[12px] text-bone-dim">
-              {safeAgentLabel(hold.agentLabel) ||
-                (hold.agentLabelSource === 'credential' ? 'Unnamed credential' : 'Unidentified agent')}
+              {safeAgentLabel(subject.agentLabel) ||
+                (subject.agentLabelSource === 'credential' ? 'Unnamed credential' : 'Unidentified agent')}
             </dd>
           </div>
           <div>
@@ -187,11 +236,11 @@ export default async function ConfirmPage({
           </div>
           <div>
             <dt className="label">Assurance</dt>
-            <dd className="mt-1 text-[12px] text-bone-dim">{hold.assurance}</dd>
+            <dd className="mt-1 text-[12px] text-bone-dim">{subject.assurance}</dd>
           </div>
           <div>
             <dt className="label">Agent ID</dt>
-            <dd className="mt-1 font-mono text-[12px] text-bone-dim truncate">{hold.agentId}</dd>
+            <dd className="mt-1 font-mono text-[12px] text-bone-dim truncate">{subject.agentId}</dd>
           </div>
         </dl>
         <p className="text-[11px] text-bone-faint">
@@ -226,27 +275,38 @@ export default async function ConfirmPage({
         </dl>
       </section>
 
-      <section className="panel p-5 sm:p-7 space-y-4">
-        <h3 className="label">Approve in your environment</h3>
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="border border-ink-line rounded-xl p-3 font-mono text-[12px] text-bone break-all">
-            {command}
-          </div>
-          <CopyButton text={command} />
-          <p className="font-mono text-[11px] leading-relaxed text-bone-dim max-w-[60ch]">
-            Run this in your merchant environment. It submits the write to your backend and the
-            governor records the outcome. This page does not submit anything, and copying the command
-            does not constitute approval.
+      <section className="panel p-5 sm:p-7 space-y-3">
+        <h3 className="label">Merchant-side decision</h3>
+        {canOfferCommand ? (
+          <>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="border border-ink-line rounded-xl p-3 font-mono text-[12px] text-bone break-all">
+                {command}
+              </div>
+              <CopyButton text={command} />
+            </div>
+            <p className="font-mono text-[11px] leading-relaxed text-bone-dim max-w-[60ch]">
+              Run this only in your merchant environment if that execution component is configured. This
+              console cannot verify its availability, submit the write, or confirm the outcome. Copying
+              the command is not approval.
+            </p>
+          </>
+        ) : (
+          <p className="text-[13px] leading-relaxed text-bone-dim">
+            No approval action is offered here. The state above is already recorded in the ledger, and a
+            second approval command would not change it. Check the merchant environment if you need the
+            authoritative outcome.
           </p>
-        </div>
+        )}
       </section>
 
       <TechnicalDetails label="Ledger references">
-        <div>request {hold.requestId}</div>
-        <div>agent {hold.agentId}</div>
-        {hold.heldRequestId ? <div>held {hold.heldRequestId}</div> : null}
-        {hold.configHash ? <div>config hash {hold.configHash}</div> : null}
-        {hold.rowDigest ? <div>row digest {hold.rowDigest}</div> : null}
+        <div>request {subject.requestId}</div>
+        <div>agent {subject.agentId}</div>
+        {view.hold ? <div>hold {view.hold.requestId}</div> : null}
+        {view.commit ? <div>commit {view.commit.requestId}</div> : null}
+        {subject.rowDigest ? <div>row digest {subject.rowDigest}</div> : null}
+        {subject.configHash ? <div>ledger config digest {subject.configHash}</div> : null}
       </TechnicalDetails>
 
       <Link href="/approvals" className="btn btn-secondary">

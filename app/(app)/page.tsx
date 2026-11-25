@@ -171,20 +171,23 @@ export default async function OverviewPage() {
               ? 'unknown'
               : sectorRead.hasSector === false
                 ? 'not set'
-                : sectorRead.percentile === null
-                  ? 'unknown'
-                  : `top ${101 - sectorRead.percentile}%`
+                : sectorRead.percentileBand ?? 'unknown'
           }
           hint={
             sectorRead === null || sectorRead === undefined
               ? 'Sector benchmark could not be read.'
               : sectorRead.hasSector === false
                 ? 'Set your industry and sector in setup to see benchmarks.'
-                : sectorRead.medianEvents === null
-                  ? 'Not enough peers in your sector yet.'
-                  : `You are at ${sectorRead.myEvents ?? 0} events vs. sector median ${sectorRead.medianEvents}.`
+                : 'Coarse band only. Exact cohort size and median are withheld; a small or crafted cohort cannot reveal another merchant.'
           }
-          tone={sectorRead === null || sectorRead === undefined || sectorRead.hasSector === false ? 'default' : 'good'}
+          tone={
+            sectorRead === null ||
+            sectorRead === undefined ||
+            sectorRead.hasSector === false ||
+            sectorRead.percentileBand === null
+              ? 'default'
+              : 'good'
+          }
         />
       </section>
 
@@ -264,10 +267,10 @@ export default async function OverviewPage() {
           <div className="space-y-1">
             <p className="label">Sector benchmark</p>
             <p className="text-sm font-semibold text-slate-600">
-              {sectorRead === null || sectorRead === undefined ? 'unknown' : sectorRead.hasSector === false ? 'not set' : sectorRead.percentile === null ? 'unknown' : `top ${101 - sectorRead.percentile}%`}
+              {sectorRead === null || sectorRead === undefined ? 'unknown' : sectorRead.hasSector === false ? 'not set' : sectorRead.percentileBand ?? 'unknown'}
             </p>
             <p className="text-xs text-slate-400">
-              {sectorRead === null || sectorRead === undefined ? 'Sector benchmark could not be read.' : sectorRead.hasSector === false ? 'Set your industry and sector in setup.' : 'Compared against merchants in your sector.'}
+              {sectorRead === null || sectorRead === undefined ? 'Sector benchmark could not be read.' : sectorRead.hasSector === false ? 'Set your industry and sector in setup.' : 'Coarse band only; exact cohort values are withheld.'}
             </p>
           </div>
           <Link href="/setup" className="btn btn-sm">

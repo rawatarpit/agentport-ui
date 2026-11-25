@@ -176,6 +176,8 @@ export function WebsiteAssessmentCard({ website }: { website: string | null }) {
       <Callout tone="info" title="What this scan proves">
         This is a public-surface scan, not proof of live capability. A file you can fetch is evidence of
         discoverability only; authorisation, execution and the ledger are decided by the hosted governor.
+        The result stays in this browser session only — it is not a durable row, so reloading requires a
+        new scan. No dashboard claim is stored from it.
       </Callout>
 
       {evidence ? (

@@ -1,8 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Select } from '@/components/ui/select'
+import { setupIndustryValue, setupSectorValue } from '@/lib/intelligence/sectors'
+import { profileFromParams } from '@/lib/intelligence/types'
 
 /**
  * Setup: four questions, then one line.
@@ -98,7 +100,10 @@ export function SetupWizard() {
   const [loadError, setLoadError] = useState(false)
   const [metaLoaded, setMetaLoaded] = useState(false)
   const [metaSaving, setMetaSaving] = useState(false)
+  const [carriedState, setCarriedState] = useState<'idle' | 'saving' | 'saved' | 'already' | 'error'>('idle')
   const searchParams = useSearchParams() as URLSearchParams
+  const carriedIndustry = searchParams.get('industry')
+  const carriedStarted = useRef(false)
 
   const minor = useMemo(() => {
     const toMinor = (v: string): number | null => {
@@ -177,8 +182,12 @@ export function SetupWizard() {
   // Seed industry/sector from a signup deep link, but never overwrite a value
   // the merchant already has or has chosen in this session.
   useEffect(() => {
-    const industry = searchParams.get('industry') ?? ''
-    const sector = searchParams.get('subIndustry') ?? ''
+    const rawIndustry = searchParams.get('setupIndustry') ?? searchParams.get('industry')
+    const rawSector = searchParams.get('setupSector') ?? searchParams.get('subIndustry')
+    // Old preview links carry free text. Map it into the same fixed vocabulary
+    // the metadata route accepts; an option outside the Select is not a value.
+    const industry = rawIndustry ? setupIndustryValue(rawIndustry, rawSector) : ''
+    const sector = rawSector ? setupSectorValue(rawIndustry, rawSector) : ''
     if (industry && !m.industry) setM({ industry, sector: m.sector })
     if (sector && !m.sector) setM({ industry: m.industry, sector })
   }, [searchParams, m.industry, m.sector])
@@ -203,6 +212,48 @@ export function SetupWizard() {
       live = false
     }
   }, [])
+
+  // The public preview cannot write. Once a tenant exists, carry its answers
+  // into the one durable place already approved for a whole profile: the
+  // tenant-scoped saved-reports row. The reviewed tenant metadata columns stay
+  // limited to industry + sector; no new column is invented here.
+  useEffect(() => {
+    if (!carriedIndustry || carriedStarted.current) return
+    carriedStarted.current = true
+    let live = true
+    const params = new URLSearchParams(searchParams.toString())
+
+    const run = async () => {
+      setCarriedState('saving')
+      const listRes = await fetch('/api/research/saved-reports')
+      if (!listRes.ok) throw new Error('saved reports unreadable')
+      const list = (await listRes.json()) as { reports?: unknown[] }
+      if (Array.isArray(list.reports) && list.reports.length > 0) {
+        if (live) setCarriedState('already')
+        return
+      }
+
+      const profile = profileFromParams(params)
+      const saveRes = await fetch('/api/research/saved-reports', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ profile }),
+      })
+      if (!saveRes.ok) throw new Error('report snapshot refused')
+      if (live) setCarriedState('saved')
+      // The carried website stays in the saved report profile. A signup link
+      // is untrusted input, so it never silently writes tenants.website_url —
+      // that is the public discovery origin and must be set explicitly in
+      // Go live / assessment.
+    }
+
+    void run().catch(() => {
+      if (live) setCarriedState('error')
+    })
+    return () => {
+      live = false
+    }
+  }, [carriedIndustry, searchParams])
 
   const saveMeta = async () => {
     if (!m.industry.trim() || !m.sector.trim()) return
@@ -281,6 +332,19 @@ export function SetupWizard() {
             compares with similar businesses. It is never shared with other
             merchants and never affects enforcement.
           </p>
+          {carriedIndustry ? (
+            <p className="mt-2 font-mono text-[11px] text-bone-faint" role="status">
+              {carriedState === 'saving'
+                ? 'Saving your research answers as a tenant-scoped report snapshot…'
+                : carriedState === 'saved'
+                  ? 'Research answers saved as your first report snapshot. It is a draft, not a live claim.'
+                  : carriedState === 'already'
+                    ? 'Your existing report snapshot was kept; the answers were not overwritten.'
+                    : carriedState === 'error'
+                      ? 'The carried answers could not be saved. You can still continue; nothing was claimed as live.'
+                      : 'Research answers found in your signup link.'}
+            </p>
+          ) : null}
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <label className="block text-sm font-medium text-slate-700">

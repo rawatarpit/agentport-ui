@@ -29,27 +29,15 @@ export const dynamic = 'force-dynamic'
  */
 
 /**
- * Why these buttons are disabled rather than merely absent.
+ * Why this queue links to a reference page instead of offering a browser action.
  *
  * A browser approval puts a second, differently-available approver in front of a
- * real-money decision, and it is the wrong shape for two reasons that are not
- * about convenience:
- *
- * 1. The approver's identity would not land on the ledger row the way a CLI
- *    approver's does. `agent-port approve` records who approved, against the
- *    identity captured when the request was held. An identity arriving from a
- *    browser session is exactly the credential-derived-from-a-session case the
- *    SDK refuses to issue, because it cannot tell an employee from an algorithm
- *    in the record.
- * 2. A held request is frozen at request time. Approving it from here would mean
- *    re-evaluating policy in a process that is not the merchant's — the runtime
- *    holds the kill switch and the ceilings, and neither is reachable from this
- *    app.
- *
- * Notifications about a held request are legitimate and belong here. Committing
- * one is not.
+ * real-money decision. The approver's identity would not land on the ledger row
+ * the way a merchant-side approver's does, and a held request is frozen at
+ * request time — the runtime's kill switch and ceilings are not reachable here.
+ * Notifications about a held request are legitimate; committing one is not.
  */
-const INERT = 'Approvals run in the merchant’s environment, where the request was frozen.'
+const DECISION_OWNER = 'The decision belongs in your merchant environment, where the request was frozen.'
 
 export default async function ApprovalsPage() {
   const tenant = await resolveRequestTenant()
@@ -147,21 +135,12 @@ export default async function ApprovalsPage() {
                 {p.heldRequestId ? <div>held {p.heldRequestId}</div> : null}
               </TechnicalDetails>
 
-              {/*
-                Disabled with the reason visible, rather than hidden. A button
-                that is simply absent leaves the reader wondering whether approval
-                is possible somewhere else; one that is inert *and explains
-                itself* states where the decision belongs.
-              */}
               <div className="mt-4 flex flex-wrap items-center gap-2">
-                <button className="btn btn-primary opacity-40" type="button" disabled aria-disabled="true">
-                  Approve and run
-                </button>
-                <button className="btn btn-danger opacity-40" type="button" disabled aria-disabled="true">
-                  Decline
-                </button>
+                <Link href={`/approvals/confirm/${encodeURIComponent(p.requestId)}`} className="btn btn-secondary">
+                  Review request
+                </Link>
                 <span className="self-center font-mono text-[11px] text-bone-faint">
-                  {INERT} Run <span className="text-bone-dim">agent-port approve</span> there.
+                  {DECISION_OWNER} Opening the reference is not approval.
                 </span>
               </div>
             </li>

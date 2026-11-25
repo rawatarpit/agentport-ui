@@ -1,4 +1,4 @@
-import { configHash } from '@/lib/agentport'
+import { DEMO_CONFIG_DIGEST } from '@/lib/agentport'
 
 /**
  * Tenant-scoped persistence for the dashboard.
@@ -74,7 +74,7 @@ let seeded = false
 
 /**
  * Demo heartbeat removed: the panel now renders `unknown` until a real push
- * lands (POST /api/analytics carrying configHash + pushedAt, dev only — the
+ * lands (POST /api/analytics carrying DEMO_CONFIG_DIGEST + pushedAt, dev only — the
  * production path is the Supabase heartbeat). A seeded "live 4 minutes ago"
  * was the fabricated panel this whole architecture exists to prevent.
  * `seedDemoPush` is kept for tests only and is never called by the app.
@@ -84,7 +84,7 @@ export function seedDemoPush(now = Date.now()): void {
   seeded = true
   pushes.set(DEMO_TENANT, {
     tenantId: DEMO_TENANT,
-    digest: configHash,
+    digest: DEMO_CONFIG_DIGEST,
     pushedAt: new Date(now - 4 * 60_000).toISOString(),
   })
 }

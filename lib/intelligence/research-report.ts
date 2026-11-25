@@ -89,6 +89,9 @@ function sourceFor(evidence: CollectedEvidence): { id: string; source: ResearchS
       url: evidence.sourceUrl,
       publishedAt: evidence.publishedAt,
       dataPeriod: evidence.dataPeriod,
+      collectedAt: evidence.collectedAt,
+      geography: evidence.geography,
+      industry: evidence.industry,
       kind: isPrimary ? 'primary' : 'secondary',
     },
   }
@@ -101,7 +104,7 @@ function metricFor(evidence: CollectedEvidence): {
 } | null {
   const extracted = evidence.extractedInformation
   const sourceId = sourceIdFor(evidence)
-  const baseNote = `Source: ${evidence.sourceName} (${evidence.sourceUrl}). Provider-reported, not independently verified.`
+  const baseNote = sourceNote(evidence)
 
   if (evidence.providerId === 'world-bank') {
     const indicator = extracted.indicator as string | null
@@ -167,7 +170,7 @@ function metricFor(evidence: CollectedEvidence): {
         confidence: 'low',
         sourceId,
         period: null,
-        note: `${basePoint(terms)} Public repository matches are not competitors or market size.`,
+        note: `${basePoint(terms, evidence)}Public repository matches are not competitors, commercial demand, or market size.`,
       },
     }
   }
@@ -177,7 +180,7 @@ function metricFor(evidence: CollectedEvidence): {
 
 function findingFor(evidence: CollectedEvidence): { sectionId: 'executive' | 'landscape' | 'competition' | 'ecosystem'; finding: Finding } | null {
   const sourceId = sourceIdFor(evidence)
-  const baseNote = `Source: ${evidence.sourceName} (${evidence.sourceUrl}).`
+  const baseNote = sourceNote(evidence)
 
   if (evidence.providerId === 'world-bank') {
     const indicator = evidence.extractedInformation.indicator as string | null
@@ -232,7 +235,7 @@ function findingFor(evidence: CollectedEvidence): { sectionId: 'executive' | 'la
         provenance: 'reported',
         confidence: 'low',
         sourceIds: [sourceId],
-        note: `${baseNote} Public repository matches are not competitors or market size.`,
+        note: `${baseNote} Public repository matches are not competitors, commercial demand, or market size.`,
       },
     }
   }
@@ -264,8 +267,17 @@ function formatValue(value: number, unit: string): string {
   return unit === 'USD' ? `US$${value.toLocaleString()}` : `${value}${unit}`
 }
 
-function basePoint(terms: string): string {
-  return `GitHub public API search for "${terms}". `
+function basePoint(terms: string, evidence: CollectedEvidence): string {
+  return `Source: GitHub public API search for "${terms}" (${evidence.sourceUrl}). Provider-reported, not independently verified. `
+}
+
+/**
+ * Every externally sourced value carries the same caveat. The strength of the
+ * caveat must not depend on which provider produced the row: a repository
+ * count is no more independently verified than a macro indicator.
+ */
+function sourceNote(evidence: CollectedEvidence, extra?: string): string {
+  return `Source: ${evidence.sourceName} (${evidence.sourceUrl}). Provider-reported, not independently verified.${extra ? ` ${extra}` : ''}`
 }
 
 function sectionById(sections: ReportSection[], id: ReportSectionId): ReportSection | undefined {
@@ -274,7 +286,6 @@ function sectionById(sections: ReportSection[], id: ReportSectionId): ReportSect
 
 export async function buildSourcedReport(profile: ResearchProfile): Promise<ResearchReport> {
   const base = buildReport(profile)
-  const collectedAt = new Date().toISOString()
   const queries = queriesFor(profile)
   const providersByCategory = new Map<string, ReturnType<typeof getConfiguredProvider>>()
   for (const provider of configuredResearchProviders) {
@@ -325,21 +336,56 @@ export async function buildSourcedReport(profile: ResearchProfile): Promise<Rese
   }
 
   const sources = Array.from(sourcesById.values())
+  const anySources = sources.length > 0
+  const sourceIds = sources.map((s) => s.id)
+  const collectionTimes = [...new Set(sources.map((s) => s.collectedAt).filter((t): t is string => Boolean(t)))]
+
   const sections = base.sections.map((section) => {
     const metrics = [...section.metrics, ...(metricsBySection.get(section.id) ?? [])]
     const findings = [...section.findings, ...(findingsBySection.get(section.id) ?? [])]
+
+    // The base report's source section says "no external source" because that
+    // is true for buildReport. In sourced mode leaving that sentence in place
+    // contradicts the source list rendered beside it.
+    if (section.id === 'sources' && anySources) {
+      const geographies = [...new Set(sources.map((s) => s.geography).filter((g): g is string => Boolean(g)))]
+      const industries = [...new Set(sources.map((s) => s.industry).filter((i): i is string => Boolean(i)))]
+      return {
+        ...section,
+        summary: 'Sources are listed below with their URLs, publication dates, collection dates, data periods, and the geography and industry actually queried.',
+        findings: [
+          {
+            id: 'source-coverage',
+            claim: `${sources.length} source${sources.length === 1 ? '' : 's'} returned for this report. Queried geography: ${geographies.join(', ') || 'not recorded'}. Queried industry: ${industries.join(', ') || 'not recorded'}. Collection ${collectionTimes.length === 1 ? 'time' : 'times'}: ${collectionTimes.join(', ') || 'not recorded'}.`,
+            provenance: 'derived' as const,
+            confidence: 'high' as const,
+            sourceIds,
+            note: 'Computed from the provider evidence returned in this run. It describes coverage of the sources, not coverage of the merchant’s whole market.',
+          },
+          {
+            id: 'source-limits',
+            claim: 'World Bank rows are macroeconomic context, SEC rows are public registry/filing data, and GitHub rows are public code activity. None of them measures market size, adoption, commercial demand, or the competitor set.',
+            provenance: 'interpretation' as const,
+            confidence: 'low' as const,
+            sourceIds: [],
+            note: 'Categories with no usable provider row remain unknown; no estimate is substituted.',
+          },
+        ],
+        sourceIds,
+      }
+    }
+
     return { ...section, metrics, findings }
   })
 
-  // Associate economic context with the landscape section explicitly.
+  // Only claim economic context when a World Bank source is actually present.
   const landscape = sectionById(sections, 'landscape')
-  if (landscape) {
+  if (landscape && sources.some((s) => s.id.startsWith('source-world-bank'))) {
     landscape.summary =
       landscape.summary +
       ' World Bank economic context for the declared country appears below when a country is selected.'
   }
 
-  const anySources = sources.length > 0
   return {
     ...base,
     dataMode: anySources ? 'sourced' : 'unresearched',

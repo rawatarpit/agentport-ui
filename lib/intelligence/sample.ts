@@ -32,6 +32,9 @@ const SAMPLE_SOURCE: ResearchSource = {
   url: null,
   publishedAt: null,
   dataPeriod: null,
+  collectedAt: null,
+  geography: null,
+  industry: null,
   kind: 'sample',
 }
 
@@ -41,6 +44,9 @@ const SAMPLE_METHOD: ResearchSource = {
   url: null,
   publishedAt: null,
   dataPeriod: null,
+  collectedAt: null,
+  geography: null,
+  industry: null,
   kind: 'sample',
 }
 

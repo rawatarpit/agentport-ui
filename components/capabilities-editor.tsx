@@ -97,12 +97,16 @@ const CAPS: Cap[] = [
 export function CapabilitiesEditor({
   inventory = [],
   activeNames = null,
+  appliedVersion: initialAppliedVersion = null,
 }: {
   inventory?: InventoryCap[]
   /** Names the active config serves. Null/absent means unknown, not empty. */
   activeNames?: string[] | null
+  /** The applied config version. Null with a known empty active set means no config yet. */
+  appliedVersion?: number | null
 }) {
   const router = useRouter()
+  const activeRead = activeNames !== null
   const activeSet = activeNames === null ? null : new Set(activeNames)
   const activeInventory = activeSet === null ? inventory : inventory.filter((e) => activeSet.has(e.name))
   const retainedInventory =
@@ -225,7 +229,7 @@ export function CapabilitiesEditor({
   const [applyError, setApplyError] = useState<string | null>(null)
   // A successful apply is live; a draft is not. The old screen only knew
   // `saved`, so it claimed "not published" after a real activation.
-  const [appliedVersion, setAppliedVersion] = useState<number | null>(null)
+  const [appliedVersion, setAppliedVersion] = useState<number | null>(initialAppliedVersion)
 
   const applyConfig = async (payload: { confirm: boolean | string }): Promise<{
     status: string
@@ -324,24 +328,26 @@ export function CapabilitiesEditor({
     <div className="space-y-4">
       <div className="panel flex flex-wrap items-center justify-between gap-3 p-4">
         <div>
-          <p className="label">{appliedVersion !== null ? 'Active' : 'Draft'}</p>
+          <p className="label">{appliedVersion !== null ? 'Active' : activeRead ? 'Draft' : 'Unknown'}</p>
           <p className="mt-1 text-[13px] text-bone-dim">
             {!loaded
               ? 'Reading your saved draft…'
               : appliedVersion !== null
                 ? `Active in version ${appliedVersion}. The hosted governor serves it on its next poll.`
-                : savedAt
-                  ? 'Draft saved. Nothing changed for your visitors yet.'
+                : !activeRead
+                  ? 'The applied config could not be read. The draft below is not a live claim.'
                   : totalHidden === 0
-                    ? 'Agents currently see every field.'
-                    : `${totalHidden} field${totalHidden === 1 ? '' : 's'} hidden from agents.`}
+                    ? 'The current draft hides no fields. Nothing has been applied yet.'
+                    : `${totalHidden} field${totalHidden === 1 ? '' : 's'} hidden in the current draft only.`}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {appliedVersion !== null ? (
             <Badge tone="allow">active v{appliedVersion}</Badge>
-          ) : (
+          ) : activeRead ? (
             <Badge tone="idle">not published yet</Badge>
+          ) : (
+            <Badge tone="idle">publication unknown</Badge>
           )}
           <button type="button" className="btn" disabled={saving || !loaded || loadError} onClick={save}>
             {saving ? 'Saving…' : !loaded ? 'Reading draft…' : 'Save as draft'}
@@ -678,8 +684,10 @@ export function CapabilitiesEditor({
           <li>
             {appliedVersion !== null ? (
               <>Version {appliedVersion} is active. Further edits stay a draft until you apply again.</>
+            ) : activeRead ? (
+              <>No version is applied. A saved draft is not live. <span className="text-bone">Apply changes</span> updates the hosted governor.</>
             ) : (
-              <>A saved draft is not live. <span className="text-bone">Apply changes</span> updates the hosted governor.</>
+              <>The applied version is unknown. A saved draft is not live, and this screen does not claim one is.</>
             )}
           </li>
         </ul>

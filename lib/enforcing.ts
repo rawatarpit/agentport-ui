@@ -1,5 +1,5 @@
 import type { Policy } from '@/lib/contracts'
-import { configHash } from '@/lib/agentport'
+import { DEMO_CONFIG_DIGEST } from '@/lib/agentport'
 
 /**
  * The enforcing digest and its age — TASKS.md 5.3.
@@ -51,7 +51,7 @@ export function enforcingFromPush(opts: {
 /** Demo push: the digest this process enforces, asserted seconds ago. */
 export function demoEnforcing(now = Date.now()): EnforcingState {
   return enforcingFromPush({
-    digest: configHash,
+    digest: DEMO_CONFIG_DIGEST,
     pushedAt: new Date(now - 4 * 60_000).toISOString(),
     now,
   })

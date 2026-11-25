@@ -4,6 +4,7 @@ import { Section } from '@/components/ui/section'
 import { EmptyState } from '@/components/ui/empty-state'
 import { resolveRequestTenant } from '@/lib/tenant-server'
 import { createClient } from '@/lib/supabase/server'
+import { readAcquisitionCounts } from '@/lib/funnel-reads'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,11 +16,6 @@ export const dynamic = 'force-dynamic'
  * renders as `unknown`, never zero. No conversion percentages are shown
  * until the underlying event definitions and denominators are verified.
  */
-
-type AcquisitionCount = {
-  event_type: string
-  count: number
-}
 
 type ActivationEvent = {
   event_kind: string
@@ -53,43 +49,6 @@ function when(value: string | null): string {
   const parsed = Date.parse(value)
   if (!Number.isFinite(parsed)) return 'unknown'
   return new Date(parsed).toISOString().replace('T', ' ').slice(0, 16) + ' UTC'
-}
-
-/**
- * Read acquisition event counts for the caller's tenant. Failed reads return
- * null (unknown), never zero.
- */
-async function readAcquisitionCounts(tenantId: string): Promise<(number | null)[]> {
-  const db = createClient()
-  const { data, error } = await db
-    .from('acquisition_events')
-    .select('event_type')
-    .eq('tenant_id', tenantId)
-
-  if (error || !data) return []
-
-  const counts: Record<string, number> = {}
-  for (const row of data as Array<{ event_type: string }>) {
-    counts[row.event_type] = (counts[row.event_type] ?? 0) + 1
-  }
-
-  return [
-    counts['intelligence_viewed'] ?? null,
-    counts['report_generated'] ?? null,
-    counts['report_saved'] ?? null,
-    counts['signup_started'] ?? null,
-    counts['signup_completed'] ?? null,
-    counts['assessment_started'] ?? null,
-    counts['assessment_completed'] ?? null,
-    counts['installation_started'] ?? null,
-    counts['github_app_installed'] ?? null,
-    counts['repository_connected'] ?? null,
-    counts['pull_request_created'] ?? null,
-    counts['configuration_applied'] ?? null,
-    counts['installation_completed'] ?? null,
-    counts['deployment_verified'] ?? null,
-    counts['merchant_profile_completed'] ?? null,
-  ]
 }
 
 /**
@@ -424,6 +383,13 @@ export default async function FunnelPage() {
           `analytics_events` table, which records per-push aggregates
           (`asked`, `denied`, `held`, `approved`, `executed`) — never one row
           per request, never amounts, never PII.
+        </p>
+        <p className="mt-2 text-[13px] leading-relaxed text-bone-dim">
+          The first read timestamp comes from an individual ledger row. It is
+          not the same evidence as a per-push `analytics_events` aggregate, and
+          neither is the same as browser-emitted acquisition telemetry. Marketing
+          &amp; Sales reads ledger views separately; it does not turn client
+          events into merchant decisions.
         </p>
         <p className="mt-2 text-[13px] leading-relaxed text-bone-dim">
           Conversion percentages are intentionally not shown. A percentage

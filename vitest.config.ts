@@ -7,6 +7,6 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['lib/**/*.test.ts', 'lib/**/*.test.mjs', 'broker/**/*.test.ts'],
+    include: ['lib/**/*.test.ts', 'lib/**/*.test.mjs', 'app/**/*.test.ts', 'broker/**/*.test.ts'],
   },
 })

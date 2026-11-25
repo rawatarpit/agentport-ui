@@ -65,6 +65,56 @@ export const INDUSTRY_FAMILIES: IndustryFamily[] = [
   },
 ]
 
+/**
+ * The onboarding wizard uses a fixed, coarser vocabulary than the research
+ * taxonomy. Mapping at the hand-off keeps the two screens continuous without
+ * storing a new taxonomy column or pretending a free-text answer was a choice.
+ */
+export const SETUP_INDUSTRY_VALUES = [
+  'retail', 'healthcare', 'finance', 'education',
+  'hospitality', 'manufacturing', 'technology', 'logistics', 'other',
+] as const
+
+export const SETUP_SECTOR_VALUES = [
+  'e-commerce', 'clinic', 'bank', 'school', 'hotel',
+  'factory', 'saas', 'warehouse', 'other',
+] as const
+
+const SETUP_INDUSTRIES = new Set<string>(SETUP_INDUSTRY_VALUES)
+const SETUP_SECTORS = new Set<string>(SETUP_SECTOR_VALUES)
+
+export function setupIndustryValue(industry: string | null, subIndustry: string | null = null): string {
+  const direct = (industry ?? '').trim().toLowerCase()
+  if (SETUP_INDUSTRIES.has(direct)) return direct
+  const text = `${subIndustry ?? ''} ${industry ?? ''}`.toLowerCase()
+  if (/health|clinic|dental|pharma|wellness/.test(text)) return 'healthcare'
+  if (/bank|insur|lend|payment|wealth|finance/.test(text)) return 'finance'
+  if (/school|education|training|edtech|certification/.test(text)) return 'education'
+  if (/hotel|restaurant|cafe|café|travel|hospitality|experience/.test(text)) return 'hospitality'
+  if (/factory|industrial|manufactur|component|material/.test(text)) return 'manufacturing'
+  if (/developer|saas|software|infrastructure|data|technology/.test(text)) return 'technology'
+  if (/freight|warehous|logistics|fleet|customs|last mile/.test(text)) return 'logistics'
+  if (/retail|commerce|grocery|fashion|electronics|furniture|shop/.test(text)) return 'retail'
+  return 'other'
+}
+
+export function setupSectorValue(industry: string | null, subIndustry: string | null = null): string {
+  const direct = (subIndustry ?? '').trim().toLowerCase()
+  if (SETUP_SECTORS.has(direct)) return direct
+  const text = `${subIndustry ?? ''} ${industry ?? ''}`.toLowerCase()
+  if (/bank|insur|lend|payment|wealth|finance/.test(text)) return 'bank'
+  if (/clinic|dental|diagnostic|wellness|pharma|health/.test(text)) return 'clinic'
+  if (/school|education|training|edtech|certification/.test(text)) return 'school'
+  if (/hotel|restaurant|cafe|café|travel|hospitality/.test(text)) return 'hotel'
+  if (/factory|industrial|manufactur|component|material/.test(text)) return 'factory'
+  if (/developer|saas|software|infrastructure|data|technology/.test(text)) return 'saas'
+  if (/retail|commerce|e-commerce|shop|store/.test(text)) return 'e-commerce'
+  if (/freight|warehous|logistics|fleet|customs|last mile/.test(text)) return 'warehouse'
+  // A preview answer that does not map does not become a plausible default:
+  // setup offers "other" for exactly this case.
+  return 'other'
+}
+
 export const BUSINESS_MODELS = [
   'Direct-to-consumer',
   'B2B wholesale',

@@ -1,13 +1,16 @@
 import Link from 'next/link'
 import { CapabilitiesEditor, type InventoryCap } from '@/components/capabilities-editor'
 import { PageHeader } from '@/components/ui/page-header'
+import { activeVersionFromRow } from '@/lib/publish-state'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { resolveRequestTenant } from '@/lib/tenant-server'
 
 export const dynamic = 'force-dynamic'
 
+type ActiveConfig = { names: string[]; version: number | null }
+
 /**
- * The capability names the active config actually serves.
+ * The capability names and version the active config actually serves.
  *
  * The inventory table keeps rows for capabilities that were removed on purpose:
  * the apply RPC preserves their classification so re-adding one does not
@@ -18,9 +21,9 @@ export const dynamic = 'force-dynamic'
  * service role, the same pattern as the publish routes.
  *
  * Null means unknown: the inventory renders unfiltered with an honest caveat
- * rather than claiming a capability is dead.
+ * rather than claiming a capability is dead or unpublished.
  */
-async function readActiveCapabilityNames(tenantId: string): Promise<string[] | null> {
+async function readActiveConfig(tenantId: string): Promise<ActiveConfig | null> {
   try {
     const admin = createAdminClient()
     const { data: runtime, error: runtimeError } = await admin
@@ -29,10 +32,9 @@ async function readActiveCapabilityNames(tenantId: string): Promise<string[] | n
       .eq('tenant_id', tenantId)
       .maybeSingle()
     if (runtimeError) return null
-    const version = Number(
-      (runtime as { active_config_version?: unknown } | null)?.active_config_version ?? 0,
-    )
-    if (!Number.isInteger(version) || version <= 0) return []
+    const version = activeVersionFromRow(runtime)
+    if (version === undefined) return null
+    if (version === 0) return { names: [], version: null }
     const { data: row, error } = await admin
       .from('tenant_config_versions')
       .select('capabilities')
@@ -49,7 +51,7 @@ async function readActiveCapabilityNames(tenantId: string): Promise<string[] | n
       if (typeof name !== 'string') return null
       names.push(name)
     }
-    return names
+    return { names, version }
   } catch {
     return null
   }
@@ -69,7 +71,7 @@ export default async function CapabilitiesPage() {
     )
   }
 
-  const [{ data, error }, activeNames] = await Promise.all([
+  const [{ data, error }, activeConfig] = await Promise.all([
     tenant.supabase
       .from('agent_capabilities')
       // The column is snake_case (data_class); PostgREST columns are
@@ -78,7 +80,7 @@ export default async function CapabilitiesPage() {
       .select('name,method,path,kind,origin,dataClass:data_class')
       .eq('tenant_id', tenant.active.tenantId)
       .order('name', { ascending: true }),
-    readActiveCapabilityNames(tenant.active.tenantId),
+    readActiveConfig(tenant.active.tenantId),
   ])
 
   const inventory: InventoryCap[] | null = error ? null : ((data ?? []) as InventoryCap[])
@@ -109,7 +111,11 @@ export default async function CapabilitiesPage() {
           </p>
         </div>
       ) : (
-        <CapabilitiesEditor inventory={inventory} activeNames={activeNames} />
+        <CapabilitiesEditor
+          inventory={inventory}
+          activeNames={activeConfig?.names ?? null}
+          appliedVersion={activeConfig?.version ?? null}
+        />
       )}
     </div>
   )

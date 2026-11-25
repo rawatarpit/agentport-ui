@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { sumNullableCounts } from '@/lib/analytics-counts'
 import { agentKey } from '@/lib/analytics-shape'
 import { safeAgentLabel } from '@/lib/safe-display'
 import { resolveRequestTenant, type RequestTenant } from '@/lib/tenant-server'
@@ -80,6 +81,8 @@ export type MarketingAnalytics = {
   sources: Array<{
     source: string
     label: string
+    /** The label is inferred from an opaque id, never a verified caller identity. */
+    evidence: 'agent_id_heuristic'
     agents: number
     requests: number
     allowed: number
@@ -94,7 +97,7 @@ export type MarketingAnalytics = {
     allowed: number
     held: number
     refused: number
-    executed: number
+    executed: number | null
     conversionRate: number | null
   }>
   weekly: Array<{
@@ -109,7 +112,8 @@ export type MarketingAnalytics = {
   funnel: Array<{
     step: string
     label: string
-    count: number
+    /** Null when no aggregation row proves the count. */
+    count: number | null
     conversionRate: number | null
   }>
   refusalReasons: Array<{ reason: string; count: number }>
@@ -119,6 +123,7 @@ export type MarketingAnalytics = {
     label: string
     labelSource: 'declared' | 'credential' | 'none' | null
     source: string
+    sourceEvidence: 'agent_id_heuristic'
     assurance: 'verified' | 'unverified'
     requests: number
     allowed: number
@@ -130,7 +135,13 @@ export type MarketingAnalytics = {
   }>
 }
 
-async function fetchMarketingAnalytics(
+/** Adding a known number to an unknown count must stay unknown, never zero. */
+function addNullable(total: number | null, value: number | null): number | null {
+  if (total === null || value === null) return null
+  return total + value
+}
+
+export async function fetchMarketingAnalytics(
   supabase: RequestTenant['supabase'],
   tenantId: string,
 ): Promise<MarketingAnalytics> {
@@ -220,6 +231,7 @@ async function fetchMarketingAnalytics(
     .map(([source, c]) => ({
       source,
       label: source,
+      evidence: 'agent_id_heuristic' as const,
       agents: c.agents.size,
       requests: c.requests,
       allowed: c.allowed,
@@ -236,7 +248,7 @@ async function fetchMarketingAnalytics(
     allowed: number
     held: number
     refused: number
-    executed: number
+    executed: number | null
     succeeded: number | null
     failed: number | null
   }>()
@@ -248,7 +260,7 @@ async function fetchMarketingAnalytics(
   for (const r of demand) {
     let cur = byCap.get(r.capability)
     if (!cur) {
-      cur = { access: capAccess.get(r.capability) ?? null, requests: 0, allowed: 0, held: 0, refused: 0, executed: 0, succeeded: null, failed: null }
+      cur = { access: capAccess.get(r.capability) ?? null, requests: 0, allowed: 0, held: 0, refused: 0, executed: null, succeeded: null, failed: null }
       byCap.set(r.capability, cur)
     }
     cur.requests += 1
@@ -260,16 +272,16 @@ async function fetchMarketingAnalytics(
   for (const r of activity) {
     let cur = byCap.get(r.capability)
     if (!cur) {
-      cur = { access: capAccess.get(r.capability) ?? null, requests: 0, allowed: 0, held: 0, refused: 0, executed: 0, succeeded: null, failed: null }
+      cur = { access: capAccess.get(r.capability) ?? null, requests: 0, allowed: 0, held: 0, refused: 0, executed: null, succeeded: null, failed: null }
       byCap.set(r.capability, cur)
     }
-    cur.executed += typeof r.executed === 'number' ? r.executed : 0
+    cur.executed = addNullable(cur.executed, r.executed)
   }
 
   for (const c of conversion) {
     let cur = byCap.get(c.capability)
     if (!cur) {
-      cur = { access: capAccess.get(c.capability) ?? null, requests: 0, allowed: 0, held: 0, refused: 0, executed: 0, succeeded: null, failed: null }
+      cur = { access: capAccess.get(c.capability) ?? null, requests: 0, allowed: 0, held: 0, refused: 0, executed: null, succeeded: null, failed: null }
       byCap.set(c.capability, cur)
     }
     if (c.succeeded_count !== null && c.failed_count !== null) {
@@ -294,9 +306,6 @@ async function fetchMarketingAnalytics(
   // --- Weekly trend ---
   // A null in any row makes that week's total unknown. Adding a known number
   // to an unknown one and printing the sum is the null-to-zero bug.
-  const add = (total: number | null, value: number | null): number | null =>
-    total === null || typeof value !== 'number' ? null : total + value
-
   const byWeek = new Map<string, {
     requests: number | null
     executed: number | null
@@ -309,9 +318,9 @@ async function fetchMarketingAnalytics(
       cur = { requests: 0, executed: 0, held: 0 }
       byWeek.set(r.window_start, cur)
     }
-    cur.requests = add(cur.requests, r.asked)
-    cur.executed = add(cur.executed, r.executed)
-    cur.held = add(cur.held, r.held)
+    cur.requests = addNullable(cur.requests, r.asked)
+    cur.executed = addNullable(cur.executed, r.executed)
+    cur.held = addNullable(cur.held, r.held)
   }
 
   // The activity view has no per-week agent identity. The old version divided
@@ -328,14 +337,16 @@ async function fetchMarketingAnalytics(
     .sort((a, b) => a.week.localeCompare(b.week))
 
   // --- Funnel ---
-  const asked = activity.reduce((n, r) => n + (typeof r.asked === 'number' ? r.asked : 0), 0)
-  const approved = activity.reduce((n, r) => n + (typeof r.approved === 'number' ? r.approved : 0), 0)
-  const executed = activity.reduce((n, r) => n + (typeof r.executed === 'number' ? r.executed : 0), 0)
+  const asked = sumNullableCounts(activity.map((r) => r.asked))
+  const approved = sumNullableCounts(activity.map((r) => r.approved))
+  const executed = sumNullableCounts(activity.map((r) => r.executed))
+  const rate = (part: number | null, whole: number | null): number | null =>
+    part !== null && whole !== null && whole > 0 ? Math.round((part / whole) * 100) : null
 
   const funnel = [
     { step: 'asked', label: 'Requests received', count: asked, conversionRate: null },
-    { step: 'approved', label: 'Approved for execution', count: approved, conversionRate: asked > 0 ? Math.round((approved / asked) * 100) : null },
-    { step: 'executed', label: 'Successfully executed', count: executed, conversionRate: asked > 0 ? Math.round((executed / asked) * 100) : null },
+    { step: 'approved', label: 'Approved for execution', count: approved, conversionRate: rate(approved, asked) },
+    { step: 'executed', label: 'Successfully executed', count: executed, conversionRate: rate(executed, asked) },
   ]
 
   // --- Refusal reasons from demand (deny/require_approval) ---
@@ -360,6 +371,7 @@ async function fetchMarketingAnalytics(
     key: string
     agent_id: string
     source: string
+    sourceEvidence: 'agent_id_heuristic'
     label: string
     labelSource: 'declared' | 'credential' | 'none' | null
     assurance: 'verified' | 'unverified'
@@ -381,6 +393,7 @@ async function fetchMarketingAnalytics(
         key,
         agent_id: r.agent_id,
         source,
+        sourceEvidence: 'agent_id_heuristic' as const,
         label: safeAgentLabel(r.agent_label) ||
           (r.agent_label_source === 'credential' ? 'Unnamed credential' : 'Unidentified agent'),
         labelSource: r.agent_label_source ?? null,
@@ -419,6 +432,7 @@ async function fetchMarketingAnalytics(
       label: c.label,
       labelSource: c.labelSource,
       source: c.source,
+      sourceEvidence: c.sourceEvidence,
       assurance: c.assurance,
       requests: c.requests,
       allowed: c.allowed,
@@ -431,25 +445,23 @@ async function fetchMarketingAnalytics(
     .sort((a, b) => b.requests - a.requests)
 
   // --- KPIs ---
-  const totalRequests = activity.reduce((n, r) => n + (typeof r.asked === 'number' ? r.asked : 0), 0)
-  const totalAgents = new Set(demand.map(agentKey)).size
-  const totalExecuted = activity.reduce((n, r) => n + (typeof r.executed === 'number' ? r.executed : 0), 0)
-  const totalHeld = activity.reduce((n, r) => n + (typeof r.held === 'number' ? r.held : 0), 0)
-  const totalRefused = activity.reduce((n, r) => n + (typeof r.denied === 'number' ? r.denied : 0), 0)
-  const activeSources = sources.length
-  const conversionRate = totalRequests > 0 ? Math.round((totalExecuted / totalRequests) * 100) : null
-  const holdRate = totalRequests > 0 ? Math.round((totalHeld / totalRequests) * 100) : null
+  const totalRequests = sumNullableCounts(activity.map((r) => r.asked))
+  const totalAgents = demand.length > 0 ? new Set(demand.map(agentKey)).size : null
+  const totalExecuted = sumNullableCounts(activity.map((r) => r.executed))
+  const totalHeld = sumNullableCounts(activity.map((r) => r.held))
+  const totalRefused = sumNullableCounts(activity.map((r) => r.denied))
+  const activeSources = demand.length > 0 ? sources.length : null
 
   return {
     kpis: {
-      totalRequests: totalRequests > 0 ? totalRequests : null,
-      totalAgents: totalAgents > 0 ? totalAgents : null,
-      totalExecuted: totalExecuted > 0 ? totalExecuted : null,
-      totalHeld: totalHeld > 0 ? totalHeld : null,
-      totalRefused: totalRefused > 0 ? totalRefused : null,
-      activeSources: activeSources > 0 ? activeSources : null,
-      conversionRate,
-      holdRate,
+      totalRequests,
+      totalAgents,
+      totalExecuted,
+      totalHeld,
+      totalRefused,
+      activeSources,
+      conversionRate: rate(totalExecuted, totalRequests),
+      holdRate: rate(totalHeld, totalRequests),
     },
     sources,
     capabilities,
@@ -460,14 +472,15 @@ async function fetchMarketingAnalytics(
   }
 }
 
+/** Heuristic only: an opaque id is never proof of a caller's identity. */
 function resolveSource(demand: DemandRow): string {
   const lower = demand.agent_id.toLowerCase()
-  if (lower.includes('chatgpt')) return 'ChatGPT'
-  if (lower.includes('claude')) return 'Claude'
-  if (lower.includes('gpt')) return 'GPT'
-  if (lower.includes('gemini')) return 'Gemini'
-  if (lower.includes('copilot')) return 'Copilot'
-  return 'Unknown agent'
+  if (lower.includes('chatgpt')) return 'Inferred ChatGPT'
+  if (lower.includes('claude')) return 'Inferred Claude'
+  if (lower.includes('gpt')) return 'Inferred GPT'
+  if (lower.includes('gemini')) return 'Inferred Gemini'
+  if (lower.includes('copilot')) return 'Inferred Copilot'
+  return 'Unclassified agent id'
 }
 
 export async function GET(req: Request) {

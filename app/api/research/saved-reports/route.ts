@@ -9,6 +9,8 @@ import {
 } from '@/lib/research/saved-reports'
 import { resolveRequestTenant } from '@/lib/tenant-server'
 import { trackServerEvent } from '@/lib/funnel-events-server'
+import { parseResearchProfile } from '@/lib/intelligence/types'
+import { buildSourcedReport } from '@/lib/intelligence/research-report'
 
 export const dynamic = 'force-dynamic'
 
@@ -44,13 +46,20 @@ export async function POST(req: NextRequest) {
 
   const body = await jsonBody(req)
   if (!body || typeof body !== 'object') return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 })
-  const profile = (body as { profile?: unknown }).profile
-  if (!profile || typeof profile !== 'object') return NextResponse.json({ error: 'profile is required.' }, { status: 400 })
+  const profile = parseResearchProfile((body as { profile?: unknown }).profile)
+  if (!profile) return NextResponse.json({ error: 'A profile with an industry is required.' }, { status: 400 })
 
-  const saved = await saveReport(tenantId, {
-    profile: profile as import('@/lib/intelligence/types').ResearchProfile,
-    report: (body as { report?: unknown }).report as import('@/lib/intelligence/types').ResearchReport | null,
-  })
+  // Never trust a client-supplied report body: its provenance labels would then
+  // be as unverifiable as the figures they describe. Generate the body here,
+  // using the same sourced path as Refresh, so reopening shows a real report.
+  let report
+  try {
+    report = await buildSourcedReport(profile)
+  } catch {
+    return NextResponse.json({ error: 'Could not generate the report body.' }, { status: 500 })
+  }
+
+  const saved = await saveReport(tenantId, { profile, report })
   if (!saved) return NextResponse.json({ error: 'Could not save the report.' }, { status: 500 })
 
   // Track the save only after a successful write.

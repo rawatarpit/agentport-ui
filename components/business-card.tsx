@@ -15,7 +15,7 @@ export async function BusinessCard() {
 
   const { data, error } = await tenant.supabase
     .from('v_tenant_home')
-    .select('*')
+    .select('display_name,my_role,member_count,last_push_at')
     .eq('tenant_id', tenant.active.tenantId)
     .maybeSingle()
 
@@ -34,7 +34,10 @@ export async function BusinessCard() {
         <p className="label">Your business</p>
         <p className="mt-1 font-display text-xl text-bone">{row.display_name ?? 'Unnamed shop'}</p>
         <p className="mt-1 text-[12px] text-bone-faint">
-          {row.my_role ?? 'member'} · {row.member_count ?? 1} member{(row.member_count ?? 1) === 1 ? '' : 's'}
+          {row.my_role ?? 'unknown'} ·{' '}
+          {typeof row.member_count === 'number'
+            ? `${row.member_count} member${row.member_count === 1 ? '' : 's'}`
+            : 'member count unknown'}
         </p>
       </div>
       {row.last_push_at ? (

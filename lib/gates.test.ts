@@ -295,6 +295,146 @@ describe('lib/store never reaches runtime code', () => {
   })
 })
 
+describe('human confirmation stays read-only', () => {
+  const queue = readFileSync(join(process.cwd(), 'app/(app)/approvals/page.tsx'), 'utf8')
+  const confirm = readFileSync(join(process.cwd(), 'app/(app)/approvals/confirm/[requestId]/page.tsx'), 'utf8')
+
+  it('offers no browser approve or decline action on the queue', () => {
+    expect(queue).not.toMatch(/Approve and run|>\s*Decline\s*</)
+    expect(queue).toContain('Review request')
+    expect(queue).toContain('Opening the reference is not approval')
+  })
+
+  it('does not submit, mutate, or execute from the confirmation page', () => {
+    for (const pattern of [/\bonSubmit\b/, /\bfetch\s*\(/, /\bPOST\b/, /action\s*=\s*['"]/, /approveAction/]) {
+      expect(confirm).not.toMatch(pattern)
+    }
+    expect(confirm).toMatch(/does not\s+approve or execute/)
+  })
+})
+
+describe('business card never widens its read or invents membership', () => {
+  const src = readFileSync(join(process.cwd(), 'components/business-card.tsx'), 'utf8')
+
+  it('selects only the four fields it displays', () => {
+    expect(src).toContain("select('display_name,my_role,member_count,last_push_at')")
+    expect(src).not.toContain("select('*')")
+    expect(src).toContain('member count unknown')
+    expect(src).toContain("row.my_role ?? 'unknown'")
+    expect(src).not.toContain('?? 1')
+    expect(src).not.toContain("?? 'member'")
+  })
+})
+
+describe('placeholder identifiers never become production state', () => {
+  const here = dirname(fileURLToPath(import.meta.url))
+  const roots = [join(here, '..', 'app'), join(here, '..', 'components'), join(here)]
+  const offenders: string[] = []
+  const walk = (dir: string): void => {
+    for (const e of readdirSync(dir)) {
+      const p = join(dir, e)
+      if (statSync(p).isDirectory()) {
+        if (e === 'node_modules') continue
+        walk(p)
+        continue
+      }
+      if (!/\.(tsx?|mjs|cjs)$/.test(e)) continue
+      if (/\.test\.(tsx?|mjs|cjs)$/.test(e)) continue
+      if (p.endsWith('lib/store.ts') || p.endsWith('lib/enforcing.ts') || p.endsWith('lib/agentport.ts')) continue
+      const src = readFileSync(p, 'utf8')
+      if (src.includes('DEMO_CONFIG_DIGEST') || src.includes('demoEnforcing')) offenders.push(p)
+    }
+  }
+
+  it('keeps the demo digest and demo enforcing state out of merchant routes', () => {
+    for (const r of roots) walk(r)
+    expect(offenders).toEqual([])
+  })
+})
+
+describe('website assessment stays evidence, not stored truth', () => {
+  const src = readFileSync(join(process.cwd(), 'components/insights/website-assessment-card.tsx'), 'utf8')
+
+  it('says the scan is session-only and never claims a durable row', () => {
+    expect(src).toContain('stays in this browser session only')
+    expect(src).toContain('reloading requires a')
+  })
+})
+
+describe('research answers survive the handoff into setup', () => {
+  const signup = readFileSync(join(process.cwd(), 'app/(auth)/signup/page.tsx'), 'utf8')
+  const report = readFileSync(join(process.cwd(), 'components/intel/report-view.tsx'), 'utf8')
+  const setup = readFileSync(join(process.cwd(), 'components/setup-wizard.tsx'), 'utf8')
+
+  for (const key of [
+    'industry', 'subIndustry', 'country', 'geography', 'companyName', 'website',
+    'productsServices', 'businessModel', 'customerSegment', 'setupIndustry', 'setupSector',
+  ]) {
+    it(`carries ${key} from preview through signup`, () => {
+      expect(report).toContain(`params.set('${key}'`)
+      expect(signup).toContain(`'${key}'`)
+    })
+  }
+
+  it('uses the mapped setup vocabulary and saves the full snapshot once', () => {
+    expect(setup).toContain("searchParams.get('setupIndustry')")
+    expect(setup).toContain("searchParams.get('setupSector')")
+    expect(setup).toContain("fetch('/api/research/saved-reports'")
+    expect(setup).toContain('carriedStarted.current')
+    expect(setup).toContain('setupIndustryValue(rawIndustry, rawSector)')
+    expect(setup).toContain('setupSectorValue(rawIndustry, rawSector)')
+  })
+
+  it('never promotes a carried website into the live tenant discovery origin', () => {
+    expect(setup).not.toContain("fetch('/api/me'")
+    expect(setup).not.toContain('websiteUrl: website')
+    expect(report).toContain('Your website is not set from the link')
+  })
+})
+
+describe('sector benchmarks never expose a reversible cohort', () => {
+  const route = readFileSync(join(process.cwd(), 'app/api/analytics/sector/route.ts'), 'utf8')
+  const meta = readFileSync(join(process.cwd(), 'app/api/tenant-metadata/route.ts'), 'utf8')
+
+  it('accepts only the reviewed setup vocabulary as a cohort key', () => {
+    expect(meta).toContain('SETUP_INDUSTRY_VALUES')
+    expect(meta).toContain('SETUP_SECTOR_VALUES')
+    expect(meta).toContain('must use the setup choices')
+    expect(meta).not.toContain('under 100 characters')
+  })
+
+  it('withholds exact cohort size, median and percentile', () => {
+    expect(route).toContain('sectorPercentileBand')
+    expect(route).toContain('peerCount: null')
+    expect(route).toContain('medianEvents: null')
+    expect(route).toContain('percentile: null')
+    expect(route).not.toContain('const peerCount = eventCounts.length')
+    expect(route).not.toContain('medianEvents =')
+  })
+})
+
+describe('unknown never renders as a green metric', () => {
+  const marketing = readFileSync(join(process.cwd(), 'app/(app)/marketing-analytics/page.tsx'), 'utf8')
+  const home = readFileSync(join(process.cwd(), 'app/(app)/page.tsx'), 'utf8')
+
+  it('uses a neutral tone when executed or sector counts are unknown', () => {
+    expect(marketing).toContain("tone={data.kpis.totalExecuted === null ? 'default' : 'good'}")
+    expect(marketing).toContain("{c.executed ?? 'unknown'}")
+    expect(marketing).toContain("{w.executed ?? 'unknown'}")
+    expect(home).toContain('sectorRead.percentileBand === null')
+  })
+})
+
+describe('saved report body is generated on the server', () => {
+  const route = readFileSync(join(process.cwd(), 'app/api/research/saved-reports/route.ts'), 'utf8')
+
+  it('validates the profile and ignores any client-supplied report body', () => {
+    expect(route).toMatch(/parseResearchProfile/)
+    expect(route).toMatch(/buildSourcedReport\(profile\)/)
+    expect(route).not.toMatch(/\(body as \{ report/)
+  })
+})
+
 describe('report preview is not indexable research', () => {
   it('noindexes the report and canonicalises it to the unresearched landing page', () => {
     const page = readFileSync(join(process.cwd(), 'app/(site)/intelligence/report/page.tsx'), 'utf8')
