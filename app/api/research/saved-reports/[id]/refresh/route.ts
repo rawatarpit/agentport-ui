@@ -30,18 +30,21 @@ export async function POST(
   }
 
   const row = await getSavedReport(tenantId, params.id)
-  if (!row) {
-    return NextResponse.json({ error: 'Saved report not found.' }, { status: 404 })
+  if (!row.ok) {
+    return NextResponse.json({ status: 'error', reason: 'Unable to load saved reports.' }, { status: 502 })
+  }
+  if (!row.value) {
+    return NextResponse.json({ status: 'error', reason: 'Saved report not found.' }, { status: 404 })
   }
 
-  const regenerated = await buildSourcedReport(row.profile)
+  const regenerated = await buildSourcedReport(row.value.profile)
 
   const saved = await saveReport(tenantId, {
-    profile: row.profile,
+    profile: row.value.profile,
     report: regenerated,
   })
-  if (!saved) {
-    return NextResponse.json({ error: 'Could not save refreshed report.' }, { status: 500 })
+  if (!saved.ok) {
+    return NextResponse.json({ status: 'error', reason: 'Unable to save the refreshed report.' }, { status: 502 })
   }
 
   // Track the refresh only after a successful save.
@@ -49,8 +52,8 @@ export async function POST(
     event_type: 'report_refreshed',
     user_id: tenant.userId,
     tenant_id: tenant.active.status === 'active' ? tenant.active.tenantId : null,
-    source_route: '/api/research/saved-reports/[id]/refresh',
+    source_route: '/api/research/saved-reports/%5Bid%5D/refresh',
   })
 
-  return NextResponse.json({ status: 'ok', savedReportId: saved.id })
+  return NextResponse.json({ status: 'ok', savedReportId: saved.value.id })
 }

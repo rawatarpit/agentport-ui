@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('server-only', () => ({}))
+
 type Result = { data: unknown; error: { message: string } | null }
 
 const mocks = vi.hoisted(() => ({
@@ -97,5 +99,16 @@ describe('sector benchmark read boundary', () => {
     expect(adminLog[0].eqs).toEqual([['sector', 'bank']])
     expect(adminLog[1].select).toBe('tenant_id, event_count')
     expect(adminLog[1].in).toEqual(['tenant-1'])
+  })
+
+  it('returns 502 when the server reader fails instead of claiming no sector', async () => {
+    mocks.sessionFrom.mockImplementation(() =>
+      builder({ data: null, error: { message: 'read failed' } }, sessionLog),
+    )
+    const res = await GET()
+    expect(res.status).toBe(502)
+    const body = (await res.json()) as { status: string; reason: string }
+    expect(body.status).toBe('error')
+    expect(body.reason).toContain('Could not read')
   })
 })

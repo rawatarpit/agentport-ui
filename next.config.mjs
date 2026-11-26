@@ -54,9 +54,14 @@ const nextConfig = {
 
       // Names change; the shape does not. Catch a future GitHub/broker secret
       // given the NEXT_PUBLIC_ prefix even if it is not on the explicit list.
-      const secretShape = /^NEXT_PUBLIC_.*(SECRET|PRIVATE|TOKEN|SERVICE_ROLE|WEBHOOK|CLIENT_SECRET)/
+      const secretShape =
+        /^NEXT_PUBLIC_.*(SECRET|PRIVATE|TOKEN|SERVICE_ROLE|WEBHOOK|CLIENT_SECRET|KEY|API_KEY|CREDENTIAL|PASSWORD|PASSPHRASE)/
+      // The anon key ends in KEY but is public project configuration: RLS, not
+      // secrecy, protects the rows. Rejecting it would make every configured
+      // deployment fail its build, so the shape check exempts this one name.
+      const publicKeyAllowlist = new Set(['NEXT_PUBLIC_SUPABASE_ANON_KEY'])
       for (const key of Object.keys(process.env)) {
-        if (secretShape.test(key)) {
+        if (secretShape.test(key) && !publicKeyAllowlist.has(key)) {
           throw new Error(
             `${key} looks like a server secret with a NEXT_PUBLIC_ prefix. ` +
               `That value would ship to every visitor. Remove the prefix and rebuild.`,

@@ -2,11 +2,13 @@ import Link from 'next/link'
 import { AgentPortLogo } from '@/components/brand/agentport-logo'
 import { ThemeToggle } from '@/components/theme-toggle'
 
-const LINKS = [
+/** The canonical public IA. The homepage mirrors this list; do not fork it. */
+export const LINKS = [
   { href: '/home', label: 'Home' },
-  { href: '/intelligence', label: 'Industry intelligence' },
-  { href: '/how-it-works', label: 'How it works' },
+  { href: '/intelligence', label: 'Intelligence' },
   { href: '/solutions', label: 'Solutions' },
+  { href: '/platform', label: 'Platform' },
+  { href: '/how-it-works', label: 'How it works' },
   { href: '/developers', label: 'Developers' },
   { href: '/security', label: 'Security' },
 ] as const
@@ -38,11 +40,14 @@ export function SiteNav() {
           <div className="hidden w-[92px] sm:block">
             <ThemeToggle />
           </div>
-          <Link href="/login" className="btn btn-sm hidden px-3 py-1.5 sm:inline-flex">
+          <Link href="/login" className="btn btn-quiet btn-sm hidden px-3 py-1.5 sm:inline-flex">
             Sign in
           </Link>
-          <Link href="/signup" className="btn btn-primary btn-sm hidden px-3 py-1.5 sm:inline-flex">
-            Create account
+          <Link href="/signup" className="btn btn-sm hidden px-3 py-1.5 sm:inline-flex">
+            Get started
+          </Link>
+          <Link href="/pilot" className="btn btn-primary btn-sm hidden px-3 py-1.5 sm:inline-flex">
+            Request a pilot
           </Link>
 
           <details className="relative lg:hidden">
@@ -70,8 +75,13 @@ export function SiteNav() {
                   </Link>
                 </li>
                 <li>
-                  <Link href="/signup" className={`${LINK_CLASS} block text-verdant`}>
-                    Create account
+                  <Link href="/signup" className={`${LINK_CLASS} block`}>
+                    Get started
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/pilot" className={`${LINK_CLASS} block text-verdant`}>
+                    Request a pilot
                   </Link>
                 </li>
               </ul>

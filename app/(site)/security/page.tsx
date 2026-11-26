@@ -2,8 +2,22 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 
 export const metadata: Metadata = {
-  title: 'Security',
+  metadataBase: new URL('https://agentport.relayforge.in'),
+  title: 'Security — custody, RLS and hosted decisions',
   description: 'Trust boundaries, data custody and least privilege in product language.',
+  alternates: { canonical: '/security' },
+  openGraph: {
+    title: 'Security — custody, RLS and hosted decisions',
+    description: 'Trust boundaries, data custody and least privilege in product language.',
+    type: 'website',
+    siteName: 'AgentPort',
+    url: 'https://agentport.relayforge.in/security',
+  },
+  twitter: {
+    card: 'summary',
+    title: 'Security — custody, RLS and hosted decisions',
+    description: 'Trust boundaries, data custody and least privilege in product language.',
+  },
 }
 
 const BOUNDARIES = [
@@ -38,6 +52,10 @@ const BOUNDARIES = [
   {
     title: 'Unknown is not healthy',
     body: 'Before the first real push, status is unknown. The console never invents a demo heartbeat or turns a missing signal into a reassuring zero.',
+  },
+  {
+    title: 'First-party analytics',
+    body: 'First-party funnel events record allowlisted page and section interactions with a pathname only. No email address, amount, request payload, password or credential is sent to analytics.',
   },
 ] as const
 
@@ -77,7 +95,7 @@ export default function SecurityPage() {
         </h2>
         <div className="mt-4 grid gap-4 text-[13px] leading-relaxed text-bone-dim sm:grid-cols-2">
           <div className="border-t border-ink-line pt-3">
-            <p className="font-mono text-[11px] text-bone">Shared tier</p>
+            <p className="font-mono text-[11px] text-bone">Shared tier — payloads in transit</p>
             <p className="mt-1.5">
               Connected requests pass through the hosted worker by design. It is the governed hop: it records
               the decision and pushes analytics events. A phone number given to a chatbot in your flow is
@@ -85,7 +103,7 @@ export default function SecurityPage() {
             </p>
           </div>
           <div className="border-t border-ink-line pt-3">
-            <p className="font-mono text-[11px] text-bone">Enterprise tier</p>
+            <p className="font-mono text-[11px] text-bone">Enterprise tier — aggregates only</p>
             <p className="mt-1.5">
               Nothing transits us. What we receive is aggregates only. Widening what exists beyond that ladder
               needs a custody review, not a UI change.
@@ -99,10 +117,13 @@ export default function SecurityPage() {
       </section>
 
       <section className="flex flex-wrap items-center gap-3 border-t border-ink-line pt-6">
+        <Link href="/pilot" className="btn btn-primary px-4 py-2">
+          Request a pilot
+        </Link>
         <Link href="/developers" className="btn px-4 py-2">
           Developer model
         </Link>
-        <Link href="/intelligence" className="btn btn-primary px-4 py-2">
+        <Link href="/intelligence" className="btn px-4 py-2">
           Explore industry intelligence
         </Link>
       </section>

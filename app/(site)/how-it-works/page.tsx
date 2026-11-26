@@ -3,8 +3,22 @@ import Link from 'next/link'
 import { StatusPill, type StatusTone } from '@/components/ui/status-pill'
 
 export const metadata: Metadata = {
-  title: 'How it works',
+  metadataBase: new URL('https://agentport.relayforge.in'),
+  title: 'How it works — twelve steps with status',
   description: 'The twelve steps from an industry question to governed, recorded operations — with status shown.',
+  alternates: { canonical: '/how-it-works' },
+  openGraph: {
+    title: 'How it works — twelve steps with status',
+    description: 'The twelve steps from an industry question to governed, recorded operations — with status shown.',
+    type: 'website',
+    siteName: 'AgentPort',
+    url: 'https://agentport.relayforge.in/how-it-works',
+  },
+  twitter: {
+    card: 'summary',
+    title: 'How it works — twelve steps with status',
+    description: 'The twelve steps from an industry question to governed, recorded operations — with status shown.',
+  },
 }
 
 type StepStatus = 'live' | 'connection' | 'draft' | 'planned'
@@ -15,6 +29,16 @@ const STATUS: Record<StepStatus, { tone: StatusTone; label: string }> = {
   draft: { tone: 'draft', label: 'draft until approved' },
   planned: { tone: 'unknown', label: 'planned' },
 }
+
+const LEGEND = [
+  { label: 'available', meaning: 'Live now; the step can be used without a connected integration.' },
+  { label: 'illustrative', meaning: 'Shows a shape or example, not your data or a live record.' },
+  { label: 'planned', meaning: 'Not shipped; shown for direction only.' },
+  { label: 'externally sourced research', meaning: 'Public evidence when available; unsourced fields stay unknown.' },
+  { label: 'live now', meaning: 'The shorter form of available on the twelve-step cards below.' },
+  { label: 'requires connection', meaning: 'Needs a supported connected integration before it can be used.' },
+  { label: 'draft until approved', meaning: 'Saved in the console but not live until the hosted approval path applies it.' },
+] as const
 
 const STAGES: Array<{
   title: string
@@ -134,6 +158,20 @@ export default function HowItWorksPage() {
         </p>
       </header>
 
+      <section className="panel-muted rounded-xl p-5 sm:p-6" aria-labelledby="legend-heading">
+        <h2 id="legend-heading" className="font-display text-[17px] text-bone">
+          Status legend
+        </h2>
+        <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+          {LEGEND.map((item) => (
+            <div key={item.label} className="border-t border-ink-line pt-3">
+              <dt className="font-mono text-[11px] text-bone">{item.label}</dt>
+              <dd className="mt-1.5 text-[12.5px] leading-relaxed text-bone-dim">{item.meaning}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+
       <div className="space-y-12">
         {STAGES.map((stage, stageIndex) => (
           <section key={stage.title} aria-labelledby={`stage-${stageIndex}`} className="space-y-4">
@@ -162,6 +200,9 @@ export default function HowItWorksPage() {
       <section className="panel-muted rounded-xl p-5 sm:p-6">
         <p className="label">Where to go next</p>
         <div className="mt-3 flex flex-wrap gap-3 font-mono text-[12px]">
+          <Link href="/pilot" className="btn btn-primary btn-sm">
+            Request a pilot
+          </Link>
           <Link href="/intelligence" className="btn btn-sm">
             Explore industry intelligence
           </Link>

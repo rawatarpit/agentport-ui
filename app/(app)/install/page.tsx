@@ -133,6 +133,14 @@ export default async function InstallPage() {
     event_id: `installation_started:${tenantId}`,
   })
 
+  await trackServerEvent({
+    event_type: 'integration_started',
+    user_id: tenant.userId,
+    tenant_id: tenant.active.tenantId,
+    source_route: '/install',
+    event_id: `integration_started:${tenantId}`,
+  })
+
   // Track GitHub app installed when an installation record exists.
   if (installations !== null && installations.length > 0) {
     await trackServerEvent({
@@ -181,6 +189,14 @@ export default async function InstallPage() {
       tenant_id: tenant.active.tenantId,
       source_route: '/install',
       event_id: `installation_completed:${tenantId}`,
+    })
+
+    await trackServerEvent({
+      event_type: 'integration_completed',
+      user_id: tenant.userId,
+      tenant_id: tenant.active.tenantId,
+      source_route: '/install',
+      event_id: `integration_completed:${tenantId}`,
     })
   }
 

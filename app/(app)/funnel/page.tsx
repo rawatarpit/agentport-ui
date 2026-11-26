@@ -5,6 +5,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { resolveRequestTenant } from '@/lib/tenant-server'
 import { createClient } from '@/lib/supabase/server'
 import { readAcquisitionCounts } from '@/lib/funnel-reads'
+import { FUNNEL_EVENT_TYPES, type FunnelEventType } from '@/lib/funnel-event-types'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,26 +23,145 @@ type ActivationEvent = {
   first_at: string | null
 }
 
-type FunnelMetrics = {
-  intelligenceViewed: number | null
-  reportGenerated: number | null
-  reportSaved: number | null
-  signupStarted: number | null
-  signupCompleted: number | null
-  assessmentStarted: number | null
-  assessmentCompleted: number | null
-  installationStarted: number | null
-  githubAppInstalled: number | null
-  repositoryConnected: number | null
-  pullRequestCreated: number | null
-  configurationApplied: number | null
-  installationCompleted: number | null
-  deploymentVerified: number | null
-  merchantProfileCompleted: number | null
-  firstReadAt: string | null
-  firstWriteApprovedAt: string | null
-  firstWriteExecutedAt: string | null
-  firstDenyAt: string | null
+type MetricCopy = { label: string; description: string }
+
+const ACQUISITION_COPY: Record<FunnelEventType, MetricCopy> = {
+  intelligence_viewed: {
+    label: 'Intelligence viewed',
+    description: 'Visitors who opened the industry preview.',
+  },
+  report_generated: {
+    label: 'Reports generated',
+    description: 'Reports built from visitor answers; sourced gaps stay unknown.',
+  },
+  report_saved: {
+    label: 'Reports saved',
+    description: 'Durable snapshots saved to the workspace.',
+  },
+  report_refreshed: {
+    label: 'Reports refreshed',
+    description: 'Saved snapshots regenerated from public sources.',
+  },
+  signup_started: {
+    label: 'Signups started',
+    description: 'Visitors who began account creation.',
+  },
+  signup_completed: {
+    label: 'Signups completed',
+    description: 'Accounts created and confirmed.',
+  },
+  assessment_started: {
+    label: 'Assessments started',
+    description: 'Public-surface scans initiated.',
+  },
+  assessment_completed: {
+    label: 'Assessments completed',
+    description: 'Scans that returned results.',
+  },
+  installation_started: {
+    label: 'Installations started',
+    description: 'Merchants who began the connection flow.',
+  },
+  github_app_installed: {
+    label: 'GitHub app installed',
+    description: 'Merchant installed the GitHub App.',
+  },
+  repository_connected: {
+    label: 'Repository connected',
+    description: 'Install PR opened for a specific repository.',
+  },
+  pull_request_created: {
+    label: 'Pull request created',
+    description: 'Install pull request opened on the connected repository.',
+  },
+  configuration_applied: {
+    label: 'Configuration applied',
+    description: 'Applied config version is live and served by the governor.',
+  },
+  installation_completed: {
+    label: 'Installation completed',
+    description: 'Config applied — installation flow complete.',
+  },
+  deployment_verified: {
+    label: 'Deployments verified',
+    description: 'Governor manifest checks that returned 200 with matching tenant.',
+  },
+  merchant_profile_completed: {
+    label: 'Profiles completed',
+    description: 'Onboarding facts saved (public facts, not secrets).',
+  },
+  industry_selected: {
+    label: 'Industries selected',
+    description: 'Selections counted without storing the entered text.',
+  },
+  geography_selected: {
+    label: 'Geographies selected',
+    description: 'Selections counted without storing the entered text.',
+  },
+  signup_submitted: {
+    label: 'Signup forms submitted',
+    description: 'Account creation forms submitted.',
+  },
+  verification_email_sent: {
+    label: 'Verification emails sent',
+    description: 'Confirmation requests issued after signup.',
+  },
+  recommendation_viewed: {
+    label: 'Recommendations viewed',
+    description: 'Opportunity maps opened from the tenant profile.',
+  },
+  intelligence_page_viewed: {
+    label: 'Intelligence pages viewed',
+    description: 'Visits to the public intelligence page.',
+  },
+  report_viewed: {
+    label: 'Reports viewed',
+    description: 'Rendered report views emitted through the shared helper.',
+  },
+  integration_started: {
+    label: 'Integrations started',
+    description: 'Signed-in merchants who began the install flow.',
+  },
+  integration_completed: {
+    label: 'Integrations completed',
+    description: 'Install flow finished once the governor serves the applied config.',
+  },
+  pilot_requested: {
+    label: 'Pilot requests',
+    description: 'Founding-pilot requests recorded by the contact path.',
+  },
+  hero_primary_cta_clicked: {
+    label: 'Hero primary CTA clicks',
+    description: 'Clicks on the landing page’s primary action.',
+  },
+  hero_demo_cta_clicked: {
+    label: 'Hero demo CTA clicks',
+    description: 'Clicks on the landing page’s demo action.',
+  },
+  product_demo_interaction: {
+    label: 'Demo interactions',
+    description: 'Sample-policy interactions; no request text is stored.',
+  },
+  integration_section_viewed: {
+    label: 'Integration section views',
+    description: 'Visitors who reached the integration section.',
+  },
+  pilot_section_viewed: {
+    label: 'Pilot section views',
+    description: 'Visitors who reached the pilot section.',
+  },
+  pilot_form_started: {
+    label: 'Pilot forms started',
+    description: 'First real field change on the pilot form.',
+  },
+  pilot_form_submitted: {
+    label: 'Pilot forms submitted',
+    description: 'Contact requests recorded by the contact path; honeypot acknowledgements are excluded.',
+  },
+  pilot_form_submission_failed: {
+    label: 'Pilot submission failures',
+    description: 'Contact requests that did not succeed.',
+  },
 }
 
 function when(value: string | null): string {
@@ -122,56 +242,26 @@ export default async function FunnelPage() {
   }
 
   const tenantId = tenant.active.tenantId
-
-  const [
-    intelligenceViewed,
-    reportGenerated,
-    reportSaved,
-    signupStarted,
-    signupCompleted,
-    assessmentStarted,
-    assessmentCompleted,
-    installationStarted,
-    githubAppInstalled,
-    repositoryConnected,
-    pullRequestCreated,
-    configurationApplied,
-    installationCompleted,
-    deploymentVerified,
-    merchantProfileCompleted,
-  ] = await readAcquisitionCounts(tenantId)
+  const counts = await readAcquisitionCounts(tenantId)
   const [activationEvents, firstReadAt] = await Promise.all([
     readActivationEvents(tenantId),
     readFirstSuccessfulRead(tenantId),
   ])
 
+  const acquisition = FUNNEL_EVENT_TYPES.map((event_type, index) => ({
+    event_type,
+    value: counts[index] ?? null,
+    ...ACQUISITION_COPY[event_type],
+  }))
+
   const firstWriteApprovedAt = activationEvents.find((e) => e.event_kind === 'approved')?.first_at ?? null
   const firstWriteExecutedAt = activationEvents.find((e) => e.event_kind === 'executed')?.first_at ?? null
   const firstDenyAt = activationEvents.find((e) => e.event_kind === 'denied')?.first_at ?? null
 
-  const metrics: FunnelMetrics = {
-    intelligenceViewed,
-    reportGenerated,
-    reportSaved,
-    signupStarted,
-    signupCompleted,
-    assessmentStarted,
-    assessmentCompleted,
-    installationStarted,
-    githubAppInstalled,
-    repositoryConnected,
-    pullRequestCreated,
-    configurationApplied,
-    installationCompleted,
-    deploymentVerified,
-    merchantProfileCompleted,
-    firstReadAt,
-    firstWriteApprovedAt,
-    firstWriteExecutedAt,
-    firstDenyAt,
-  }
-
-  const hasAnyData = Object.values(metrics).some((v) => v !== null)
+  const hasAnyData =
+    acquisition.some((card) => card.value !== null) ||
+    activationEvents.length > 0 ||
+    firstReadAt !== null
 
   return (
     <div className="space-y-6">
@@ -189,7 +279,7 @@ export default async function FunnelPage() {
       {!hasAnyData ? (
         <EmptyState
           title="No funnel events yet"
-          body="Acquisition events appear here as visitors view intelligence previews, sign up, run assessments, and install. Until then, every metric is unknown — not zero."
+          body="Events attributed to this workspace appear here after the visitor signs in with it. Until then, every metric is unknown — not zero."
           action={
             <Link href="/intelligence" className="btn">
               Open public research
@@ -198,134 +288,17 @@ export default async function FunnelPage() {
         />
       ) : null}
 
-      <Section title="Acquisition" description="Raw event counts at each funnel stage. Counts are grouped per event type; a page reload may generate a new event row for client-emitted events. Server-emitted milestone events use deterministic ids to avoid duplicates on reload.">
+      <Section title="Acquisition" description="Raw event counts at each funnel stage. Counts are grouped per allowlisted event type; a page reload may generate a new event row for client-emitted events. Server-emitted milestone events use deterministic ids to avoid duplicates on reload.">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="panel p-5">
-            <p className="label">Intelligence viewed</p>
-            <p className="mt-2 font-display text-[24px] font-semibold text-bone">
-              {metrics.intelligenceViewed === null ? 'unknown' : metrics.intelligenceViewed}
-            </p>
-            <p className="mt-1 text-[12px] text-bone-faint">
-              Visitors who opened the intelligence preview.
-            </p>
-          </div>
-          <div className="panel p-5">
-            <p className="label">Reports generated</p>
-            <p className="mt-2 font-display text-[24px] font-semibold text-bone">
-              {metrics.reportGenerated === null ? 'unknown' : metrics.reportGenerated}
-            </p>
-            <p className="mt-1 text-[12px] text-bone-faint">
-              Sourced reports built from visitor answers.
-            </p>
-          </div>
-          <div className="panel p-5">
-            <p className="label">Reports saved</p>
-            <p className="mt-2 font-display text-[24px] font-semibold text-bone">
-              {metrics.reportSaved === null ? 'unknown' : metrics.reportSaved}
-            </p>
-            <p className="mt-1 text-[12px] text-bone-faint">
-              Durable snapshots saved to the workspace.
-            </p>
-          </div>
-          <div className="panel p-5">
-            <p className="label">Signups started</p>
-            <p className="mt-2 font-display text-[24px] font-semibold text-bone">
-              {metrics.signupStarted === null ? 'unknown' : metrics.signupStarted}
-            </p>
-            <p className="mt-1 text-[12px] text-bone-faint">
-              Visitors who began account creation.
-            </p>
-          </div>
-          <div className="panel p-5">
-            <p className="label">Signups completed</p>
-            <p className="mt-2 font-display text-[24px] font-semibold text-bone">
-              {metrics.signupCompleted === null ? 'unknown' : metrics.signupCompleted}
-            </p>
-            <p className="mt-1 text-[12px] text-bone-faint">
-              Accounts created and confirmed.
-            </p>
-          </div>
-          <div className="panel p-5">
-            <p className="label">Profiles completed</p>
-            <p className="mt-2 font-display text-[24px] font-semibold text-bone">
-              {metrics.merchantProfileCompleted === null ? 'unknown' : metrics.merchantProfileCompleted}
-            </p>
-            <p className="mt-1 text-[12px] text-bone-faint">
-              Onboarding facts saved (public facts, not secrets).
-            </p>
-          </div>
-          <div className="panel p-5">
-            <p className="label">GitHub app installed</p>
-            <p className="mt-2 font-display text-[24px] font-semibold text-bone">
-              {metrics.githubAppInstalled === null ? 'unknown' : metrics.githubAppInstalled}
-            </p>
-            <p className="mt-1 text-[12px] text-bone-faint">
-              Merchant installed the GitHub App.
-            </p>
-          </div>
-          <div className="panel p-5">
-            <p className="label">Repository connected</p>
-            <p className="mt-2 font-display text-[24px] font-semibold text-bone">
-              {metrics.repositoryConnected === null ? 'unknown' : metrics.repositoryConnected}
-            </p>
-            <p className="mt-1 text-[12px] text-bone-faint">
-              Install PR opened for a specific repository.
-            </p>
-          </div>
-          <div className="panel p-5">
-            <p className="label">Pull request created</p>
-            <p className="mt-2 font-display text-[24px] font-semibold text-bone">
-              {metrics.pullRequestCreated === null ? 'unknown' : metrics.pullRequestCreated}
-            </p>
-            <p className="mt-1 text-[12px] text-bone-faint">
-              Install pull request opened on the connected repository.
-            </p>
-          </div>
-          <div className="panel p-5">
-            <p className="label">Configuration applied</p>
-            <p className="mt-2 font-display text-[24px] font-semibold text-bone">
-              {metrics.configurationApplied === null ? 'unknown' : metrics.configurationApplied}
-            </p>
-            <p className="mt-1 text-[12px] text-bone-faint">
-              Applied config version is live and served by the governor.
-            </p>
-          </div>
-          <div className="panel p-5">
-            <p className="label">Installation completed</p>
-            <p className="mt-2 font-display text-[24px] font-semibold text-bone">
-              {metrics.installationCompleted === null ? 'unknown' : metrics.installationCompleted}
-            </p>
-            <p className="mt-1 text-[12px] text-bone-faint">
-              Config applied — installation flow complete.
-            </p>
-          </div>
-          <div className="panel p-5">
-            <p className="label">Assessments started</p>
-            <p className="mt-2 font-display text-[24px] font-semibold text-bone">
-              {metrics.assessmentStarted === null ? 'unknown' : metrics.assessmentStarted}
-            </p>
-            <p className="mt-1 text-[12px] text-bone-faint">
-              Public-surface scans initiated.
-            </p>
-          </div>
-          <div className="panel p-5">
-            <p className="label">Assessments completed</p>
-            <p className="mt-2 font-display text-[24px] font-semibold text-bone">
-              {metrics.assessmentCompleted === null ? 'unknown' : metrics.assessmentCompleted}
-            </p>
-            <p className="mt-1 text-[12px] text-bone-faint">
-              Scans that returned results.
-            </p>
-          </div>
-          <div className="panel p-5">
-            <p className="label">Deployments verified</p>
-            <p className="mt-2 font-display text-[24px] font-semibold text-bone">
-              {metrics.deploymentVerified === null ? 'unknown' : metrics.deploymentVerified}
-            </p>
-            <p className="mt-1 text-[12px] text-bone-faint">
-              Governor manifest checks that returned 200 with matching tenant.
-            </p>
-          </div>
+          {acquisition.map((card) => (
+            <div className="panel p-5" key={card.event_type}>
+              <p className="label">{card.label}</p>
+              <p className="mt-2 font-display text-[24px] font-semibold text-bone">
+                {card.value === null ? 'unknown' : card.value}
+              </p>
+              <p className="mt-1 text-[12px] text-bone-faint">{card.description}</p>
+            </div>
+          ))}
         </div>
       </Section>
 
@@ -334,7 +307,7 @@ export default async function FunnelPage() {
           <div className="panel p-5">
             <p className="label">First successful READ</p>
             <p className="mt-2 font-display text-[20px] font-semibold text-bone">
-              {metrics.firstReadAt ? when(metrics.firstReadAt) : 'unknown'}
+              {firstReadAt ? when(firstReadAt) : 'unknown'}
             </p>
             <p className="mt-1 text-[12px] text-bone-faint">
               First read execution from the ledger console view
@@ -344,7 +317,7 @@ export default async function FunnelPage() {
           <div className="panel p-5">
             <p className="label">Write approved</p>
             <p className="mt-2 font-display text-[20px] font-semibold text-bone">
-              {metrics.firstWriteApprovedAt ? when(metrics.firstWriteApprovedAt) : 'unknown'}
+              {firstWriteApprovedAt ? when(firstWriteApprovedAt) : 'unknown'}
             </p>
             <p className="mt-1 text-[12px] text-bone-faint">
               First push batch containing an approved write
@@ -354,7 +327,7 @@ export default async function FunnelPage() {
           <div className="panel p-5">
             <p className="label">Write executed</p>
             <p className="mt-2 font-display text-[20px] font-semibold text-bone">
-              {metrics.firstWriteExecutedAt ? when(metrics.firstWriteExecutedAt) : 'unknown'}
+              {firstWriteExecutedAt ? when(firstWriteExecutedAt) : 'unknown'}
             </p>
             <p className="mt-1 text-[12px] text-bone-faint">
               First push batch containing an executed write
@@ -364,7 +337,7 @@ export default async function FunnelPage() {
           <div className="panel p-5">
             <p className="label">Requests denied</p>
             <p className="mt-2 font-display text-[20px] font-semibold text-bone">
-              {metrics.firstDenyAt ? when(metrics.firstDenyAt) : 'unknown'}
+              {firstDenyAt ? when(firstDenyAt) : 'unknown'}
             </p>
             <p className="mt-1 text-[12px] text-bone-faint">
               First push batch containing a denied request

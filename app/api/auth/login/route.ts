@@ -3,6 +3,8 @@ import { guardStateChange } from '@/lib/request-guard'
 
 export const dynamic = 'force-dynamic'
 
+const LOGIN_ERROR = 'Sign-in could not be completed with those details.'
+
 /**
  * POST /api/auth/login — password sign-in, server-side.
  *
@@ -30,7 +32,7 @@ export async function POST(req: Request) {
   const supabase = createClient()
   const { error } = await supabase.auth.signInWithPassword({ email, password })
   if (error) {
-    return Response.json({ status: 'error', reason: error.message || 'Sign-in failed.' }, { status: 401 })
+    return Response.json({ status: 'error', reason: LOGIN_ERROR }, { status: 401 })
   }
   return Response.json({ status: 'ok' })
 }

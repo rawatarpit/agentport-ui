@@ -24,7 +24,7 @@ const GROUPS = [
     ],
   },
   {
-    label: 'Operate',
+    label: 'Operations',
     items: [
       { href: '/', label: 'Overview' },
       { href: '/approvals', label: 'Approvals' },

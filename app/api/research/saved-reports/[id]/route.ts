@@ -14,7 +14,8 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   const id = params.id
   if (!id) return NextResponse.json({ error: 'id is required.' }, { status: 400 })
 
-  const ok = await deleteSavedReport(tenantId, id)
-  if (!ok) return NextResponse.json({ error: 'Could not delete the report.' }, { status: 500 })
+  const deleted = await deleteSavedReport(tenantId, id)
+  if (!deleted.ok) return NextResponse.json({ status: 'error', reason: 'Unable to delete the report.' }, { status: 502 })
+  if (!deleted.value.deleted) return NextResponse.json({ status: 'error', reason: 'No visible report to delete.' }, { status: 404 })
   return NextResponse.json({ status: 'ok' })
 }

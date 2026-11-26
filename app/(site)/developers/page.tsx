@@ -2,9 +2,25 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 
 export const metadata: Metadata = {
-  title: 'Developers',
-  description: 'Discovery is advisory, writes are human-confirmed, and the hosted governor is authoritative.',
+  metadataBase: new URL('https://agentport.relayforge.in'),
+  title: 'Developers — discovery and the write path',
+  description: 'Discovery targets, advisory manifests, human-confirmed writes and the hosted governor authority.',
+  alternates: { canonical: '/developers' },
+  openGraph: {
+    title: 'Developers — discovery and the write path',
+    description: 'Discovery targets, advisory manifests, human-confirmed writes and the hosted governor authority.',
+    type: 'website',
+    siteName: 'AgentPort',
+    url: 'https://agentport.relayforge.in/developers',
+  },
+  twitter: {
+    card: 'summary',
+    title: 'Developers — discovery and the write path',
+    description: 'Discovery targets, advisory manifests, human-confirmed writes and the hosted governor authority.',
+  },
 }
+
+const SUPPORTED_TARGETS = ['Next.js', 'Vite', 'Astro', 'Nuxt', 'Remix', 'SvelteKit', 'Gatsby', 'static/postbuild'] as const
 
 const RULES = [
   {
@@ -43,6 +59,31 @@ export default function DevelopersPage() {
           decides whether a request is allowed, held or refused.
         </p>
       </header>
+
+      <section className="space-y-4" aria-labelledby="targets-heading">
+        <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-ink-line pb-3">
+          <h2 id="targets-heading" className="font-display text-[22px] text-bone">
+            Supported discovery targets
+          </h2>
+          <p className="font-mono text-[11px] text-bone-faint">No universal compatibility is promised.</p>
+        </div>
+        <p className="prose-bone">
+          The install package has a defined publish path for these targets. An unlisted stack has no supported
+          path, and a file being present does not prove a capability works. The hosted governor is authoritative:
+          it decides whether a request is allowed, held or refused.
+        </p>
+        <ul className="flex flex-wrap gap-2">
+          {SUPPORTED_TARGETS.map((target) => (
+            <li key={target} className="panel px-3 py-2 font-mono text-[11.5px] text-bone-dim">
+              {target}
+            </li>
+          ))}
+        </ul>
+        <p className="font-mono text-[11px] leading-relaxed text-bone-faint">
+          GET → confirm → write. A draft is never a completed action; the governed write runs only after a
+          person confirms the exact operation.
+        </p>
+      </section>
 
       <section className="space-y-4" aria-labelledby="rules-heading">
         <h2 id="rules-heading" className="font-display text-[22px] text-bone">
@@ -89,7 +130,10 @@ export default function DevelopersPage() {
       </section>
 
       <section className="flex flex-wrap items-center gap-3 border-t border-ink-line pt-6">
-        <Link href="/security" className="btn btn-primary px-4 py-2">
+        <Link href="/pilot" className="btn btn-primary px-4 py-2">
+          Request a pilot
+        </Link>
+        <Link href="/security" className="btn px-4 py-2">
           Read the security model
         </Link>
         <Link href="/how-it-works" className="btn px-4 py-2">

@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { track } from '@/lib/funnel-events'
 
 /**
  * The invite-only pilot form.
@@ -18,10 +19,18 @@ export function ContactForm() {
   const [fields, setFields] = useState(EMPTY)
   const [status, setStatus] = useState<Status>('idle')
   const [error, setError] = useState<string | null>(null)
+  const started = useRef(false)
+
+  const markStarted = () => {
+    if (started.current) return
+    started.current = true
+    track({ event_type: 'pilot_form_started' })
+  }
 
   const update =
     (key: keyof typeof EMPTY) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      if (key !== 'website2') markStarted()
       setFields((f) => ({ ...f, [key]: e.target.value }))
     }
 
@@ -35,13 +44,20 @@ export function ContactForm() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(fields),
       })
-      const body = (await res.json()) as { status: string; reason?: string }
+      const body = (await res.json()) as { status: string; recorded?: boolean; reason?: string }
       if (!res.ok || body.status !== 'ok') {
         throw new Error(body.reason ?? 'Could not send your request. Please try again.')
       }
       setFields(EMPTY)
       setStatus('done')
+      // A honeypot acknowledgement is deliberately unrecorded; counting it as
+      // a submission would turn bot traffic into a merchant-visible metric.
+      if (body.recorded === true) {
+        track({ event_type: 'pilot_form_submitted' })
+        track({ event_type: 'pilot_requested' })
+      }
     } catch (err) {
+      track({ event_type: 'pilot_form_submission_failed' })
       setError(err instanceof Error ? err.message : 'Could not send your request.')
       setStatus('idle')
     }
@@ -52,8 +68,8 @@ export function ContactForm() {
       <div className="panel p-6" role="status" aria-live="polite">
         <p className="font-display text-xl text-bone">Request received.</p>
         <p className="mt-2 text-[13px] leading-relaxed text-bone-dim">
-          We read every request ourselves and reply within one business day. We
-          will assess whether the founding pilot is a fit.
+          We read every request ourselves and assess whether the founding pilot
+          is a fit.
         </p>
       </div>
     )
@@ -151,9 +167,7 @@ export function ContactForm() {
           <span className="text-[13px] text-rust" role="alert">
             {error}
           </span>
-        ) : (
-          <span className="font-mono text-[11px] text-bone-faint">One reply, no list.</span>
-        )}
+        ) : null}
       </div>
     </form>
   )

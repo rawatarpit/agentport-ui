@@ -1,14 +1,29 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { SiteNav } from '@/components/site-nav'
+import { LINKS, SiteNav } from '@/components/site-nav'
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://agentport.relayforge.in'),
   title: {
-    default: 'AgentPort — governed agent operations',
+    default: 'AgentPort — infrastructure for the AI agent economy',
     template: '%s · AgentPort',
   },
   description:
-    'Discover where agents could help, understand the trust boundaries, and see what is live before connecting a business.',
+    'Understand how AI is changing your industry, make your business accessible to compatible agents, and control how those agents interact with your operations.',
+  openGraph: {
+    type: 'website',
+    siteName: 'AgentPort',
+    title: 'AgentPort — infrastructure for the AI agent economy',
+    description:
+      'Industry intelligence, structured access, and governed operations with decisions, reasons and outcomes you can read back.',
+    url: '/home',
+  },
+  twitter: {
+    card: 'summary',
+    title: 'AgentPort — infrastructure for the AI agent economy',
+    description:
+      'Industry intelligence, structured access, and governed operations with proof attached.',
+  },
 }
 
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
@@ -37,15 +52,17 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
               Discovery is advisory; the hosted governor decides.
             </p>
           </div>
-          <nav aria-label="Footer navigation" className="flex flex-wrap gap-x-6 gap-y-2 font-mono text-[12px]">
-            <Link href="/intelligence" className="text-bone-dim transition-colors hover:text-bone">
-              Industry intelligence
+          <nav aria-label="Footer navigation" className="flex max-w-xl flex-wrap gap-x-6 gap-y-2 font-mono text-[12px]">
+            {LINKS.map((link) => (
+              <Link key={link.href} href={link.href} className="text-bone-dim transition-colors hover:text-bone">
+                {link.label}
+              </Link>
+            ))}
+            <Link href="/signup" className="text-bone-dim transition-colors hover:text-bone">
+              Get started
             </Link>
-            <Link href="/security" className="text-bone-dim transition-colors hover:text-bone">
-              Security
-            </Link>
-            <Link href="/home" className="text-bone-dim transition-colors hover:text-bone">
-              Home
+            <Link href="/pilot" className="text-verdant transition-colors hover:text-bone">
+              Request a pilot
             </Link>
           </nav>
         </div>

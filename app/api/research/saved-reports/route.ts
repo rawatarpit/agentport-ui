@@ -29,12 +29,14 @@ export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id')
   if (id) {
     const row = await getSavedReport(tenantId, id)
-    if (!row) return NextResponse.json({ error: 'Saved report not found.' }, { status: 404 })
-    return NextResponse.json({ status: 'ok', report: row })
+    if (!row.ok) return NextResponse.json({ status: 'error', reason: 'Unable to load saved reports.' }, { status: 502 })
+    if (!row.value) return NextResponse.json({ status: 'error', reason: 'Saved report not found.' }, { status: 404 })
+    return NextResponse.json({ status: 'ok', report: row.value })
   }
 
   const rows = await listSavedReports(tenantId)
-  return NextResponse.json({ status: 'ok', reports: rows.map(({ id, profile, savedAt }) => ({ id, profile, savedAt })) })
+  if (!rows.ok) return NextResponse.json({ status: 'error', reason: 'Unable to load saved reports.' }, { status: 502 })
+  return NextResponse.json({ status: 'ok', reports: rows.value.map(({ id, profile, savedAt }) => ({ id, profile, savedAt })) })
 }
 
 export async function POST(req: NextRequest) {
@@ -60,7 +62,7 @@ export async function POST(req: NextRequest) {
   }
 
   const saved = await saveReport(tenantId, { profile, report })
-  if (!saved) return NextResponse.json({ error: 'Could not save the report.' }, { status: 500 })
+  if (!saved.ok) return NextResponse.json({ status: 'error', reason: 'Unable to save the report.' }, { status: 502 })
 
   // Track the save only after a successful write.
   const tenant = await resolveRequestTenant()
@@ -71,17 +73,21 @@ export async function POST(req: NextRequest) {
     source_route: '/api/research/saved-reports',
   })
 
-  return NextResponse.json({ status: 'ok', savedReportId: saved.id })
+  return NextResponse.json({ status: 'ok', savedReportId: saved.value.id })
 }
 
 export async function DELETE(req: NextRequest) {
+  const limited = guardStateChange(req, 'research:saved-reports:write')
+  if (limited) return limited
+
   const tenantId = await requiredTenantId()
   if (!tenantId) return NextResponse.json({ error: 'No active workspace selected.' }, { status: 403 })
 
   const id = req.nextUrl.searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'id is required.' }, { status: 400 })
 
-  const ok = await deleteSavedReport(tenantId, id)
-  if (!ok) return NextResponse.json({ error: 'Could not delete the report.' }, { status: 500 })
+  const deleted = await deleteSavedReport(tenantId, id)
+  if (!deleted.ok) return NextResponse.json({ status: 'error', reason: 'Unable to delete the report.' }, { status: 502 })
+  if (!deleted.value.deleted) return NextResponse.json({ status: 'error', reason: 'No visible report to delete.' }, { status: 404 })
   return NextResponse.json({ status: 'ok' })
 }

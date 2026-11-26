@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { track } from '@/lib/funnel-events'
+import { useState } from 'react'
 import { StatusPill } from '@/components/ui/status-pill'
 
 type CheckResult =
@@ -35,11 +34,9 @@ function maskTenantPath(url: string): string {
 export function DiscoveryCheck({
   canonicalUrl,
   invokeUrl,
-  expectedTenantId,
 }: {
   canonicalUrl: string | null
   invokeUrl?: string | null
-  expectedTenantId?: string | null
 }) {
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<CheckResult | null>(null)
@@ -52,18 +49,6 @@ export function DiscoveryCheck({
       const res = await fetch('/api/discovery/check', { cache: 'no-store' })
       const body = (await res.json()) as CheckResult
       setResult(body)
-      if (body.status === 'ok' && body.manifest) {
-        const manifest = body.manifest as { tenantId?: string }
-        // Deployment verification requires the manifest to belong to this tenant.
-        // A 200 from an unrelated tenant's manifest does not count.
-        if (
-          expectedTenantId &&
-          manifest.tenantId &&
-          manifest.tenantId === expectedTenantId
-        ) {
-          track({ event_type: 'deployment_verified' })
-        }
-      }
     } catch {
       setResult({
         status: 'error',

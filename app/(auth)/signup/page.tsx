@@ -54,10 +54,11 @@ export default function SignupPage() {
       const visitorId = getVisitorId()
       track({ event_type: 'signup_submitted' }, visitorId ? `signup_submitted:${visitorId}` : undefined)
 
+      const next = `/setup?${signupParams().toString()}`
       const res = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), password, businessName: business.trim() }),
+        body: JSON.stringify({ email: email.trim(), password, businessName: business.trim(), next }),
       })
       const body = (await res.json()) as { status: string; session?: boolean; reason?: string }
       if (body.status !== 'ok') throw new Error(body.reason ?? 'Signup failed.')
@@ -67,7 +68,7 @@ export default function SignupPage() {
         return
       }
       track({ event_type: 'signup_completed' }, visitorId ? `signup_completed:${visitorId}` : undefined)
-      window.location.href = `/setup?${signupParams().toString()}`
+      window.location.href = next
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Signup failed.')
     } finally {

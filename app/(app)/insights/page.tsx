@@ -4,6 +4,10 @@ import { Callout } from '@/components/ui/callout'
 import { PageHeader } from '@/components/ui/page-header'
 import { Section } from '@/components/ui/section'
 import { readTenantResearchProfile } from '@/lib/intelligence/profile'
+import { IntelligenceStateStrip } from '@/components/intel/state-strip'
+import { EngineStatusPanel } from '@/components/intel/engine-status-panel'
+import { ExperienceBoundary } from '@/components/intel/experience-boundary'
+import { OperateLinks } from '@/components/intel/operate-links'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,6 +36,10 @@ export default async function InsightsPage() {
           </>
         }
       />
+
+      <IntelligenceStateStrip state={readFailed ? 'unavailable' : 'unresearched'} />
+      <EngineStatusPanel state={readFailed ? 'unavailable' : 'not_configured'} />
+      <ExperienceBoundary />
 
       {readFailed ? (
         <Callout tone="warning" title="Profile could not be read">
@@ -100,6 +108,8 @@ export default async function InsightsPage() {
       >
         <SavedReports profile={profile} tenantId={tenantId} />
       </Section>
+
+      <OperateLinks />
     </div>
   )
 }

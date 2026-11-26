@@ -4,18 +4,39 @@ import { useEffect } from 'react'
 import Link from 'next/link'
 import { track } from '@/lib/funnel-events'
 import { Callout } from '@/components/ui/callout'
-import type { ReportSection, ResearchReport } from '@/lib/intelligence/types'
+import type { ReportSection, ResearchReport, ResearchChart } from '@/lib/intelligence/types'
 import { setupIndustryValue, setupSectorValue } from '@/lib/intelligence/sectors'
 import { Chart } from './chart'
 import { FindingList } from './finding-list'
 import { MetricCard } from './metric-card'
 import { OpportunityList } from './opportunity-list'
+import { OperateLinks } from './operate-links'
 import { ProfileSummary } from './profile-summary'
 import { ProvenancePanel } from './provenance-panel'
 import { SourceList } from './source-list'
+import { IntelligenceStateStrip } from './state-strip'
+import { WorkflowList } from './workflow-list'
+import { REPORT_GROUPS, sectionsForGroup } from './report-groups'
+import { EngineStatusPanel } from './engine-status-panel'
+import { ExperienceBoundary } from './experience-boundary'
+import { VisualisationCoverage } from './visualisation-coverage'
+
+function hasRenderablePoints(chart: ResearchChart): boolean {
+  return chart.points.some((point) => point.value !== null)
+}
+
+/** Read-only links for the public preview. Saved snapshots receive none. */
+export type ReportPreviewActions = {
+  editHref: string
+  reportHref: string
+  dashboardHref: string
+  dashboardLabel: string
+  installHref: string
+}
 
 function SectionView({ section, report }: { section: ReportSection; report: ResearchReport }) {
   const labelFor = (id: string | null) => report.sources.find((source) => source.id === id)?.label ?? null
+  const charts = section.charts.filter(hasRenderablePoints)
 
   return (
     <section
@@ -45,9 +66,9 @@ function SectionView({ section, report }: { section: ReportSection; report: Rese
         </div>
       ) : null}
 
-      {section.charts.length > 0 ? (
+      {charts.length > 0 ? (
         <div className="grid gap-4 lg:grid-cols-2">
-          {section.charts.map((chart) => (
+          {charts.map((chart) => (
             <Chart
               key={chart.id}
               chart={chart}
@@ -74,19 +95,23 @@ function SectionView({ section, report }: { section: ReportSection; report: Rese
 export function ReportView({
   report,
   sampleLabel = 'FICTIONAL SAMPLE',
+  previewActions,
+  trackGenerated = false,
 }: {
   report: ResearchReport
   sampleLabel?: string
+  previewActions?: ReportPreviewActions
+  trackGenerated?: boolean
 }) {
   const isSample = report.dataMode === 'illustrative'
 
-  // Track report generation on mount. Sample reports are not tracked as real
-  // intelligence events.
+  // Only the surface that actually builds a report emits this event. Reopening
+  // a durable snapshot is a read, not a fresh generation.
   useEffect(() => {
-    if (!isSample) {
+    if (trackGenerated && !isSample) {
       track({ event_type: 'report_generated' })
     }
-  }, [isSample])
+  }, [isSample, trackGenerated])
 
   const params = new URLSearchParams()
   params.set('industry', report.profile.industry ?? '')
@@ -112,6 +137,7 @@ export function ReportView({
         <h1 className="text-balance font-display text-[clamp(2rem,4vw,3rem)] leading-[1.05] tracking-[-0.02em] text-bone">
           {report.profile.industry || 'Your industry'}, as understood from your answers
         </h1>
+        <IntelligenceStateStrip state={report.dataMode} />
       </header>
 
       {isSample ? (
@@ -127,36 +153,108 @@ export function ReportView({
             Use this only to review the layout. It is not research about a real industry or company.
           </p>
         </div>
-      ) : (
+      ) : report.dataMode === 'unresearched' ? (
         <Callout tone="warning" title="Unresearched preview">
           <p>{report.honestyNote}</p>
           <p className="mt-2">
-            Market figures render as unknown and charts show that no dated series exists. The opportunity
-            map is a discussion aid derived from your answers, not measured demand.
+            No intelligence engine is connected for this preview. Market figures render as unknown and charts
+            show that no dated series exists. The opportunity map is a discussion aid derived from your
+            answers, not measured demand.
           </p>
         </Callout>
+      ) : (
+        <Callout tone="info" title="Sourced preview">
+          <p>{report.honestyNote}</p>
+        </Callout>
       )}
+
+      <EngineStatusPanel state="not_configured" />
+      <ExperienceBoundary />
+
+      {previewActions ? (
+        <nav aria-label="Report actions" className="panel p-4 sm:p-5">
+          <p className="label">Report actions</p>
+          <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2 font-mono text-[11.5px]">
+            <Link href={previewActions.editHref} className="link">
+              Edit answers
+            </Link>
+            <Link href={previewActions.reportHref} className="link">
+              Revisit this report
+            </Link>
+            <Link href={previewActions.dashboardHref} className="link">
+              {previewActions.dashboardLabel}
+            </Link>
+            <Link href={previewActions.installHref} className="link">
+              Continue to installation
+            </Link>
+          </div>
+          <p className="mt-3 max-w-[85ch] text-[12px] leading-relaxed text-bone-dim">
+            This public preview uses your answers and, where available, public sources. It is not an
+            installation: no repository is selected, no GitHub permission is granted, and nothing is
+            published, enabled, approved, or executed. Revisiting re-reads the public sources; a saved
+            snapshot in your workspace stays unchanged.
+          </p>
+        </nav>
+      ) : null}
+
+      <VisualisationCoverage report={report} />
 
       <ProfileSummary profile={report.profile} />
       <ProvenancePanel />
 
+      <OperateLinks />
+
       <nav aria-label="Report sections" className="panel p-4 sm:p-5">
         <p className="label">On this page</p>
-        <ol className="mt-3 grid gap-x-8 gap-y-1.5 font-mono text-[11.5px] sm:grid-cols-2 lg:grid-cols-3">
-          {report.sections.map((section, index) => (
-            <li key={section.id}>
-              <a href={`#section-${section.id}`} className="link">
-                {String(index + 1).padStart(2, '0')} · {section.title}
-              </a>
-            </li>
-          ))}
-        </ol>
+        <div className="mt-3 space-y-3">
+          {REPORT_GROUPS.map((group, groupIndex) => {
+            const sections = sectionsForGroup(report.sections, group)
+            if (sections.length === 0) return null
+            return (
+              <div key={group.id}>
+                <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-bone-faint">
+                  {String(groupIndex + 1).padStart(2, '0')} · {group.label}
+                </p>
+                <ol className="mt-1 grid gap-x-8 gap-y-1 font-mono text-[11.5px] sm:grid-cols-2 lg:grid-cols-3">
+                  {sections.map((section) => (
+                    <li key={section.id}>
+                      <a href={`#section-${section.id}`} className="link">
+                        {section.title}
+                      </a>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )
+          })}
+        </div>
       </nav>
 
       <div className="space-y-12">
-        {report.sections.map((section) => (
-          <SectionView key={section.id} section={section} report={report} />
-        ))}
+        {REPORT_GROUPS.map((group) => {
+          const sections = sectionsForGroup(report.sections, group)
+          if (sections.length === 0) return null
+          return (
+            <section key={group.id} aria-label={group.label} className="space-y-8">
+              <div className="border-t border-ink-line pt-8">
+                <p className="label">Report group</p>
+                <h2 className="mt-2 font-display text-[28px] leading-tight text-bone">{group.label}</h2>
+              </div>
+              {sections.map((section) => (
+                <SectionView key={section.id} section={section} report={report} />
+              ))}
+              {group.id === 'agent-opportunity-map' ? (
+                <section className="scroll-mt-24 space-y-4 border-t border-ink-line pt-8">
+                  <h3 className="font-display text-[22px] leading-tight text-bone">Workflow templates</h3>
+                  <p className="prose-bone max-w-[80ch]">
+                    Interpretation-only templates derived from the profile. They are not live capabilities, not enabled, and not executable from this report.
+                  </p>
+                  <WorkflowList workflows={report.workflows} />
+                </section>
+              ) : null}
+            </section>
+          )
+        })}
       </div>
 
       <section className="rounded-xl border border-verdant/30 bg-verdant/[0.05] p-5 sm:p-7">

@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { validateCapabilities, validateRules, validateSetup } from '@/lib/golive'
 import { enforcingFromPush, STALE_AFTER_MS } from '@/lib/enforcing'
 
@@ -394,6 +394,7 @@ describe('research answers survive the handoff into setup', () => {
 
 describe('sector benchmarks never expose a reversible cohort', () => {
   const route = readFileSync(join(process.cwd(), 'app/api/analytics/sector/route.ts'), 'utf8')
+  const reader = readFileSync(join(process.cwd(), 'lib/analytics-sector-read.ts'), 'utf8')
   const meta = readFileSync(join(process.cwd(), 'app/api/tenant-metadata/route.ts'), 'utf8')
 
   it('accepts only the reviewed setup vocabulary as a cohort key', () => {
@@ -403,13 +404,21 @@ describe('sector benchmarks never expose a reversible cohort', () => {
     expect(meta).not.toContain('under 100 characters')
   })
 
-  it('withholds exact cohort size, median and percentile', () => {
-    expect(route).toContain('sectorPercentileBand')
-    expect(route).toContain('peerCount: null')
-    expect(route).toContain('medianEvents: null')
-    expect(route).toContain('percentile: null')
-    expect(route).not.toContain('const peerCount = eventCounts.length')
-    expect(route).not.toContain('medianEvents =')
+  it('withholds exact cohort size, median and percentile in the server reader', () => {
+    expect(reader).toContain('sectorPercentileBand')
+    expect(reader).toContain('peerCount: null')
+    expect(reader).toContain('medianEvents: null')
+    expect(reader).toContain('percentile: null')
+    expect(reader).not.toContain('const peerCount = eventCounts.length')
+    expect(reader).not.toContain('medianEvents =')
+    expect(route).toContain('readSectorBenchmark(t.tenantId)')
+  })
+
+  it('never fetches a header-derived benchmark origin or sends cohort facts to the browser', () => {
+    expect(reader).toContain("import 'server-only'")
+    expect(reader).toContain('createAdminClient()')
+    expect(reader).not.toMatch(/\bfetch\s*\(|headers\(\)|x-forwarded-host/i)
+    expect(route).not.toMatch(/\bfetch\s*\(/)
   })
 })
 
@@ -421,7 +430,10 @@ describe('unknown never renders as a green metric', () => {
     expect(marketing).toContain("tone={data.kpis.totalExecuted === null ? 'default' : 'good'}")
     expect(marketing).toContain("{c.executed ?? 'unknown'}")
     expect(marketing).toContain("{w.executed ?? 'unknown'}")
-    expect(home).toContain('sectorRead.percentileBand === null')
+    expect(home).toContain("readSectorBenchmark(tenantId).catch(() => null)")
+    expect(home).not.toContain("fetch('/api/analytics/sector')")
+    expect(home).toContain("tone=\"default\"")
+    expect(home).toContain('freshness is unknown until a dated producer exists')
   })
 })
 
@@ -440,5 +452,137 @@ describe('report preview is not indexable research', () => {
     const page = readFileSync(join(process.cwd(), 'app/(site)/intelligence/report/page.tsx'), 'utf8')
     expect(page).toMatch(/robots:\s*\{\s*index:\s*false,\s*follow:\s*false\s*\}/)
     expect(page).toMatch(/canonical:\s*['"]\/intelligence['"]/)
+  })
+})
+
+describe('intelligence v2 structural guards', () => {
+  const here = dirname(fileURLToPath(import.meta.url))
+  const root = join(here, '..')
+
+  it('guards NEXT_PUBLIC engine secret shape in config', () => {
+    const config = readFileSync(join(root, 'next.config.mjs'), 'utf8')
+    expect(config).toContain('KEY|API_KEY|CREDENTIAL|PASSWORD|PASSPHRASE')
+  })
+
+  it('keeps intelligence runtime paths free of sample fixtures', () => {
+    const files = [
+      'app/api/intelligence/report/route.ts',
+      'lib/intelligence/engine-client.ts',
+      'lib/intelligence/engine-contract.ts',
+      'lib/intelligence/state-meta.ts',
+      'components/intel/workflow-list.tsx',
+      'components/intel/operate-links.tsx',
+      'components/intel/state-strip.tsx',
+      'components/intel/experience-boundary.tsx',
+      'components/intel/engine-status-panel.tsx',
+      'components/intel/visualisation-coverage.tsx',
+      'lib/intelligence/visualisation-coverage.ts',
+    ]
+    for (const file of files) {
+      const src = readFileSync(join(root, file), 'utf8')
+      expect(src).not.toMatch(/buildSampleReport|lib\/intelligence\/sample/)
+    }
+  })
+
+  it('keeps workflow and operate surfaces read-only and bounded', () => {
+    const workflow = readFileSync(join(root, 'components/intel/workflow-list.tsx'), 'utf8')
+    const links = readFileSync(join(root, 'components/intel/operate-links.tsx'), 'utf8')
+    expect(workflow).not.toMatch(/\bfetch\s*\(|\bonSubmit\b|<form\b|onClick=\{/)
+    expect(workflow).toContain('template only — not executable')
+    expect(workflow).toContain('unverified capability')
+    expect(workflow).toContain('Not executable without explicit merchant review and approval in the real system.')
+    expect(links).not.toMatch(/\/rules|\/go-live/)
+    expect(links).toContain('Opening them does not deploy, publish, approve, enable, or execute this report or any template on it.')
+    expect(links).not.toMatch(/\/api\/|\/approvals\/confirm\//)
+  })
+
+  it('keeps intelligence boundary and coverage surfaces free of secrets and fixtures', () => {
+    const files = [
+      'components/intel/experience-boundary.tsx',
+      'components/intel/engine-status-panel.tsx',
+      'components/intel/state-strip.tsx',
+      'components/intel/operate-links.tsx',
+      'components/intel/visualisation-coverage.tsx',
+      'lib/intelligence/visualisation-coverage.ts',
+    ]
+    for (const file of files) {
+      const src = readFileSync(join(root, file), 'utf8')
+      expect(src).not.toMatch(/process\.env|service_role|buildSampleReport|lib\/intelligence\/sample/)
+      expect(src).not.toMatch(/\bfetch\s*\(|<button\b|<form\b|\bonSubmit\b|\bonClick\s*=/)
+    }
+  })
+
+  it('keeps the engine client server-only and out of public intelligence surfaces', () => {
+    const client = readFileSync(join(root, 'lib/intelligence/engine-client.ts'), 'utf8')
+    expect(client).toContain("import 'server-only'")
+    for (const file of [
+      'app/(site)/intelligence/page.tsx',
+      'app/(site)/intelligence/report/page.tsx',
+      'components/intel/report-view.tsx',
+      'components/intel/experience-boundary.tsx',
+      'components/intel/engine-status-panel.tsx',
+      'components/intel/visualisation-coverage.tsx',
+    ]) {
+      const src = readFileSync(join(root, file), 'utf8')
+      expect(src).not.toMatch(/lib\/intelligence\/engine-client|from ['"]server-only['"]/)
+    }
+  })
+
+  it('keeps hosted job vocabulary in the contract, not in rendered state', () => {
+    const contract = readFileSync(join(root, 'lib/intelligence/engine-contract.ts'), 'utf8')
+    const stateMeta = readFileSync(join(root, 'lib/intelligence/state-meta.ts'), 'utf8')
+    const strip = readFileSync(join(root, 'components/intel/state-strip.tsx'), 'utf8')
+    expect(contract).toContain('ENGINE_JOB_STATES')
+    expect(contract).toContain('isEngineJobCompleted')
+    for (const state of ['queued', 'claimed', 'running', 'completed', 'exhausted']) {
+      expect(contract).toContain(`'${state}'`)
+      expect(stateMeta).not.toContain(state)
+      expect(strip).not.toContain(state)
+    }
+  })
+
+  it('keeps auth routes from leaking raw auth error messages', () => {
+    const signup = readFileSync(join(root, 'app/api/auth/signup/route.ts'), 'utf8')
+    const login = readFileSync(join(root, 'app/api/auth/login/route.ts'), 'utf8')
+    expect(signup).not.toMatch(/reason:\s*error\.message/)
+    expect(login).not.toMatch(/reason:\s*error\.message/)
+    expect(signup).toContain('Signup could not be completed with those details.')
+    expect(login).toContain('Sign-in could not be completed with those details.')
+  })
+})
+
+describe('client build refuses public engine credentials', () => {
+  const configUrl = pathToFileURL(join(dirname(fileURLToPath(import.meta.url)), '..', 'next.config.mjs')).href
+
+  type NextConfig = { webpack: (config: object, context: { isServer: boolean }) => object }
+
+  async function clientBuild(): Promise<() => object> {
+    const configModule = (await import(configUrl)) as { default: NextConfig }
+    return () => configModule.default.webpack({}, { isServer: false })
+  }
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  it('fails the build on NEXT_PUBLIC_ENGINE_API_KEY', async () => {
+    vi.stubEnv('NEXT_PUBLIC_ENGINE_API_KEY', 'engine-credential')
+    const build = await clientBuild()
+    expect(build).toThrow(/NEXT_PUBLIC_ENGINE_API_KEY/)
+    expect(build).toThrow(/ship to every visitor/)
+  })
+
+  it('fails the build on an unlisted NEXT_PUBLIC_ credential-shaped variable', async () => {
+    vi.stubEnv('NEXT_PUBLIC_BROKER_CALLBACK_PASSWORD', 'hunter2')
+    const build = await clientBuild()
+    expect(build).toThrow(/NEXT_PUBLIC_BROKER_CALLBACK_PASSWORD/)
+  })
+
+  it('does not treat the reviewed public Supabase anon key as a secret', async () => {
+    // The anon key is public project configuration, protected by RLS. A shape
+    // check that rejects it would break every configured deployment's build.
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', 'public-anon-identifier')
+    const build = await clientBuild()
+    expect(build).not.toThrow()
   })
 })

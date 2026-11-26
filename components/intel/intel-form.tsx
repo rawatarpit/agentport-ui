@@ -3,20 +3,30 @@
 import { useEffect, useState } from 'react'
 import { track } from '@/lib/funnel-events'
 import { BUSINESS_MODELS, CUSTOMER_SEGMENTS, INDUSTRY_FAMILIES } from '@/lib/intelligence/sectors'
+import type { ResearchProfile } from '@/lib/intelligence/types'
 
 /**
  * A plain GET form: the report URL carries the answers, so the report page can
  * stay a server component and nothing is written to a store on submit.
  */
-export function IntelForm() {
-  const [familyId, setFamilyId] = useState('')
-  const [industry, setIndustry] = useState('')
-  const [subIndustry, setSubIndustry] = useState('')
+function familyForProfile(profile: ResearchProfile | undefined): string {
+  if (!profile) return ''
+  const fromSubIndustry = INDUSTRY_FAMILIES.find((item) =>
+    profile.subIndustry ? item.subcategories.includes(profile.subIndustry) : false,
+  )
+  if (fromSubIndustry) return fromSubIndustry.id
+  return INDUSTRY_FAMILIES.find((item) => item.label === profile.industry)?.id ?? ''
+}
+
+export function IntelForm({ initialProfile }: { initialProfile?: ResearchProfile }) {
+  const [familyId, setFamilyId] = useState(() => familyForProfile(initialProfile))
+  const [industry, setIndustry] = useState(initialProfile?.industry ?? '')
+  const [subIndustry, setSubIndustry] = useState(initialProfile?.subIndustry ?? '')
+  const [geography, setGeography] = useState(initialProfile?.geography ?? initialProfile?.country ?? '')
   const family = INDUSTRY_FAMILIES.find((item) => item.id === familyId) ?? null
 
-  // Track that the intelligence preview was viewed.
   useEffect(() => {
-    track({ event_type: 'intelligence_viewed' })
+    track({ event_type: 'intelligence_page_viewed' })
   }, [])
 
   const handleFamilyChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
@@ -25,17 +35,18 @@ export function IntelForm() {
     setSubIndustry('')
     if (next) {
       setIndustry(next.label)
-      track({ event_type: 'industry_selected', industry: next.label })
+      track({ event_type: 'industry_selected' })
     }
   }
 
   const handleIndustryChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setIndustry(event.target.value)
-    track({ event_type: 'industry_selected', industry: event.target.value })
+    track({ event_type: 'industry_selected' })
   }
 
-  const handleCountryChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    track({ event_type: 'geography_selected', geography: event.target.value })
+  const handleGeographyChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setGeography(event.target.value)
+    track({ event_type: 'geography_selected' })
   }
 
   return (
@@ -62,6 +73,20 @@ export function IntelForm() {
 
       <div className="grid gap-5 sm:grid-cols-2">
         <div>
+          <label htmlFor="company-name" className="field-label">
+            Company name <span className="font-normal text-bone-faint">(optional)</span>
+          </label>
+          <input
+            id="company-name"
+            name="companyName"
+            className="input"
+            maxLength={120}
+            autoComplete="organization"
+            placeholder="e.g. Acme Retail"
+            defaultValue={initialProfile?.companyName ?? ''}
+          />
+        </div>
+        <div>
           <label htmlFor="industry" className="field-label">
             Industry
           </label>
@@ -83,7 +108,9 @@ export function IntelForm() {
             ))}
           </datalist>
         </div>
+      </div>
 
+      <div className="grid gap-5 sm:grid-cols-2">
         <div>
           <label htmlFor="sub-industry" className="field-label">
             Sub-industry <span className="font-normal text-bone-faint">(optional)</span>
@@ -104,23 +131,25 @@ export function IntelForm() {
             ))}
           </select>
         </div>
-      </div>
-
-      <div className="grid gap-5 sm:grid-cols-2">
         <div>
-          <label htmlFor="country" className="field-label">
-            Country <span className="font-normal text-bone-faint">(optional)</span>
+          <label htmlFor="geography" className="field-label">
+            Geography / country <span className="font-normal text-bone-faint">(optional)</span>
           </label>
           <input
-            id="country"
+            id="geography"
             name="country"
             className="input"
             maxLength={80}
             autoComplete="country-name"
             placeholder="e.g. India"
-            onChange={handleCountryChange}
+            value={geography}
+            onChange={handleGeographyChange}
           />
+          <input type="hidden" name="geography" value={geography} />
         </div>
+      </div>
+
+      <div className="grid gap-5 sm:grid-cols-2">
         <div>
           <label htmlFor="website" className="field-label">
             Website <span className="font-normal text-bone-faint">(optional)</span>
@@ -133,6 +162,20 @@ export function IntelForm() {
             maxLength={300}
             autoComplete="url"
             placeholder="https://example.com"
+            defaultValue={initialProfile?.website ?? ''}
+          />
+        </div>
+        <div>
+          <label htmlFor="products-services" className="field-label">
+            Products / services <span className="font-normal text-bone-faint">(optional)</span>
+          </label>
+          <input
+            id="products-services"
+            name="productsServices"
+            className="input"
+            maxLength={400}
+            placeholder="e.g. Groceries, prepared food"
+            defaultValue={initialProfile?.productsServices ?? ''}
           />
         </div>
       </div>
@@ -147,6 +190,7 @@ export function IntelForm() {
           className="input min-h-[90px] resize-y"
           maxLength={500}
           placeholder="e.g. Let agents answer product questions and prepare orders for review"
+          defaultValue={initialProfile?.objectives.join(', ') ?? ''}
         />
         <p className="field-help">Separate several aims with commas. They become interpretation inputs, not evidence.</p>
       </div>
@@ -156,7 +200,12 @@ export function IntelForm() {
           <label htmlFor="business-model" className="field-label">
             Business model <span className="font-normal text-bone-faint">(optional)</span>
           </label>
-          <select id="business-model" name="businessModel" className="input" defaultValue="">
+          <select
+            id="business-model"
+            name="businessModel"
+            className="input"
+            defaultValue={initialProfile?.businessModel ?? ''}
+          >
             <option value="">Not specified</option>
             {BUSINESS_MODELS.map((label) => (
               <option key={label} value={label}>
@@ -169,7 +218,12 @@ export function IntelForm() {
           <label htmlFor="customer-segment" className="field-label">
             Customer segment <span className="font-normal text-bone-faint">(optional)</span>
           </label>
-          <select id="customer-segment" name="customerSegment" className="input" defaultValue="">
+          <select
+            id="customer-segment"
+            name="customerSegment"
+            className="input"
+            defaultValue={initialProfile?.customerSegment ?? ''}
+          >
             <option value="">Not specified</option>
             {CUSTOMER_SEGMENTS.map((label) => (
               <option key={label} value={label}>

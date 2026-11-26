@@ -31,8 +31,17 @@ export default async function SavedReportPage({
     )
   }
 
-  const row = await getSavedReport(tenant.active.tenantId, params.id)
-  if (!row) return notFound()
+  const read = await getSavedReport(tenant.active.tenantId, params.id)
+  if (!read.ok) {
+    return (
+      <div className="panel p-8 text-center space-y-2">
+        <p className="text-bone">Unable to load this saved report.</p>
+        <p className="text-[13px] text-bone-dim">Nothing is invented in its place. Reload to try the RLS-scoped read again.</p>
+      </div>
+    )
+  }
+  if (!read.value) return notFound()
+  const row = read.value
 
   return (
     <div className="space-y-6">

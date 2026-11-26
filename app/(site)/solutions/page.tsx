@@ -2,37 +2,53 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 
 export const metadata: Metadata = {
-  title: 'Solutions',
-  description: 'What the console offers visitors, operators and developers — and what it deliberately does not.',
+  metadataBase: new URL('https://agentport.relayforge.in'),
+  title: 'Solutions — buyers, workflows and boundaries',
+  description: 'Buyer segments and one concrete workflow each, with the supported-integration boundary stated on every workflow.',
+  alternates: { canonical: '/solutions' },
+  openGraph: {
+    title: 'Solutions — buyers, workflows and boundaries',
+    description: 'Buyer segments and one concrete workflow each, with the supported-integration boundary stated on every workflow.',
+    type: 'website',
+    siteName: 'AgentPort',
+    url: 'https://agentport.relayforge.in/solutions',
+  },
+  twitter: {
+    card: 'summary',
+    title: 'Solutions — buyers, workflows and boundaries',
+    description: 'Buyer segments and one concrete workflow each, with the supported-integration boundary stated on every workflow.',
+  },
 }
 
-const AUDIENCES = [
+const SEGMENTS = [
   {
-    label: 'For visitors',
-    title: 'Understand the question first.',
-    body: 'Start with an industry preview that shows unknowns as unknowns, then check website readiness once you have an account. Neither tells you that agents can already transact with your business.',
+    label: 'B2B suppliers / distributors',
+    title: 'Quote requests with boundaries.',
+    workflow: 'An agent checks published stock and lead times, then prepares a quote request for a person to review.',
+    boundary: 'This workflow requires a supported integration to be governed.',
     links: [
-      { href: '/intelligence', label: 'Industry intelligence' },
-      { href: '/signup', label: 'Check Website Readiness — after signup' },
+      { href: '/platform', label: 'The request path' },
+      { href: '/pilot', label: 'Request a pilot' },
     ],
   },
   {
-    label: 'For operators',
-    title: 'Author policy without pretending it is live.',
-    body: 'Capabilities and rules are drafts in the console. A hosted governor decides at request time, and the ledger you read here appears only after a real push. Unknown status stays unknown.',
+    label: 'Transactional ecommerce / D2C',
+    title: 'Returns without silent writes.',
+    workflow: 'An agent reads an order status and prepares a return request; the write runs only after human confirmation through the governed path.',
+    boundary: 'This workflow requires a supported integration to be governed.',
     links: [
       { href: '/how-it-works', label: 'The twelve steps' },
-      { href: '/security', label: 'Trust boundaries' },
-      { href: '/signup', label: 'Create an account' },
+      { href: '/pilot', label: 'Request a pilot' },
     ],
   },
   {
-    label: 'For developers',
-    title: 'Make the business legible, then confirm writes.',
-    body: 'Discovery files describe capabilities and are advisory. Reads can be prepared directly; state-changing operations are prepared with GET and confirmed by a human before a governed write is sent.',
+    label: 'SaaS / structured workflow',
+    title: 'Ticket updates that stay reviewable.',
+    workflow: 'An agent reads a project state and prepares a ticket update with the exact change shown before confirmation.',
+    boundary: 'This workflow requires a supported integration to be governed.',
     links: [
       { href: '/developers', label: 'Developer model' },
-      { href: '/security', label: 'Security model' },
+      { href: '/pilot', label: 'Request a pilot' },
     ],
   },
 ] as const
@@ -43,23 +59,34 @@ export default function SolutionsPage() {
       <header className="max-w-[75ch] space-y-3">
         <p className="label">Solutions</p>
         <h1 className="text-balance font-display text-[clamp(2rem,4vw,3rem)] leading-[1.05] tracking-[-0.02em] text-bone">
-          Three ways in, one boundary.
+          Three buyers, one boundary.
         </h1>
         <p className="prose-bone">
-          AgentPort governs only the operations connected to it. Ordinary traffic and unconnected APIs stay
-          outside the boundary. These pages describe what is available now and what still requires a
-          connection.
+          AgentPort — The infrastructure for businesses in the AI agent economy. Intelligence, Access and
+          Control show up as a question, a supported connection and a hosted decision. These are buyer
+          segments, not a claim that ordinary traffic or unconnected APIs are governed.
         </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <Link href="/pilot" className="btn btn-primary px-4 py-2">
+            Request a pilot
+          </Link>
+          <Link href="/signup" className="btn px-4 py-2">
+            Get started
+          </Link>
+        </div>
       </header>
 
       <div className="grid gap-5 lg:grid-cols-3">
-        {AUDIENCES.map((audience) => (
-          <section key={audience.label} className="panel flex h-full flex-col p-5 sm:p-6">
-            <p className="label">{audience.label}</p>
-            <h2 className="mt-3 font-display text-[21px] leading-tight text-bone">{audience.title}</h2>
-            <p className="mt-3 text-[13px] leading-relaxed text-bone-dim">{audience.body}</p>
+        {SEGMENTS.map((segment) => (
+          <section key={segment.label} className="panel flex h-full flex-col p-5 sm:p-6">
+            <p className="label">{segment.label}</p>
+            <h2 className="mt-3 font-display text-[21px] leading-tight text-bone">{segment.title}</h2>
+            <p className="mt-3 text-[13px] leading-relaxed text-bone-dim">{segment.workflow}</p>
+            <p className="mt-4 border-t border-ink-line pt-3 font-mono text-[11px] leading-relaxed text-amber">
+              {segment.boundary}
+            </p>
             <div className="mt-auto flex flex-wrap gap-x-4 gap-y-2 pt-6 font-mono text-[11.5px]">
-              {audience.links.map((link) => (
+              {segment.links.map((link) => (
                 <Link key={link.href} href={link.href} className="link">
                   {link.label}
                 </Link>

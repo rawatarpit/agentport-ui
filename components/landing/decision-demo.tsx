@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Badge } from '@/components/stat'
+import { track } from '@/lib/funnel-events'
 import {
   DEMO_SCENARIOS,
   type DemoCapability,
@@ -66,7 +67,10 @@ export function DecisionDemo() {
                 <button
                   type="button"
                   aria-pressed={active}
-                  onClick={() => setSelected(scenario.capability)}
+                  onClick={() => {
+                    track({ event_type: 'product_demo_interaction' })
+                    setSelected(scenario.capability)
+                  }}
                   className={`flex w-full items-center gap-3 px-4 py-3.5 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-verdant/60 ${
                     active ? 'bg-verdant/5' : 'hover:bg-ink/40'
                   }`}

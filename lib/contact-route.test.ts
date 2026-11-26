@@ -60,9 +60,19 @@ beforeEach(() => {
 })
 
 describe('POST /api/contact', () => {
-  it('silently accepts a filled honeypot and writes nothing', async () => {
+  it('silently accepts a filled honeypot, reports it unrecorded and writes nothing', async () => {
     const res = await POST(post({ ...valid, website2: 'http://spam.example' }))
     expect(res.status).toBe(200)
+    const body = (await res.json()) as { status: string; recorded: boolean }
+    expect(body).toMatchObject({ status: 'ok', recorded: false })
+    expect(h.inserted).toHaveLength(0)
+  })
+
+  it('rejects a null JSON body before touching storage', async () => {
+    const res = await POST(post(null))
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as { reason: string }
+    expect(body.reason).toBeTruthy()
     expect(h.inserted).toHaveLength(0)
   })
 
@@ -93,8 +103,9 @@ describe('POST /api/contact', () => {
   it('stores one normalised row and answers ok even with no mail key', async () => {
     const res = await POST(post(valid))
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { status: string; notified: string }
+    const body = (await res.json()) as { status: string; recorded: boolean; notified: string }
     expect(body.status).toBe('ok')
+    expect(body.recorded).toBe(true)
     expect(body.notified).toBe('not_configured')
     expect(h.inserted).toEqual([
       {

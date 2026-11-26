@@ -226,8 +226,8 @@ export function SetupWizard() {
     const run = async () => {
       setCarriedState('saving')
       const listRes = await fetch('/api/research/saved-reports')
-      if (!listRes.ok) throw new Error('saved reports unreadable')
-      const list = (await listRes.json()) as { reports?: unknown[] }
+      const list = (await listRes.json().catch(() => ({}))) as { status?: string; reports?: unknown[]; reason?: string }
+      if (!listRes.ok || list.status !== 'ok') throw new Error(list.reason ?? 'saved reports unreadable')
       if (Array.isArray(list.reports) && list.reports.length > 0) {
         if (live) setCarriedState('already')
         return
@@ -239,7 +239,8 @@ export function SetupWizard() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ profile }),
       })
-      if (!saveRes.ok) throw new Error('report snapshot refused')
+      const saveBody = (await saveRes.json().catch(() => ({}))) as { status?: string; reason?: string }
+      if (!saveRes.ok || saveBody.status !== 'ok') throw new Error(saveBody.reason ?? 'report snapshot refused')
       if (live) setCarriedState('saved')
       // The carried website stays in the saved report profile. A signup link
       // is untrusted input, so it never silently writes tenants.website_url —

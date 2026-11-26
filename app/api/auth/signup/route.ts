@@ -1,7 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
-import { guardStateChange } from '@/lib/request-guard'
+import { guardStateChange, requestOrigin } from '@/lib/request-guard'
+import { sanitizeNextPath } from '@/lib/redirect'
 
 export const dynamic = 'force-dynamic'
+
+const SIGNUP_ERROR = 'Signup could not be completed with those details.'
 
 /**
  * POST /api/auth/signup — create the Supabase account server-side.
@@ -15,7 +18,7 @@ export async function POST(req: Request) {
   const denied = guardStateChange(req, 'auth:signup')
   if (denied) return denied
 
-  let body: { email?: unknown; password?: unknown; businessName?: unknown }
+  let body: { email?: unknown; password?: unknown; businessName?: unknown; next?: unknown }
   try {
     body = await req.json()
   } catch {
@@ -31,14 +34,19 @@ export async function POST(req: Request) {
     return Response.json({ status: 'error', reason: 'Use at least 12 characters.' }, { status: 400 })
   }
 
+  const next = sanitizeNextPath(typeof body.next === 'string' ? body.next : undefined, '/setup')
+  const origin = requestOrigin(req) ?? new URL(req.url).origin
   const supabase = createClient()
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { business_name: businessName } },
+    options: {
+      data: { business_name: businessName },
+      emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(next)}`,
+    },
   })
   if (error) {
-    return Response.json({ status: 'error', reason: error.message || 'Signup failed.' }, { status: 400 })
+    return Response.json({ status: 'error', reason: SIGNUP_ERROR }, { status: 400 })
   }
   return Response.json({ status: 'ok', session: Boolean(data.session) })
 }

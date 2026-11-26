@@ -5,6 +5,7 @@ import { Section } from '@/components/ui/section'
 import { StepRail, type RailStep } from '@/components/ui/step-rail'
 import { listDecisions, listHolds } from '@/lib/console-reads'
 import { getHome } from '@/lib/backend-reads'
+import { readSectorBenchmark } from '@/lib/analytics-sector-read'
 import { getGoLiveState, type GoLiveStepId } from '@/lib/go-live'
 import { resolveRequestTenant } from '@/lib/tenant-server'
 
@@ -85,12 +86,7 @@ export default async function OverviewPage() {
       .select('name, method, path, kind')
       .eq('tenant_id', tenantId)
       .order('name', { ascending: true }),
-    fetch('/api/analytics/sector')
-      .then(async (r) => {
-        if (!r.ok) return null
-        return r.json()
-      })
-      .catch(() => null),
+    readSectorBenchmark(tenantId).catch(() => null),
   ])
 
   // A failed inventory read is unknown, not an empty inventory. The mapping
@@ -178,16 +174,9 @@ export default async function OverviewPage() {
               ? 'Sector benchmark could not be read.'
               : sectorRead.hasSector === false
                 ? 'Set your industry and sector in setup to see benchmarks.'
-                : 'Coarse band only. Exact cohort size and median are withheld; a small or crafted cohort cannot reveal another merchant.'
+                : 'Coarse band only. Cohort size, median and exact percentile are withheld; freshness is unknown until a dated producer exists.'
           }
-          tone={
-            sectorRead === null ||
-            sectorRead === undefined ||
-            sectorRead.hasSector === false ||
-            sectorRead.percentileBand === null
-              ? 'default'
-              : 'good'
-          }
+          tone="default"
         />
       </section>
 
@@ -270,7 +259,7 @@ export default async function OverviewPage() {
               {sectorRead === null || sectorRead === undefined ? 'unknown' : sectorRead.hasSector === false ? 'not set' : sectorRead.percentileBand ?? 'unknown'}
             </p>
             <p className="text-xs text-slate-400">
-              {sectorRead === null || sectorRead === undefined ? 'Sector benchmark could not be read.' : sectorRead.hasSector === false ? 'Set your industry and sector in setup.' : 'Coarse band only; exact cohort values are withheld.'}
+              {sectorRead === null || sectorRead === undefined ? 'Sector benchmark could not be read.' : sectorRead.hasSector === false ? 'Set your industry and sector in setup.' : 'Coarse band only; cohort values and freshness are withheld until a dated producer exists.'}
             </p>
           </div>
           <Link href="/setup" className="btn btn-sm">

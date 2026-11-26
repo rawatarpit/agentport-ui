@@ -52,12 +52,13 @@ export const RATE_LIMITS = {
   'publish:artifact': { limit: 30, windowMs: 60_000 },
   'tenant-metadata:write': { limit: 30, windowMs: 60_000 },
   'research:saved-reports:write': { limit: 30, windowMs: 60_000 },
+  'intelligence:run': { limit: 10, windowMs: 60_000 },
   'funnel:events': { limit: 120, windowMs: 60_000 },
 } as const satisfies Record<string, RateLimitOptions>
 
 export type RateLimitBucket = keyof typeof RATE_LIMITS
 
-function requestOrigin(req: Request): string | null {
+export function requestOrigin(req: Request): string | null {
   const origin = req.headers.get('origin')
   if (origin) {
     try {

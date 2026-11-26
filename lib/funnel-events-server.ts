@@ -3,27 +3,21 @@
  * `acquisition_events` using the session client (RLS-scoped). Used by server
  * components that cannot access `window.localStorage`.
  *
- * The `tenant_id` must be resolved server-side from the session — never
- * accepted from the caller. When the caller is authenticated but has no
- * selected tenant, `tenant_id` is null and the event is tracked as
- * visitor-attributed only.
+ * The identity is resolved by the caller from the session — never from a
+ * browser payload. When a caller is authenticated but has no selected tenant,
+ * the event is visitor-attributed only.
  */
 
 import { createClient } from '@/lib/supabase/server'
+import type { FunnelEventType } from '@/lib/funnel-event-types'
+import { isBoundedIdentifier, normalizeSourceRoute, SERVER_EVENT_ID_PREFIX } from '@/lib/funnel-route'
 
 export async function trackServerEvent(event: {
-  event_type: string
+  event_type: FunnelEventType
   user_id: string | null
   tenant_id: string | null
-  industry?: string | null
-  geography?: string | null
   source_route?: string | null
-  metadata?: Record<string, unknown>
-  /** Optional deterministic event id for idempotency across page reloads.
-   * When provided, the same event id is used on every render so upsert
-   * ignoreDuplicates prevents duplicate milestone rows. When omitted, a
-   * random id is generated (suitable for user-initiated actions like
-   * discovery checks that may legitimately repeat). */
+  /** Deterministic id for idempotency across page reloads. */
   event_id?: string
 }): Promise<void> {
   if (typeof window !== 'undefined') {
@@ -31,17 +25,36 @@ export async function trackServerEvent(event: {
   }
 
   const visitorId = event.user_id ?? crypto.randomUUID()
-  const db = createClient()
+  const suppliedId =
+    event.event_id && isBoundedIdentifier(event.event_id) ? event.event_id : crypto.randomUUID()
+  const namespacedId = suppliedId.startsWith(SERVER_EVENT_ID_PREFIX)
+    ? suppliedId
+    : `${SERVER_EVENT_ID_PREFIX}${suppliedId}`
+  const eventId = isBoundedIdentifier(namespacedId)
+    ? namespacedId
+    : `${SERVER_EVENT_ID_PREFIX}${crypto.randomUUID()}`
+  const sourceRoute = normalizeSourceRoute(event.source_route) ?? ''
 
-  await db.from('acquisition_events').insert({
-    event_id: event.event_id ?? crypto.randomUUID(),
+  const row = {
+    event_id: eventId,
     event_type: event.event_type,
     visitor_id: visitorId,
     user_id: event.user_id,
     tenant_id: event.tenant_id,
-    industry: event.industry ?? null,
-    geography: event.geography ?? null,
-    source_route: event.source_route ?? '',
-    metadata: event.metadata ?? {},
-  })
+    source_route: sourceRoute,
+    metadata: {},
+  }
+
+  try {
+    const { error } = await createClient()
+      .from('acquisition_events')
+      .upsert(row, { onConflict: 'event_id', ignoreDuplicates: true })
+    if (error) {
+      // Telemetry is advisory: a failed insert must not change the caller's outcome.
+      return
+    }
+  } catch {
+    // Dropped by design. A retry could double-count and analytics must never
+    // turn a successful merchant action into a failed response.
+  }
 }

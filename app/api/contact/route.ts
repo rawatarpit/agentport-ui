@@ -29,10 +29,11 @@ export async function POST(req: Request) {
   }
 
   // Honeypot: a real visitor never fills a field they cannot see. Answer ok so
-  // a bot does not learn the field is a trap; write nothing.
-  const record = raw as Record<string, unknown>
-  if (typeof record.website2 === 'string' && record.website2.trim() !== '') {
-    return Response.json({ status: 'ok' })
+  // a bot does not learn the field is a trap; write nothing. `recorded: false`
+  // keeps the acknowledgement out of the funnel's submitted-request count.
+  const record = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : null
+  if (record && typeof record.website2 === 'string' && record.website2.trim() !== '') {
+    return Response.json({ status: 'ok', recorded: false })
   }
 
   const parsed = parsePilotRequest(raw)
@@ -92,5 +93,5 @@ export async function POST(req: Request) {
   }
 
   const notified = await notifyPilotRequest(value)
-  return Response.json({ status: 'ok', notified })
+  return Response.json({ status: 'ok', recorded: true, notified })
 }

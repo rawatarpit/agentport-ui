@@ -1,5 +1,6 @@
 import { normaliseWorkerUrl } from '@/lib/install-package'
 import { resolveRequestTenant, tenantRefusalResponse } from '@/lib/tenant-server'
+import { trackServerEvent } from '@/lib/funnel-events-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -53,6 +54,20 @@ export async function GET() {
         reason: 'The governor answered 200 but the body is not JSON.',
         url,
         httpStatus: res.status,
+      })
+    }
+
+    const servedTenantId =
+      typeof manifest === 'object' && manifest !== null
+        ? (manifest as { tenantId?: unknown }).tenantId
+        : undefined
+    if (servedTenantId === tenant.active.tenantId) {
+      await trackServerEvent({
+        event_type: 'deployment_verified',
+        user_id: tenant.userId,
+        tenant_id: tenant.active.tenantId,
+        source_route: '/api/discovery/check',
+        event_id: `deployment_verified:${tenant.active.tenantId}`,
       })
     }
 

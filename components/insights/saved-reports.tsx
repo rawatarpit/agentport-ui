@@ -70,8 +70,8 @@ export function SavedReports({ profile, tenantId }: { profile: ResearchProfile; 
     setSelected(null)
     try {
       const res = await fetch(`/api/research/saved-reports`, { cache: 'no-store' })
-      if (!res.ok) throw new Error(`List failed (${res.status}).`)
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok || body?.status !== 'ok') throw new Error(typeof body?.reason === 'string' ? body.reason : `List failed (${res.status}).`)
       const rows = Array.isArray(body?.reports) ? body.reports : []
       setReports(
         rows
@@ -108,9 +108,10 @@ export function SavedReports({ profile, tenantId }: { profile: ResearchProfile; 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ profile }),
       })
-      if (!res.ok) throw new Error(`Save failed (${res.status}).`)
-      const body = await res.json()
-      if (!body?.savedReportId) throw new Error('Save returned no id.')
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok || body?.status !== 'ok' || !body?.savedReportId) {
+        throw new Error(typeof body?.reason === 'string' ? body.reason : `Save failed (${res.status}).`)
+      }
       await load()
     } catch (err) {
       setError(storageError(err instanceof Error ? err.message : 'Unable to save.'))
@@ -127,7 +128,10 @@ export function SavedReports({ profile, tenantId }: { profile: ResearchProfile; 
         const res = await fetch(`/api/research/saved-reports?id=${encodeURIComponent(id)}`, {
           method: 'DELETE',
         })
-        if (!res.ok) throw new Error(`Delete failed (${res.status}).`)
+        const body = await res.json().catch(() => ({}))
+        if (!res.ok || body?.status !== 'ok') {
+          throw new Error(typeof body?.reason === 'string' ? body.reason : `Delete failed (${res.status}).`)
+        }
         await load()
         if (selected?.id === id) setSelected(null)
       } catch (err) {
@@ -147,7 +151,10 @@ export function SavedReports({ profile, tenantId }: { profile: ResearchProfile; 
         const res = await fetch(`/api/research/saved-reports/${encodeURIComponent(id)}/refresh`, {
           method: 'POST',
         })
-        if (!res.ok) throw new Error(`Refresh failed (${res.status}).`)
+        const body = await res.json().catch(() => ({}))
+        if (!res.ok || body?.status !== 'ok') {
+          throw new Error(typeof body?.reason === 'string' ? body.reason : `Refresh failed (${res.status}).`)
+        }
         await load()
       } catch (err) {
         setError(storageError(err instanceof Error ? err.message : 'Unable to refresh.'))
@@ -207,6 +214,11 @@ export function SavedReports({ profile, tenantId }: { profile: ResearchProfile; 
         <h2 className="label">Saved reports</h2>
         {!ready ? (
           <p className="text-bone-faint">Loading saved reports…</p>
+        ) : error && visibleReports.length === 0 ? (
+          <div className="panel p-5" role="alert">
+            <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-rust">Unable to load saved reports</p>
+            <p className="mt-2 text-[13px] leading-relaxed text-bone-dim">{error}</p>
+          </div>
         ) : visibleReports.length === 0 ? (
           <EmptyState
             title="No saved reports yet"
