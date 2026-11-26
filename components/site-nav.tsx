@@ -6,11 +6,7 @@ import { ThemeToggle } from '@/components/theme-toggle'
 export const LINKS = [
   { href: '/home', label: 'Home' },
   { href: '/intelligence', label: 'Intelligence' },
-  { href: '/solutions', label: 'Solutions' },
-  { href: '/platform', label: 'Platform' },
-  { href: '/how-it-works', label: 'How it works' },
-  { href: '/developers', label: 'Developers' },
-  { href: '/security', label: 'Security' },
+  { href: '/pilot', label: 'Pilot' },
 ] as const
 
 const LINK_CLASS =

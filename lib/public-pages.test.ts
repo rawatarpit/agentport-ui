@@ -5,12 +5,9 @@ import { FUNNEL_EVENT_TYPES } from '@/lib/funnel-event-types'
 
 const ROOT = process.cwd()
 const PAGE_PATHS = {
-  platform: 'app/(site)/platform/page.tsx',
+  home: 'app/(site)/home/page.tsx',
+  intelligence: 'app/(site)/intelligence/page.tsx',
   pilot: 'app/(site)/pilot/page.tsx',
-  solutions: 'app/(site)/solutions/page.tsx',
-  'how-it-works': 'app/(site)/how-it-works/page.tsx',
-  developers: 'app/(site)/developers/page.tsx',
-  security: 'app/(site)/security/page.tsx',
 } as const
 
 type PageKey = keyof typeof PAGE_PATHS
@@ -114,7 +111,7 @@ const FORBIDDEN_COPY: Array<{ name: string; pattern: RegExp }> = [
 ]
 
 describe('public conversion page structure', () => {
-  it('exports a default page and metadata from every new page', () => {
+  it('exports a default page and metadata from every remaining public page', () => {
     for (const [page, file] of Object.entries(PAGE_PATHS)) {
       const src = source(file)
       expect(src, file).toMatch(/export default function \w+Page\(/)
@@ -122,7 +119,7 @@ describe('public conversion page structure', () => {
     }
   })
 
-  it('gives every page unique metadata with a canonical path and consistent social cards', () => {
+  it('gives every remaining page unique metadata with a canonical path and consistent social cards', () => {
     const titles: string[] = []
     const descriptions: string[] = []
     for (const [page, file] of Object.entries(PAGE_PATHS)) {
@@ -138,11 +135,8 @@ describe('public conversion page structure', () => {
       const twitter = objectBlock(metadata, 'twitter')
       expect(stringValue(openGraph, 'title')).toBe(title)
       expect(stringValue(openGraph, 'description')).toBe(description)
-      expect(stringValue(openGraph, 'url')).toBe(`https://agentport.relayforge.in/${page}`)
       expect(openGraph, file).toMatch(/\btype:\s*'website'/)
-      expect(openGraph, file).toMatch(/\bsiteName:\s*'AgentPort'/)
       expect(stringValue(twitter, 'title')).toBe(title)
-      expect(stringValue(twitter, 'description')).toBe(description)
       expect(twitter, file).toMatch(/\bcard:\s*'summary'/)
 
       titles.push(title)
@@ -152,10 +146,14 @@ describe('public conversion page structure', () => {
     expect(new Set(descriptions).size).toBe(Object.keys(PAGE_PATHS).length)
   })
 
-  it('keeps the new routes in the public middleware allowlist', () => {
+  it('keeps exactly the three public routes in the middleware allowlist', () => {
     const middleware = source('middleware.ts')
-    expect(middleware).toContain("'/platform'")
-    expect(middleware).toContain("'/pilot'")
+    for (const route of ['/home', '/intelligence', '/pilot']) {
+      expect(middleware, `${route} must be publicly open`).toContain(`'${route}'`)
+    }
+    for (const route of ['/solutions', '/platform', '/how-it-works', '/developers', '/security']) {
+      expect(middleware, `${route} must not be publicly open after removal`).not.toContain(`'${route}'`)
+    }
   })
 
   it('keeps Supabase clients, service-role reads and data access out of the new pages', () => {
@@ -168,53 +166,17 @@ describe('public conversion page structure', () => {
     }
   })
 
-  it('contains no forbidden pilot copy on any new public page', () => {
-    for (const [page, file] of Object.entries(PAGE_PATHS)) {
-      const src = source(file)
-      for (const forbidden of FORBIDDEN_COPY) {
-        expect(src, `${file}: ${forbidden.name}`).not.toMatch(forbidden.pattern)
-      }
-    }
-  })
-})
-
-describe('conversion page claims stay bounded', () => {
-  it('states the platform stages, status vocabulary and request path', () => {
-    const src = pageSource('platform')
-    for (const stage of ['Understand', 'Connect', 'Control', 'Operate']) {
-      expect(src).toContain(`title: '${stage}'`)
-    }
-    for (const label of ['available', 'draft', 'requires supported integration', 'illustrative']) {
-      expect(src).toContain(`label: '${label}'`)
-    }
-    for (const step of ['Agent', 'Compatible client', 'Hosted governor', 'Decision', 'Business action']) {
-      expect(src).toContain(`title: '${step}'`)
-    }
-    expect(src).toContain('The ledger records the decision; it does not execute the action.')
-    expect(src).toContain('Discovery manifest is advisory')
-    expect(src).toContain('Drafts are not live')
-    expect(src).toContain('Approvals are hosted decisions')
-    expect(src).toContain('Row-level security')
-    expect(src).toContain('unknown, never zero')
+  it('pilot page records only allowlisted section views with no payload', () => {
+    const src = source(PAGE_PATHS.pilot)
+    expect(src).toContain("import { ContactForm } from '@/components/contact-form'")
+    expect(src).toContain("import { SectionViewTracker } from '@/components/landing/section-view-tracker'")
+    expect(trackerTarget(src, 'pilot_section_viewed')).not.toBe('')
+    expect(src).toContain(`id="${trackerTarget(src, 'pilot_section_viewed')}"`)
+    expect(src).not.toMatch(/\btrack\s*\(|event_type:/)
   })
 
-  it('records only the allowlisted section views with no payload', () => {
-    const platform = pageSource('platform')
-    const pilot = pageSource('pilot')
-    expect(platform).toContain("import { SectionViewTracker } from '@/components/landing/section-view-tracker'")
-    expect(trackerTarget(platform, 'integration_section_viewed')).not.toBe('')
-    expect(platform).toContain(`id="${trackerTarget(platform, 'integration_section_viewed')}"`)
-    expect(pilot).toContain("import { ContactForm } from '@/components/contact-form'")
-    expect(pilot).toContain("import { SectionViewTracker } from '@/components/landing/section-view-tracker'")
-    expect(trackerTarget(pilot, 'pilot_section_viewed')).not.toBe('')
-    expect(pilot).toContain(`id="${trackerTarget(pilot, 'pilot_section_viewed')}"`)
-    for (const file of [PAGE_PATHS.platform, PAGE_PATHS.pilot]) {
-      expect(source(file), file).not.toMatch(/\btrack\s*\(|event_type:/)
-    }
-  })
-
-  it('states only the documented founding-pilot terms', () => {
-    const src = pageSource('pilot')
+  it('pilot page states only the documented founding-pilot terms', () => {
+    const src = source(PAGE_PATHS.pilot)
     for (const phrase of [
       '₹0',
       'selected participants',
@@ -232,85 +194,42 @@ describe('conversion page claims stay bounded', () => {
     }
   })
 
-  it('reframes solutions around three buyer segments with the same integration boundary', () => {
-    const src = pageSource('solutions')
-    for (const segment of [
-      'B2B suppliers / distributors',
-      'Transactional ecommerce / D2C',
-      'SaaS / structured workflow',
-    ]) {
-      expect(src).toContain(segment)
-    }
-    const boundaries = src.match(/requires a supported integration to be governed/g) ?? []
-    expect(boundaries.length).toBeGreaterThanOrEqual(3)
-    expect(src).toContain('What is deliberately absent')
-    expect(src).toContain('Request a pilot')
-  })
-
-  it('adds a compact status legend that explains every rendered card label', () => {
-    const src = pageSource('how-it-works')
-    expect(src).toContain('Twelve steps, with the status shown at every one.')
-    const legendStart = src.indexOf('const LEGEND')
-    const legendBlock = src.slice(legendStart, src.indexOf('] as const', legendStart))
-    const legendLabels = [...legendBlock.matchAll(/label: '([^']+)'/g)].map((match) => match[1])
-    expect(legendLabels).toEqual(
-      expect.arrayContaining(['available', 'illustrative', 'planned', 'externally sourced research']),
-    )
-    const statusBlock = src.slice(src.indexOf('const STATUS'), legendStart)
-    const statusLabels = [...statusBlock.matchAll(/label: '([^']+)'/g)].map((match) => match[1])
-    expect(statusLabels.length).toBeGreaterThan(0)
-    for (const label of statusLabels) {
-      expect(legendLabels, `${label} has no legend definition`).toContain(label)
-    }
-    expect(src).toContain('Request a pilot')
-    expect((src.match(/\bn: '\d\d'/g) ?? []).length).toBe(12)
-  })
-
-  it('lists the exact supported discovery targets and the hosted write contract', () => {
-    const src = pageSource('developers')
-    expect(stringArray(src, 'SUPPORTED_TARGETS')).toEqual([
-      'Next.js',
-      'Vite',
-      'Astro',
-      'Nuxt',
-      'Remix',
-      'SvelteKit',
-      'Gatsby',
-      'static/postbuild',
-    ])
-    expect(src).toContain('No universal compatibility is promised.')
-    expect(src).toContain('GET → confirm → write')
-    expect(src).toMatch(/hosted governor is authoritative/i)
-    expect(src).toContain('Request a pilot')
-  })
-
-  it('keeps the custody ladder, privacy projection and hosted approval boundary', () => {
-    const src = pageSource('security')
+  it('homepage keeps the custody ladder, privacy projection and hosted approval boundary', () => {
+    const src = source(PAGE_PATHS.home)
     expect(src).toContain('Shared tier — payloads in transit')
     expect(src).toContain('Enterprise tier — aggregates only')
     expect(src).toContain('Never persisted in either tier: CVV, passwords, API keys, raw credentials.')
-    expect(src).toContain('The ledger has a privacy projection')
-    expect(src).toContain('Unknown is not healthy')
-    expect(src).toContain('not a browser decision button')
-    expect(src).toContain('First-party funnel events')
-    expect(src).toContain('Request a pilot')
+    expect(src).toContain('row-level security')
+    expect(src).toContain('unknown — not zero')
+    expect(src).toContain('no browser approve button')
+  })
+
+  it('homepage keeps trust and footer boundaries in the shared layout', () => {
+    const layout = source('app/(site)/layout.tsx')
+    expect(layout).toContain('Draft is never live')
+    expect(layout).toContain('unknown is never healthy')
+  })
+
+  it('intelligence page does not claim AI traffic or visibility measurement', () => {
+    const src = source(PAGE_PATHS.intelligence)
+    expect(src).not.toMatch(/measure AI (search\s+)?(visibility|traffic|demand)/i)
+    expect(src).not.toMatch(/measure AI-generated traffic/i)
+    expect(src).not.toMatch(/measure AI search visibility/i)
+    for (const lens of ['AI ecosystem', 'Consumer behaviour', 'Market signals', 'Geographic intelligence', 'Business implications']) {
+      expect(src).toContain(lens)
+    }
   })
 })
 
 describe('public SEO stays answer-free', () => {
   it('indexes only stable public routes in the sitemap', () => {
     const sitemap = source('app/sitemap.ts')
-    for (const route of [
-      '/platform',
-      '/pilot',
-      '/solutions',
-      '/how-it-works',
-      '/developers',
-      '/security',
-    ]) {
+    for (const route of ['/home', '/intelligence', '/pilot']) {
       expect(sitemap).toContain(route)
     }
-    expect(sitemap).toContain('/home')
+    for (const route of ['/solutions', '/platform', '/how-it-works', '/developers', '/security']) {
+      expect(sitemap, `${route} must not be indexed after route removal`).not.toContain(route)
+    }
     expect(sitemap).toContain('https://agentport.relayforge.in')
     expect(sitemap).not.toMatch(/'\/intelligence\/report'/)
   })

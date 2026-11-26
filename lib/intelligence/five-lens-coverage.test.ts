@@ -214,7 +214,7 @@ describe('five lens component and pages stay read-only', () => {
       expect(landing).toContain(category)
     }
     expect(landing).toContain('navigation and query aids only')
-    expect(landing).toContain('does not measure AI traffic or search visibility')
+    expect(landing).toContain('No AI traffic or search visibility measurement exists')
     expect(landing).toContain('Request a pilot')
     expect(landing).toContain('href="/pilot"')
     expect(landing).toContain("canonical: '/intelligence'")

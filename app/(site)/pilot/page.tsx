@@ -51,8 +51,8 @@ const TERMS = [
 
 export default function PilotPage() {
   return (
-    <div className="space-y-10">
-      <section id="pilot" className="space-y-8" aria-labelledby="pilot-heading">
+    <div className="max-w-[1200px] mx-auto px-5 sm:px-8 pt-10 sm:pt-14 pb-16 space-y-10">
+      <section id="pilot" className="scroll-mt-24 border-t border-ink-line/60 py-16 sm:py-24 space-y-8" aria-labelledby="pilot-heading">
         <SectionViewTracker event="pilot_section_viewed" targetId="pilot" />
         <header className="max-w-[75ch] space-y-3">
           <p className="label">Founding pilot</p>
@@ -84,7 +84,10 @@ export default function PilotPage() {
         </div>
       </section>
 
-      <section className="space-y-4" aria-labelledby="pilot-terms-heading">
+      <section
+        className="scroll-mt-24 border-t border-ink-line/60 py-16 sm:py-24 space-y-4"
+        aria-labelledby="pilot-terms-heading"
+      >
         <h2 id="pilot-terms-heading" className="font-display text-[22px] text-bone">
           What the ₹0 founding pilot includes
         </h2>
@@ -109,8 +112,8 @@ export default function PilotPage() {
           the hosted governor serves.
         </p>
         <div className="mt-5 flex flex-wrap items-center gap-3">
-          <Link href="/platform" className="btn btn-primary px-4 py-2">
-            See the request path
+          <Link href="/home#trust" className="btn btn-primary px-5 py-2.5">
+            See the trust boundaries
           </Link>
           <Link href="/signup" className="btn px-4 py-2">
             Get started

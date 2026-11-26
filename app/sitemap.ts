@@ -6,22 +6,13 @@ import type { MetadataRoute } from 'next'
  */
 const BASE_URL = 'https://agentport.relayforge.in'
 
-const PUBLIC_ROUTES = [
-  '/home',
-  '/intelligence',
-  '/solutions',
-  '/platform',
-  '/how-it-works',
-  '/pilot',
-  '/developers',
-  '/security',
-] as const
+const PUBLIC_ROUTES = ['/home', '/intelligence', '/pilot'] as const
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return PUBLIC_ROUTES.map((route) => ({
     url: `${BASE_URL}${route}`,
     lastModified: new Date('2026-11-26'),
-    changeFrequency: route === '/intelligence' ? 'weekly' : 'monthly',
-    priority: route === '/home' ? 1 : route === '/intelligence' || route === '/pilot' ? 0.9 : 0.7,
+    changeFrequency: 'monthly',
+    priority: route === '/home' ? 1 : 0.8,
   }))
 }

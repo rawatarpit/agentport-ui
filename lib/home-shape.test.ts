@@ -16,7 +16,7 @@ function currentSource(relativePath: string): string {
 }
 
 function homeSource(): string {
-  return currentSource('app/home/page.tsx')
+  return currentSource('app/(site)/home/page.tsx')
 }
 
 function siteNavSource(): string {
@@ -109,7 +109,7 @@ describe('homepage positioning stays honest', () => {
 
   it('states that AI search visibility is not measured', () => {
     const answer = faqAnswer(homeSource(), /traffic came from AI search/i)
-    expect(answer).toMatch(/does not measure AI search visibility/i)
+    expect(answer).toMatch(/AI search visibility and AI-generated traffic are not measured/i)
     expect(answer).toMatch(/AI-generated (traffic|demand)/i)
   })
 
@@ -223,9 +223,9 @@ describe('homepage illustrative surfaces are labelled and bounded', () => {
 
   it('states the draft and unknown boundaries in the footer', () => {
     const home = homeSource()
-    const footer = home.slice(home.indexOf('<footer'))
-    expect(footer).toMatch(/Draft is never live/i)
-    expect(footer).toMatch(/unknown is never healthy/i)
+    const layout = currentSource('app/(site)/layout.tsx')
+    expect(layout).toMatch(/Draft is never live/i)
+    expect(layout).toMatch(/unknown is never healthy/i)
   })
 })
 
@@ -248,11 +248,7 @@ describe('homepage navigation does not drift from the public site', () => {
     const expected = [
       { href: '/home', label: 'Home' },
       { href: '/intelligence', label: 'Intelligence' },
-      { href: '/solutions', label: 'Solutions' },
-      { href: '/platform', label: 'Platform' },
-      { href: '/how-it-works', label: 'How it works' },
-      { href: '/developers', label: 'Developers' },
-      { href: '/security', label: 'Security' },
+      { href: '/pilot', label: 'Pilot' },
     ]
     const homeEntries = objectsIn(homeSource(), 'PUBLIC_LINKS').map(({ href, label }) => ({ href, label }))
     const siteEntries = objectsIn(siteNavSource(), 'LINKS').map(({ href, label }) => ({ href, label }))
@@ -267,12 +263,15 @@ describe('homepage navigation does not drift from the public site', () => {
     ] as const) {
       expect(source, name).toContain('href="/login"')
       expect(source, name).toContain('Sign in')
-      expect(source, name).toContain('href="/signup"')
-      expect(source, name).toContain('Get started')
       expect(source, name).toContain('href="/pilot"')
       expect(source, name).toContain('Request a pilot')
       expect(source, name).not.toContain('Create account')
       expect(source, name).not.toContain('Industry AI intelligence')
+      expect(source, name).not.toContain('href="/solutions"')
+      expect(source, name).not.toContain('href="/platform"')
+      expect(source, name).not.toContain('href="/how-it-works"')
+      expect(source, name).not.toContain('href="/developers"')
+      expect(source, name).not.toContain('href="/security"')
     }
   })
 

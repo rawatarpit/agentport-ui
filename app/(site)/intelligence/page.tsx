@@ -4,26 +4,25 @@ import { IntelForm } from '@/components/intel/intel-form'
 import { FiveLensCoverage } from '@/components/intel/five-lens-coverage'
 import { profileFromParams } from '@/lib/intelligence/types'
 
-const TITLE = 'Industry intelligence — five lenses for an AI-era industry question'
-const DESCRIPTION =
-  'Frame an industry question across five evidence lenses. Gaps render unknown, and no AI traffic or search visibility measurement is claimed.'
-
 export const metadata: Metadata = {
   metadataBase: new URL('https://agentport.relayforge.in'),
-  title: TITLE,
-  description: DESCRIPTION,
+  title: 'Industry intelligence — five lenses for an AI-era industry question',
+  description:
+    'Frame an industry question across five evidence lenses. Gaps render unknown, and no AI traffic or search visibility measurement is claimed.',
   alternates: { canonical: '/intelligence' },
   openGraph: {
-    title: TITLE,
-    description: DESCRIPTION,
+    title: 'Industry intelligence — five lenses for an AI-era industry question',
+    description:
+      'Frame an industry question across five evidence lenses. Gaps render unknown, and no AI traffic or search visibility measurement is claimed.',
     type: 'website',
     siteName: 'AgentPort',
     url: 'https://agentport.relayforge.in/intelligence',
   },
   twitter: {
     card: 'summary',
-    title: TITLE,
-    description: DESCRIPTION,
+    title: 'Industry intelligence — five lenses for an AI-era industry question',
+    description:
+      'Frame an industry question across five evidence lenses. Gaps render unknown, and no AI traffic or search visibility measurement is claimed.',
   },
 }
 
@@ -76,7 +75,7 @@ export default function IntelligencePage({ searchParams }: { searchParams: Searc
   const initialProfile = profileFromParams(params)
 
   return (
-    <div className="space-y-12">
+    <div className="max-w-[1200px] mx-auto px-5 sm:px-8 pt-10 sm:pt-14 pb-16 space-y-12">
       <header className="max-w-[82ch] space-y-4">
         <p className="label">Industry intelligence</p>
         <h1 className="text-balance font-display text-[clamp(2.25rem,5vw,3.5rem)] leading-[1.02] tracking-[-0.025em] text-bone">
@@ -101,7 +100,10 @@ export default function IntelligencePage({ searchParams }: { searchParams: Searc
         </p>
       </header>
 
-      <section aria-labelledby="industry-categories-heading" className="space-y-4">
+      <section
+        aria-labelledby="industry-categories-heading"
+        className="scroll-mt-24 border-t border-ink-line/60 py-16 sm:py-24 space-y-4"
+      >
         <div>
           <p className="label">Start with your category</p>
           <h2 id="industry-categories-heading" className="mt-2 font-display text-[22px] leading-tight text-bone">
@@ -147,7 +149,7 @@ export default function IntelligencePage({ searchParams }: { searchParams: Searc
               What this does not measure
             </h2>
             <p className="mt-3 text-[13px] leading-relaxed text-bone-dim">
-              AgentPort does not measure AI traffic or search visibility. This preview does not inspect your
+              AI traffic and search visibility are not measured. This preview does not inspect your
               website, observe shoppers, or produce a market estimate. Public evidence is used only when a
               dated source is available; an empty result stays an honest empty state.
             </p>
@@ -167,7 +169,9 @@ export default function IntelligencePage({ searchParams }: { searchParams: Searc
         </aside>
       </div>
 
-      <FiveLensCoverage />
+      <section className="scroll-mt-24 border-t border-ink-line/60 py-16 sm:py-24">
+        <FiveLensCoverage />
+      </section>
     </div>
   )
 }

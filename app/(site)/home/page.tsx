@@ -1,8 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Badge } from '@/components/stat'
-import { ThemeToggle } from '@/components/theme-toggle'
-import { AgentPortLogo } from '@/components/brand/agentport-logo'
 import { ContactForm } from '@/components/contact-form'
 import { DecisionDemo } from '@/components/landing/decision-demo'
 import { TrackedCta } from '@/components/landing/tracked-cta'
@@ -16,7 +14,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'AgentPort — Infrastructure for the AI agent economy',
     description:
-      'Understand the shift. Enable access. Retain control. A governed path for compatible agents, with the decision, reason and outcome recorded.',
+      'Understand how AI changes discovery, give compatible agents structured access to your operations, and keep permissions, approvals and proof in your hands.',
     type: 'website',
     siteName: 'AgentPort',
     url: 'https://agentport.relayforge.in/home',
@@ -44,7 +42,7 @@ export const metadata: Metadata = {
  *     hosted path — the console has no browser approve button.
  *
  * Every data-shaped panel is labelled illustrative. No invented customers,
- * statistics, testimonials or live-looking dashboards.
+ * statistics or live-looking dashboards.
  *
  * Conversion is the founding pilot through the existing /api/contact route.
  * The two hero links use the one tracked CTA wrapper. It sends an allowlisted
@@ -52,19 +50,12 @@ export const metadata: Metadata = {
  * an amount, a capability name, or a request payload.
  */
 
-/** Mirrors the public site's shared navigation labels exactly. */
-const PUBLIC_LINKS = [
+/** Mirrors the public site's shared navigation labels exactly. Read by tests and kept in sync with site-nav. */
+export const PUBLIC_LINKS = [
   { href: '/home', label: 'Home' },
   { href: '/intelligence', label: 'Intelligence' },
-  { href: '/solutions', label: 'Solutions' },
-  { href: '/platform', label: 'Platform' },
-  { href: '/how-it-works', label: 'How it works' },
-  { href: '/developers', label: 'Developers' },
-  { href: '/security', label: 'Security' },
+  { href: '/pilot', label: 'Pilot' },
 ] as const
-
-const LINK_CLASS =
-  'rounded-md px-2.5 py-2 font-mono text-[12px] text-bone-dim transition-colors hover:bg-ink/50 hover:text-bone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-verdant/60'
 
 const LANDSCAPE_SIGNALS = [
   { verb: 'Discover', body: 'Ask an assistant what exists, instead of opening a list of links.' },
@@ -88,16 +79,16 @@ const PILLARS = [
     name: 'Access',
     promise: 'Enable access',
     body: 'Available now: a discovery package installed by pull request or download. Compatible clients can read the capabilities you publish. A published file grants no permission and does not guarantee discovery.',
-    href: '/developers',
-    link: 'Read the developer model',
+    href: '/pilot',
+    link: 'Request access',
   },
   {
     n: '03',
     name: 'Control',
     promise: 'Retain control',
     body: 'Available now: ceilings, holds, refusals and a kill switch, evaluated by the hosted governor before an action runs. The console shows the decision, reason and result from your own rows.',
-    href: '/security',
-    link: 'Read the security model',
+    href: '#controls',
+    link: 'See governance',
   },
 ] as const
 
@@ -241,7 +232,7 @@ const FAQ = [
   },
   {
     q: 'Can you tell us how much of our traffic came from AI search?',
-    a: 'No. AgentPort does not measure AI search visibility or AI-generated traffic. The industry preview shows sourced public evidence and leaves gaps unknown.',
+    a: 'No. AI search visibility and AI-generated traffic are not measured. The industry preview shows sourced public evidence and leaves gaps unknown.',
   },
   {
     q: 'Does a rule go live when I save it in the console?',
@@ -275,77 +266,8 @@ const FAQ = [
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen">
-      <header className="sticky top-0 z-40 border-b border-ink-line/60 bg-ink/85 backdrop-blur-md">
-        <div className="mx-auto flex w-full max-w-[1200px] items-center justify-between gap-4 px-5 py-3.5 sm:px-8">
-          <Link href="/home" aria-label="AgentPort home" className="shrink-0">
-            <AgentPortLogo />
-          </Link>
-
-          <nav aria-label="Public pages" className="hidden items-center gap-0.5 xl:flex">
-            {PUBLIC_LINKS.map((link) => (
-              <Link key={link.href} href={link.href} className={LINK_CLASS}>
-                {link.label}
-              </Link>
-            ))}
-          </nav>
-
-          <div className="flex items-center gap-2">
-            <div className="hidden w-24 sm:block">
-              <ThemeToggle />
-            </div>
-            <Link href="/login" className="btn btn-quiet btn-sm hidden px-3 py-1.5 sm:inline-flex">
-              Sign in
-            </Link>
-            <Link href="/signup" className="btn btn-sm hidden px-3 py-1.5 sm:inline-flex">
-              Get started
-            </Link>
-            <Link href="/pilot" className="btn btn-primary px-3 py-1.5 sm:px-4 sm:py-2">
-              Request a pilot
-            </Link>
-            <details className="relative xl:hidden">
-              <summary
-                aria-label="Open navigation menu"
-                className={`${LINK_CLASS} inline-flex cursor-pointer list-none items-center border border-ink-line [&::-webkit-details-marker]:hidden`}
-              >
-                Menu
-              </summary>
-              <nav
-                aria-label="Mobile navigation"
-                className="absolute right-0 top-full mt-2 w-[min(18rem,calc(100vw-2.5rem))] rounded-lg border border-ink-line bg-ink-soft p-2 shadow-xl"
-              >
-                <ul className="space-y-0.5">
-                  {PUBLIC_LINKS.map((link) => (
-                    <li key={link.href}>
-                      <Link href={link.href} className={`${LINK_CLASS} block`}>
-                        {link.label}
-                      </Link>
-                    </li>
-                  ))}
-                  <li className="border-t border-ink-line pt-1.5">
-                    <Link href="/login" className={`${LINK_CLASS} block`}>
-                      Sign in
-                    </Link>
-                  </li>
-                  <li>
-                    <Link href="/signup" className={`${LINK_CLASS} block`}>
-                      Get started
-                    </Link>
-                  </li>
-                  <li>
-                    <Link href="/pilot" className={`${LINK_CLASS} block text-verdant`}>
-                      Request a pilot
-                    </Link>
-                  </li>
-                </ul>
-              </nav>
-            </details>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto w-full max-w-[1200px] px-5 sm:px-8">
-        {/* 01 — Hero */}
+    <>
+      {/* 01 — Hero */}
         <section className="relative grid items-center gap-14 pb-14 pt-16 sm:pb-20 sm:pt-24 lg:grid-cols-[1.04fr_0.96fr] lg:gap-16">
           <div className="rise">
             <div className="flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.14em] text-bone-faint">
@@ -437,7 +359,7 @@ export default function HomePage() {
             <div>
               <p className="label">What we do not claim</p>
               <p className="mt-3 text-[14px] leading-relaxed text-bone-dim">
-                AgentPort does not measure AI search visibility or AI-generated traffic. Our industry preview
+                AI search visibility and AI-generated traffic are not measured. Our industry preview
                 builds a report from public providers — World Bank, SEC EDGAR and GitHub public search — with
                 a source on each figure. Anything without evidence stays unknown.
               </p>
@@ -513,14 +435,9 @@ export default function HomePage() {
             ))}
           </div>
 
-          <div className="mt-8 flex flex-wrap items-center gap-4">
-            <Link href="/solutions" className="btn btn-sm px-3 py-1.5">
-              See the three ways in
-            </Link>
-            <span className="font-mono text-[11px] text-bone-faint">
-              Understand → Connect → Control → Operate
-            </span>
-          </div>
+          <span className="font-mono text-[11px] text-bone-faint">
+            Understand → Connect → Control → Operate
+          </span>
         </section>
 
         {/* 05 — How it works */}
@@ -550,8 +467,8 @@ export default function HomePage() {
           <RequestPath />
 
           <div className="mt-8">
-            <Link href="/how-it-works" className="btn btn-sm px-3 py-1.5">
-              See all twelve steps, with status shown
+            <Link href="#controls" className="btn btn-sm px-3 py-1.5">
+              See governance and control
             </Link>
           </div>
         </section>
@@ -595,11 +512,7 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="mt-8">
-            <Link href="/developers" className="btn btn-sm px-3 py-1.5">
-              Read the developer contract
-            </Link>
-          </div>
+
         </section>
 
         {/* 07 — Visibility and analytics */}
@@ -642,15 +555,11 @@ export default function HomePage() {
             <p className="label">Planned — not available today</p>
             <p className="mt-3 text-[13px] leading-relaxed text-bone-dim">
               Longer retention, exports, alerting and multi-site views. They extend proof — never the columns
-              or the readers. AgentPort does not measure AI search visibility or AI-generated traffic.
+              or the readers. AI search visibility and AI-generated traffic are not measured.
             </p>
           </div>
 
-          <div className="mt-8">
-            <Link href="/security" className="btn btn-sm px-3 py-1.5">
-              Read the security boundaries
-            </Link>
-          </div>
+
         </section>
 
         {/* 08 — Trust and reliability */}
@@ -700,11 +609,7 @@ export default function HomePage() {
             makes no decisions.
           </p>
 
-          <div className="mt-8">
-            <Link href="/security" className="btn btn-sm px-3 py-1.5">
-              Read the security model
-            </Link>
-          </div>
+
         </section>
 
         {/* 09 — Final CTA */}
@@ -772,48 +677,38 @@ export default function HomePage() {
             ))}
           </div>
           <div className="mt-10 flex flex-wrap items-center gap-4">
-            <Link href="/how-it-works" className="btn btn-sm px-3 py-1.5">
-              See the twelve steps with status
-            </Link>
             <a href="#contact" className="link font-mono text-[11.5px]">
               Ask about a pilot →
             </a>
           </div>
         </section>
-      </main>
 
-      <footer className="border-t border-ink-line">
-        <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-8 px-5 py-12 sm:flex-row sm:items-start sm:justify-between sm:px-8">
-          <div>
-            <AgentPortLogo size={28} />
-            <p className="mt-4 max-w-sm text-[13px] leading-relaxed text-bone-faint">
-              Infrastructure for businesses in the AI agent economy. Decisions, reasons and outcomes — never
-              order values or secrets.
-            </p>
-          </div>
-          <nav aria-label="Footer navigation" className="grid gap-x-8 gap-y-2 font-mono text-[12px] sm:grid-cols-2">
-            {PUBLIC_LINKS.map((link) => (
-              <Link key={link.href} href={link.href} className="text-bone-dim transition-colors hover:text-bone">
-                {link.label}
-              </Link>
+        {/* FAQ */}
+        <section id="faq" className="scroll-mt-24 border-t border-ink-line/60 py-16 sm:py-24">
+          <SectionHead index="08" eyebrow="FAQ" title="Straight answers." />
+          <div className="mt-12 grid gap-x-10 gap-y-0 sm:grid-cols-2">
+            {FAQ.map((item) => (
+              <details key={item.q} className="group border-t border-ink-line/60 py-5">
+                <summary className="flex cursor-pointer list-none items-start justify-between gap-5 [&::-webkit-details-marker]:hidden">
+                  <span className="text-[15px] font-medium text-bone">{item.q}</span>
+                  <span
+                    aria-hidden="true"
+                    className="mt-0.5 shrink-0 font-mono text-[16px] leading-none text-bone-faint transition-transform group-open:rotate-45"
+                  >
+                    +
+                  </span>
+                </summary>
+                <p className="mt-3 max-w-[58ch] text-[13px] leading-relaxed text-bone-dim">{item.a}</p>
+              </details>
             ))}
-            <Link href="/login" className="text-bone-dim transition-colors hover:text-bone">
-              Sign in
-            </Link>
-            <Link href="/signup" className="text-bone-dim transition-colors hover:text-bone">
-              Get started
-            </Link>
-            <Link href="/pilot" className="text-verdant transition-colors hover:text-bone">
-              Request a pilot
-            </Link>
-          </nav>
-        </div>
-        <div className="mx-auto flex w-full max-w-[1200px] flex-wrap items-center justify-between gap-3 border-t border-ink-line/60 px-5 py-6 font-mono text-[11px] text-bone-faint sm:px-8">
-          <p>© 2026 AgentPort</p>
-          <p>Draft is never live · unknown is never healthy · decisions, never order values.</p>
-        </div>
-      </footer>
-    </div>
+          </div>
+          <div className="mt-10 flex flex-wrap items-center gap-4">
+            <a href="#contact" className="link font-mono text-[11.5px]">
+              Ask about a pilot →
+            </a>
+          </div>
+        </section>
+    </>
   )
 }
 

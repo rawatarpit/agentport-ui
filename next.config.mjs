@@ -18,6 +18,36 @@ const nextConfig = {
     return securityHeaderGroups()
   },
 
+  async redirects() {
+    return [
+      {
+        source: '/solutions',
+        destination: '/home',
+        permanent: true,
+      },
+      {
+        source: '/platform',
+        destination: '/home',
+        permanent: true,
+      },
+      {
+        source: '/how-it-works',
+        destination: '/home',
+        permanent: true,
+      },
+      {
+        source: '/developers',
+        destination: '/home',
+        permanent: true,
+      },
+      {
+        source: '/security',
+        destination: '/home',
+        permanent: true,
+      },
+    ]
+  },
+
   /**
    * Fail the build if a server-only Supabase credential is exposed to the client.
    *

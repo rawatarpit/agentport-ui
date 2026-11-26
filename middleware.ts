@@ -18,12 +18,7 @@ const PUBLIC = [
   '/auth/callback',
   '/home',
   '/intelligence',
-  '/solutions',
-  '/platform',
-  '/how-it-works',
   '/pilot',
-  '/developers',
-  '/security',
   '/icon.svg',
   '/favicon.ico',
 ]
