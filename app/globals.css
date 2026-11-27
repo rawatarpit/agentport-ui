@@ -149,7 +149,24 @@ body {
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-md border border-ink-line px-4 py-2
       font-mono text-[12px] text-bone-dim transition-colors hover:border-verdant
-      hover:text-bone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-verdant/60;
+      hover:text-bone focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-verdant/60
+      relative overflow-hidden;
+  }
+  /* Custom ripple: expands from the press point and fades out. */
+  .btn::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: scale(0);
+    border-radius: 50%;
+    background: rgb(var(--bone) / 0.10);
+    opacity: 0.7;
+    pointer-events: none;
+    transition: transform 0.45s ease-out, opacity 0.45s ease-out;
+  }
+  .btn:active::after {
+    transform: scale(2.6);
+    opacity: 0;
   }
   .btn-sm {
     @apply px-3 py-1.5 text-[11px];
