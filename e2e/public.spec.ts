@@ -1,9 +1,21 @@
+import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures'
 
 /**
  * These checks need no tenant and create no rows. They are safe to run against
  * a local or dedicated non-production origin under E2E_LIVE_READ_ONLY.
  */
+async function continueTo(page: Page, target: number): Promise<void> {
+  for (let step = 0; step < target; step += 1) {
+    await page.getByRole('button', { name: 'Continue' }).click()
+  }
+}
+
+async function chooseFamily(page: Page): Promise<void> {
+  await page.locator('#industry-family').click()
+  await page.getByRole('option', { name: 'Retail & E-commerce' }).click()
+}
+
 test('signed-out visitor lands on the public home page', async ({ page }) => {
   await page.goto('/')
   await expect(page).toHaveURL(/\/home$/)
@@ -21,18 +33,22 @@ test('public pages carry no removed pilot or fee surface', async ({ page }) => {
 test('intelligence form validates and uses the shared custom dropdown', async ({ page }) => {
   await page.goto('/intelligence')
   await expect(page.locator('form')).toHaveAttribute('method', 'GET')
+  await expect(page.getByText('Question 01 of 9')).toBeVisible()
 
-  await page.getByRole('button', { name: 'Generate preview' }).click()
+  await page.getByRole('button', { name: 'Continue' }).click()
   await expect(page).toHaveURL(/\/intelligence$/)
+  await expect(page.locator('form p[role="alert"]')).toContainText('Choose a family or type your industry')
 
-  await page.locator('#industry-family').click()
-  await page.getByRole('option', { name: 'Retail & E-commerce' }).click()
+  await chooseFamily(page)
   await expect(page.locator('#industry')).toHaveValue('Retail & E-commerce')
   await expect(page.locator('#sub-industry')).toBeEnabled()
 })
 
 test('a lower custom dropdown stays open after its own opening scroll', async ({ page }) => {
   await page.goto('/intelligence')
+  await chooseFamily(page)
+  await continueTo(page, 7)
+  await expect(page.locator('#customer-segment')).toBeVisible()
   await page.locator('#customer-segment').scrollIntoViewIfNeeded()
   await page.locator('#customer-segment').click()
   await expect(page.getByRole('listbox')).toBeVisible()
@@ -43,9 +59,10 @@ test('a lower custom dropdown stays open after its own opening scroll', async ({
 
 test('public answer handoff is a real GET to the report route', async ({ page }) => {
   await page.goto('/intelligence')
-  await page.locator('#industry-family').click()
-  await page.getByRole('option', { name: 'Retail & E-commerce' }).click()
+  await chooseFamily(page)
+  await page.getByRole('button', { name: 'Continue' }).click()
   await page.locator('#company-name').fill('Test Company')
+  await continueTo(page, 7)
   await page.getByRole('button', { name: 'Generate preview' }).click()
   await page.waitForURL((url) => url.pathname === '/intelligence/report', { waitUntil: 'commit' })
   const url = new URL(page.url())

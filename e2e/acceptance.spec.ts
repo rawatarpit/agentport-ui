@@ -57,7 +57,7 @@ test('03 research job creation', async ({ page }) => {
     'No hosted prospect-reports or research-requests endpoint is available to this frontend.',
   )
   await page.goto('/intelligence')
-  await expect(page.getByRole('button', { name: 'Generate preview' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Continue' })).toBeVisible()
 })
 
 test('04 actual job status observation', async ({ page }) => {

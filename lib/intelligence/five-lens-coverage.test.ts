@@ -215,7 +215,8 @@ describe('five lens component and pages stay read-only', () => {
     }
     expect(landing).toContain('navigation and query aids only')
     expect(landing).toContain('No AI traffic or search visibility measurement exists')
-    expect(landing).toContain('<AnswerJourney />')
+    expect(landing).toContain('id="preview-form"')
+    expect(landing).toContain('AI traffic and search visibility are not measured by this preview')
     expect(landing).toContain('id="preview-form"')
     expect(landing).toContain('Start your preview')
     expect(landing).not.toContain('/pilot')

@@ -11,6 +11,7 @@ const contains = (source: string, phrase: string): boolean =>
 const intelligence = read('app/(site)/intelligence/page.tsx')
 const form = read('components/intel/intel-form.tsx')
 const journey = read('components/intel/answer-journey.tsx')
+const steps = read('components/intel/intel-form.tsx')
 const coverage = read('components/intel/report-coverage.tsx')
 const report = read('app/(site)/intelligence/report/page.tsx')
 const loading = read('app/(site)/intelligence/report/loading.tsx')
@@ -22,10 +23,23 @@ const middleware = read('middleware.ts')
 const sitemap = read('app/sitemap.ts')
 
 describe('intelligence answer journey is stated at the point of disclosure', () => {
-  it('puts the full disclosure on the form page and report', () => {
-    expect(intelligence).toContain('<AnswerJourney />')
+  it('keeps a compact disclosure in the final form step and on the report', () => {
+    expect(form).toContain('<AnswerJourney />')
     expect(report).toContain('<AnswerJourney />')
     expect(intelligence).toContain('id="preview-form"')
+    expect(intelligence).not.toContain('<AnswerJourney />')
+    expect(intelligence).not.toContain('id="answer-journey"')
+  })
+
+  it('presents the profile as a minimal stepped form without fake research progress', () => {
+    expect(form).toContain('const STEPS = [')
+    expect(form).toContain('Question {String(step + 1).padStart(2, \'0\')} of {STEPS.length}')
+    expect(form).toContain('onClick={handleNext}')
+    expect(form).toContain('onClick={handleBack}')
+    expect(form).toContain('<button key="continue" type="button"')
+    expect(form).toContain('<button key="submit" type="submit"')
+    expect(form).toContain('hidden={step !==')
+    expect(form).not.toMatch(/progress\s*(?:bar|%)|\d+%/)
   })
 
   it('states the actual destinations without claiming no data leaves the browser', () => {
