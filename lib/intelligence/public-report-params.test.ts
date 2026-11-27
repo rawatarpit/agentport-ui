@@ -115,6 +115,13 @@ describe('public report form uses the one custom dropdown', () => {
     expect(select).toContain('aria-selected={isSelected}')
   })
 
+  it('does not close the menu from the scroll it triggers while opening', () => {
+    expect(select).toContain('const openingScroll = useRef(false)')
+    expect(select).toContain('if (openingScroll.current) return')
+    expect(select).toContain('openingScroll.current = true')
+    expect(select).toContain('window.requestAnimationFrame')
+  })
+
   it('disables subIndustry until a reviewed family is selected', () => {
     expect(form).toMatch(
       /<Select\s+id="sub-industry"[\s\S]*?name="subIndustry"[\s\S]*?disabled=\{!family\}[\s\S]*?\/>/,

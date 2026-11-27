@@ -29,6 +29,7 @@ const GROUPS = [
       { href: '/', label: 'Overview' },
       { href: '/approvals', label: 'Approvals' },
       { href: '/ledger', label: 'Ledger' },
+      { href: '/proof', label: 'Proof' },
       { href: '/activity', label: 'Activity' },
       { href: '/capabilities', label: 'Capabilities' },
       { href: '/rules', label: 'Rules' },

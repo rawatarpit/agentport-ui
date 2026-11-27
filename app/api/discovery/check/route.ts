@@ -41,7 +41,6 @@ export async function GET() {
             : `The hosted governor answered ${res.status}.`,
         url,
         httpStatus: res.status,
-        body: text.slice(0, 200),
       })
     }
 
@@ -57,21 +56,46 @@ export async function GET() {
       })
     }
 
-    const servedTenantId =
+    const served =
       typeof manifest === 'object' && manifest !== null
-        ? (manifest as { tenantId?: unknown }).tenantId
-        : undefined
-    if (servedTenantId === tenant.active.tenantId) {
-      await trackServerEvent({
-        event_type: 'deployment_verified',
-        user_id: tenant.userId,
-        tenant_id: tenant.active.tenantId,
-        source_route: '/api/discovery/check',
-        event_id: `deployment_verified:${tenant.active.tenantId}`,
+        ? (manifest as Record<string, unknown>)
+        : null
+    const servedTenantId = served?.tenantId
+
+    // The route is the authority for the tenant binding. Returning a foreign
+    // manifest with status:'ok' would let a client paint another tenant's
+    // business as this tenant's serving proof; suppress the body as well as
+    // the telemetry event.
+    if (servedTenantId !== tenant.active.tenantId) {
+      return Response.json({
+        status: 'error',
+        reason: 'The served manifest belongs to another workspace. Nothing is proved for this tenant.',
+        url,
+        httpStatus: res.status,
       })
     }
 
-    return Response.json({ status: 'ok', url, httpStatus: res.status, manifest })
+    await trackServerEvent({
+      event_type: 'deployment_verified',
+      user_id: tenant.userId,
+      tenant_id: tenant.active.tenantId,
+      source_route: '/api/discovery/check',
+      event_id: `deployment_verified:${tenant.active.tenantId}`,
+    })
+
+    // Allowlist the facts the console may display. A manifest may contain
+    // business prose or policy detail; neither is needed to prove that this
+    // tenant's governor answered.
+    const manifestFacts = {
+      version: typeof served?.version === 'string' ? served.version : null,
+      tenantId: tenant.active.tenantId,
+      // An absent capability list is unknown, not an empty list. A healthy
+      // zero here would contradict the purpose of this route.
+      capabilityCount: Array.isArray(served?.capabilities) ? served.capabilities.length : null,
+      generatedAt: typeof served?.generatedAt === 'string' ? served.generatedAt : null,
+    }
+
+    return Response.json({ status: 'ok', url, httpStatus: res.status, manifest: manifestFacts })
   } catch (error) {
     const reason =
       error instanceof Error && error.name === 'TimeoutError'

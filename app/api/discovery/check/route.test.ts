@@ -57,11 +57,54 @@ describe('GET /api/discovery/check', () => {
   })
 
   it('does not record deployment_verified for another tenant’s manifest', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => json({ tenantId: 'other-tenant' })))
+    vi.stubGlobal('fetch', vi.fn(async () => json({ tenantId: 'other-tenant', business: 'Other tenant' })))
 
     const res = await GET()
+    const body = (await res.json()) as { status: string; manifest?: unknown }
 
     expect(res.status).toBe(200)
+    expect(body.status).toBe('error')
+    expect(body.manifest).toBeUndefined()
     expect(h.trackServerEvent).not.toHaveBeenCalled()
+  })
+
+  it('returns only allowlisted tenant-bound manifest facts', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        json({
+          tenantId: 'tenant-1',
+          version: 'v3',
+          business: 'My business',
+          capabilities: [{ name: 'searchProducts' }],
+          generatedAt: '2026-11-27T00:00:00Z',
+          policy: { secret: 'must-not-reach-the-browser' },
+        }),
+      ),
+    )
+
+    const res = await GET()
+    const body = (await res.json()) as {
+      status: string
+      manifest: { version?: unknown; tenantId?: unknown; capabilityCount?: unknown; generatedAt?: unknown; business?: unknown; policy?: unknown; capabilities?: unknown }
+    }
+
+    expect(body.status).toBe('ok')
+    expect(body.manifest.version).toBe('v3')
+    expect(body.manifest.tenantId).toBe('tenant-1')
+    expect(body.manifest.capabilityCount).toBe(1)
+    expect(body.manifest.generatedAt).toBe('2026-11-27T00:00:00Z')
+    expect(body.manifest.business).toBeUndefined()
+    expect(body.manifest.policy).toBeUndefined()
+    expect(body.manifest.capabilities).toBeUndefined()
+  })
+
+  it('renders an absent capability list as null, never zero', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json({ tenantId: 'tenant-1', version: 'v3' })))
+
+    const res = await GET()
+    const body = (await res.json()) as { manifest: { capabilityCount?: unknown } }
+
+    expect(body.manifest.capabilityCount).toBeNull()
   })
 })

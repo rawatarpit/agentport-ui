@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { validateCapabilities, validateRules, validateSetup } from '@/lib/golive'
@@ -584,5 +584,93 @@ describe('client build refuses public engine credentials', () => {
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', 'public-anon-identifier')
     const build = await clientBuild()
     expect(build).not.toThrow()
+  })
+
+  it('fails the build on NEXT_PUBLIC_E2E harness values', async () => {
+    // TEST_RESET_TOKEN would already match TOKEN in the old shape; this name
+    // only the new E2E/RESET alternatives catch.
+    vi.stubEnv('NEXT_PUBLIC_E2E_HARNESS', 'enabled')
+    const build = await clientBuild()
+    expect(build).toThrow(/NEXT_PUBLIC_E2E_HARNESS/)
+  })
+})
+
+describe('browser E2E stays outside the product and never cleans production', () => {
+  const root = dirname(fileURLToPath(import.meta.url))
+  const e2eRoot = join(root, '..', 'e2e')
+  const files = existsSync(e2eRoot)
+    ? readdirSync(e2eRoot, { recursive: true })
+        .filter((entry): entry is string => typeof entry === 'string' && /\.(ts|mjs|cjs)$/.test(entry))
+        .map((entry) => join(e2eRoot, entry))
+    : []
+
+  it('does not import service_role or destructive reset helpers into E2E code', () => {
+    for (const file of files) {
+      const src = readFileSync(file, 'utf8')
+      expect(src, file).not.toMatch(/@\/lib\/supabase\/admin|createAdminClient|SUPABASE_SERVICE_ROLE_KEY/)
+      expect(src, file).not.toMatch(/\.delete\s*\(|\.update\s*\(/)
+    }
+  })
+
+  it('keeps E2E env reads in Node-only config, not app or components', () => {
+    const roots = [join(root, '..', 'app'), join(root, '..', 'components'), join(root, '..', 'lib')]
+    const offenders: string[] = []
+    const walk = (dir: string): void => {
+      if (!existsSync(dir)) return
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const p = join(dir, entry.name)
+        if (entry.isDirectory()) {
+          walk(p)
+          continue
+        }
+        if (!/\.(tsx?|mjs|cjs)$/.test(entry.name) || /\.test\./.test(entry.name)) continue
+        const src = readFileSync(p, 'utf8')
+        if (/process\.env\.(?:E2E|PLAYWRIGHT|TEST_)/.test(src)) offenders.push(p)
+      }
+    }
+    for (const r of roots) walk(r)
+    expect(offenders).toEqual([])
+  })
+
+  it('refuses a production E2E base URL by default', async () => {
+    vi.stubEnv('E2E_BASE_URL', 'https://agentport.relayforge.in')
+    vi.stubEnv('E2E_LIVE_READ_ONLY', '')
+    const url = pathToFileURL(join(root, '..', 'playwright.config.ts')).href
+    await expect(import(`${url}?prod=${Date.now()}`)).rejects.toThrow(/Refusing E2E/)
+    vi.unstubAllEnvs()
+  })
+
+  it('allows an explicitly read-only production E2E run with no web server', async () => {
+    vi.stubEnv('E2E_BASE_URL', 'https://agentport.relayforge.in')
+    vi.stubEnv('E2E_LIVE_READ_ONLY', '1')
+    const url = pathToFileURL(join(root, '..', 'playwright.config.ts')).href
+    const config = (await import(`${url}?readonly=${Date.now()}`)) as {
+      default: { webServer?: unknown }
+    }
+    expect(config.default.webServer).toBeUndefined()
+    vi.unstubAllEnvs()
+  })
+
+  it('records blockers from every skipped E2E step and starts each run with an empty log', () => {
+    for (const file of files) {
+      const src = readFileSync(file, 'utf8')
+      if (src.includes('test.skip(')) expect(src, file).toContain('blockedReason')
+    }
+    const setup = readFileSync(join(e2eRoot, 'global-setup.ts'), 'utf8')
+    const acceptance = readFileSync(join(e2eRoot, 'acceptance.spec.ts'), 'utf8')
+    expect(setup).toContain("writeFileSync(blockerPath(), '', 'utf8')")
+    expect(acceptance).toContain('blockedReason(test.info().title')
+    expect(acceptance).not.toContain("blockedReason('acceptance'")
+  })
+
+  it('fails CI when authenticated merchant coverage is absent', () => {
+    const pkg = JSON.parse(readFileSync(join(root, '..', 'package.json'), 'utf8')) as {
+      scripts: Record<string, string>
+    }
+    expect(pkg.scripts['test:e2e']).toContain('ci-coverage-gate.mjs')
+    const gate = readFileSync(join(e2eRoot, 'ci-coverage-gate.mjs'), 'utf8')
+    expect(gate).toContain("includes('merchant.spec.ts')")
+    expect(gate).toContain("const required = ['desktop', 'tablet', 'mobile']")
+    expect(gate).toContain("test.status === 'expected'")
   })
 })

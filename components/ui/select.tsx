@@ -79,6 +79,10 @@ export function Select({
   const buttonRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLUListElement>(null)
   const autoFocused = useRef(false)
+  // Opening the menu scrolls the active option into view. That scroll is ours,
+  // not a user leaving the control; without this guard it closes the menu
+  // before a pointer or keyboard user can choose anything below the fold.
+  const openingScroll = useRef(false)
 
   useEffect(() => {
     if (isControlled) setInternal(value as string)
@@ -106,7 +110,9 @@ export function Select({
       close(false)
     }
     const onScroll = (event: Event) => {
-      // Scrolling the option list itself must not close it.
+      // Scrolling the option list itself, or the scroll caused by opening it,
+      // must not close it. Only an external scroll means the user moved away.
+      if (openingScroll.current) return
       if (menuRef.current && event.target instanceof Node && menuRef.current.contains(event.target)) return
       close(false)
     }
@@ -139,6 +145,7 @@ export function Select({
     })
     const selectedIndex = options.findIndex((option) => option.value === current && !option.disabled)
     setActive(selectedIndex >= 0 ? selectedIndex : 0)
+    openingScroll.current = true
     setOpen(true)
   }, [current, options])
 
@@ -152,6 +159,12 @@ export function Select({
   useEffect(() => {
     if (!open) return
     document.getElementById(`${id}-opt-${active}`)?.scrollIntoView({ block: 'nearest' })
+    // The scroll event is dispatched after this effect; release the guard on
+    // the next frame so a genuine scroll still closes the menu.
+    const frame = window.requestAnimationFrame(() => {
+      openingScroll.current = false
+    })
+    return () => window.cancelAnimationFrame(frame)
   }, [active, open, id])
 
   const commit = (next: string) => {

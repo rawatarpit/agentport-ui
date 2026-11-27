@@ -3,16 +3,15 @@
 import { useState } from 'react'
 import { StatusPill } from '@/components/ui/status-pill'
 
-type CheckResult =
+export type CheckResult =
   | { status: 'ok'; url: string; httpStatus: number; manifest: unknown }
   | { status: 'error'; reason: string; url: string | null; httpStatus: number | null }
 
 type ManifestShape = {
   version?: unknown
-  business?: unknown
+  tenantId?: unknown
+  capabilityCount?: unknown
   generatedAt?: unknown
-  capabilities?: unknown
-  baseUrl?: unknown
 }
 
 /**
@@ -34,9 +33,11 @@ function maskTenantPath(url: string): string {
 export function DiscoveryCheck({
   canonicalUrl,
   invokeUrl,
+  onResult,
 }: {
   canonicalUrl: string | null
   invokeUrl?: string | null
+  onResult?: (result: CheckResult | null) => void
 }) {
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<CheckResult | null>(null)
@@ -45,24 +46,29 @@ export function DiscoveryCheck({
   const check = async () => {
     setBusy(true)
     setResult(null)
+    onResult?.(null)
     try {
       const res = await fetch('/api/discovery/check', { cache: 'no-store' })
       const body = (await res.json()) as CheckResult
       setResult(body)
+      onResult?.(body)
     } catch {
-      setResult({
+      const error: CheckResult = {
         status: 'error',
         reason: 'The console could not run the check. Try again in a moment.',
         url: canonicalUrl,
         httpStatus: null,
-      })
+      }
+      setResult(error)
+      onResult?.(error)
     } finally {
       setBusy(false)
     }
   }
 
   const manifest = result?.status === 'ok' ? (result.manifest as ManifestShape) : null
-  const capabilities = manifest && Array.isArray(manifest.capabilities) ? manifest.capabilities.length : null
+  const capabilityCount =
+    manifest && typeof manifest.capabilityCount === 'number' ? manifest.capabilityCount : null
   const state = result === null ? 'idle' : result.status === 'ok' ? 'live' : 'blocked'
 
   const copy = async (url: string, key: string) => {
@@ -148,8 +154,9 @@ export function DiscoveryCheck({
           </p>
           <p className="mt-1 font-mono text-[11.5px] leading-relaxed text-bone-dim">
             {typeof manifest?.version === 'string' ? `version ${manifest.version}` : 'version unknown'}
-            {typeof manifest?.business === 'string' ? ` · ${manifest.business}` : ''}
-            {capabilities !== null ? ` · ${capabilities} capabilit${capabilities === 1 ? 'y' : 'ies'}` : ''}
+            {capabilityCount !== null
+              ? ` · ${capabilityCount} capabilit${capabilityCount === 1 ? 'y' : 'ies'}`
+              : ' · capabilities unknown'}
             {typeof manifest?.generatedAt === 'string' ? ` · generated ${manifest.generatedAt}` : ''}
           </p>
         </div>

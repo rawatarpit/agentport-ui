@@ -85,7 +85,7 @@ const nextConfig = {
       // Names change; the shape does not. Catch a future GitHub/broker secret
       // given the NEXT_PUBLIC_ prefix even if it is not on the explicit list.
       const secretShape =
-        /^NEXT_PUBLIC_.*(SECRET|PRIVATE|TOKEN|SERVICE_ROLE|WEBHOOK|CLIENT_SECRET|KEY|API_KEY|CREDENTIAL|PASSWORD|PASSPHRASE)/
+        /^NEXT_PUBLIC_.*(SECRET|PRIVATE|TOKEN|SERVICE_ROLE|WEBHOOK|CLIENT_SECRET|KEY|API_KEY|CREDENTIAL|PASSWORD|PASSPHRASE|E2E|PLAYWRIGHT|TEST_|STORAGE_STATE|RESET)/
       // The anon key ends in KEY but is public project configuration: RLS, not
       // secrecy, protects the rows. Rejecting it would make every configured
       // deployment fail its build, so the shape check exempts this one name.

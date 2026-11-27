@@ -30,3 +30,11 @@ vendor/
 # Netlify env sheet WITH SECRET VALUES (owner-generated 2026-10-07).
 # Same rule as .pem: never committed, never shared. Mode 0600.
 netlify-env.md
+
+# Playwright artifacts may contain authenticated session state, screenshots of
+# tenant rows, and traces with request headers. Never commit them.
+test-results/
+playwright-report/
+playwright/.cache/
+**/.auth/
+**/storage-state*.json

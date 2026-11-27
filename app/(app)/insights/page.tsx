@@ -8,6 +8,8 @@ import { IntelligenceStateStrip } from '@/components/intel/state-strip'
 import { EngineStatusPanel } from '@/components/intel/engine-status-panel'
 import { ExperienceBoundary } from '@/components/intel/experience-boundary'
 import { OperateLinks } from '@/components/intel/operate-links'
+import { getIntelligenceEngineStatus } from '@/lib/intelligence/engine-client'
+import { engineProofState } from '@/lib/proof-state'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,7 +19,10 @@ function given(value: string | null | undefined): string {
 
 /** Signed-in Intelligence home: profile status and honest next surfaces. */
 export default async function InsightsPage() {
-  const { tenantId, profile, metadataFound, readFailed } = await readTenantResearchProfile()
+  const [{ tenantId, profile, metadataFound, readFailed }, engine] = await Promise.all([
+    readTenantResearchProfile(),
+    Promise.resolve(getIntelligenceEngineStatus()),
+  ])
 
   return (
     <div className="space-y-6">
@@ -38,7 +43,7 @@ export default async function InsightsPage() {
       />
 
       <IntelligenceStateStrip state={readFailed ? 'unavailable' : 'unresearched'} />
-      <EngineStatusPanel state={readFailed ? 'unavailable' : 'not_configured'} />
+      <EngineStatusPanel state={engineProofState(engine)} />
       <ExperienceBoundary />
 
       {readFailed ? (
