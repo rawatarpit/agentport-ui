@@ -1,9 +1,30 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { Select, type SelectOption } from '@/components/ui/select'
 import { track } from '@/lib/funnel-events'
-import { BUSINESS_MODELS, CUSTOMER_SEGMENTS, INDUSTRY_FAMILIES } from '@/lib/intelligence/sectors'
+import {
+  BUSINESS_MODELS,
+  CUSTOMER_SEGMENTS,
+  INDUSTRY_FAMILIES,
+  reviewedSelectValue,
+} from '@/lib/intelligence/sectors'
 import type { ResearchProfile } from '@/lib/intelligence/types'
+
+const familyOptions: SelectOption[] = [
+  { value: '', label: 'Choose a family, or type your own below' },
+  ...INDUSTRY_FAMILIES.map((item) => ({ value: item.id, label: item.label })),
+]
+
+const businessModelOptions: SelectOption[] = [
+  { value: '', label: 'Not specified' },
+  ...BUSINESS_MODELS.map((label) => ({ value: label, label })),
+]
+
+const customerSegmentOptions: SelectOption[] = [
+  { value: '', label: 'Not specified' },
+  ...CUSTOMER_SEGMENTS.map((label) => ({ value: label, label })),
+]
 
 /**
  * A plain GET form: the report URL carries the answers, so the report page can
@@ -19,19 +40,27 @@ function familyForProfile(profile: ResearchProfile | undefined): string {
 }
 
 export function IntelForm({ initialProfile }: { initialProfile?: ResearchProfile }) {
-  const [familyId, setFamilyId] = useState(() => familyForProfile(initialProfile))
+  const [submitting, setSubmitting] = useState(false)
+  const initialFamily = INDUSTRY_FAMILIES.find((item) => item.id === familyForProfile(initialProfile)) ?? null
+  const [familyId, setFamilyId] = useState(initialFamily?.id ?? '')
   const [industry, setIndustry] = useState(initialProfile?.industry ?? '')
-  const [subIndustry, setSubIndustry] = useState(initialProfile?.subIndustry ?? '')
+  const [subIndustry, setSubIndustry] = useState(() =>
+    reviewedSelectValue(initialProfile?.subIndustry, initialFamily?.subcategories ?? []),
+  )
   const [geography, setGeography] = useState(initialProfile?.geography ?? initialProfile?.country ?? '')
   const family = INDUSTRY_FAMILIES.find((item) => item.id === familyId) ?? null
+  const subIndustryOptions: SelectOption[] = [
+    { value: '', label: family ? 'Not specified' : 'Choose a family first' },
+    ...(family?.subcategories.map((label) => ({ value: label, label })) ?? []),
+  ]
 
   useEffect(() => {
     track({ event_type: 'intelligence_page_viewed' })
   }, [])
 
-  const handleFamilyChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const next = INDUSTRY_FAMILIES.find((item) => item.id === event.target.value) ?? null
-    setFamilyId(event.target.value)
+  const handleFamilyChange = (value: string) => {
+    const next = INDUSTRY_FAMILIES.find((item) => item.id === value) ?? null
+    setFamilyId(value)
     setSubIndustry('')
     if (next) {
       setIndustry(next.label)
@@ -50,24 +79,23 @@ export function IntelForm({ initialProfile }: { initialProfile?: ResearchProfile
   }
 
   return (
-    <form action="/intelligence/report" method="GET" className="panel space-y-5 p-5 sm:p-7">
+    <form
+      action="/intelligence/report"
+      method="GET"
+      aria-busy={submitting}
+      onSubmit={() => setSubmitting(true)}
+      className="panel space-y-5 p-5 sm:p-7"
+    >
       <div>
         <label htmlFor="industry-family" className="field-label">
           Industry family <span className="font-normal text-bone-faint">(optional shortcut)</span>
         </label>
-        <select
+        <Select
           id="industry-family"
-          className="input"
+          options={familyOptions}
           value={familyId}
           onChange={handleFamilyChange}
-        >
-          <option value="">Choose a family, or type your own below</option>
-          {INDUSTRY_FAMILIES.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.label}
-            </option>
-          ))}
-        </select>
+        />
         <p className="field-help">A navigation aid only. It carries no market figures or claims.</p>
       </div>
 
@@ -115,21 +143,14 @@ export function IntelForm({ initialProfile }: { initialProfile?: ResearchProfile
           <label htmlFor="sub-industry" className="field-label">
             Sub-industry <span className="font-normal text-bone-faint">(optional)</span>
           </label>
-          <select
+          <Select
             id="sub-industry"
             name="subIndustry"
-            className="input"
+            options={subIndustryOptions}
             value={subIndustry}
             disabled={!family}
-            onChange={(event) => setSubIndustry(event.target.value)}
-          >
-            <option value="">{family ? 'Not specified' : 'Choose a family first'}</option>
-            {family?.subcategories.map((label) => (
-              <option key={label} value={label}>
-                {label}
-              </option>
-            ))}
-          </select>
+            onChange={setSubIndustry}
+          />
         </div>
         <div>
           <label htmlFor="geography" className="field-label">
@@ -200,44 +221,33 @@ export function IntelForm({ initialProfile }: { initialProfile?: ResearchProfile
           <label htmlFor="business-model" className="field-label">
             Business model <span className="font-normal text-bone-faint">(optional)</span>
           </label>
-          <select
+          <Select
             id="business-model"
             name="businessModel"
-            className="input"
-            defaultValue={initialProfile?.businessModel ?? ''}
-          >
-            <option value="">Not specified</option>
-            {BUSINESS_MODELS.map((label) => (
-              <option key={label} value={label}>
-                {label}
-              </option>
-            ))}
-          </select>
+            options={businessModelOptions}
+            defaultValue={reviewedSelectValue(initialProfile?.businessModel, BUSINESS_MODELS)}
+          />
         </div>
         <div>
           <label htmlFor="customer-segment" className="field-label">
             Customer segment <span className="font-normal text-bone-faint">(optional)</span>
           </label>
-          <select
+          <Select
             id="customer-segment"
             name="customerSegment"
-            className="input"
-            defaultValue={initialProfile?.customerSegment ?? ''}
-          >
-            <option value="">Not specified</option>
-            {CUSTOMER_SEGMENTS.map((label) => (
-              <option key={label} value={label}>
-                {label}
-              </option>
-            ))}
-          </select>
+            options={customerSegmentOptions}
+            defaultValue={reviewedSelectValue(initialProfile?.customerSegment, CUSTOMER_SEGMENTS)}
+          />
         </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-3 border-t border-ink-line pt-5">
-        <button type="submit" className="btn btn-primary px-5 py-2.5">
-          Generate preview
+        <button type="submit" className="btn btn-primary px-5 py-2.5" disabled={submitting}>
+          {submitting ? 'Opening your report…' : 'Generate preview'}
         </button>
+        <p aria-live="polite" className="sr-only">
+          {submitting ? 'Opening your report. Public sources are read on the server.' : ''}
+        </p>
           <p className="font-mono text-[11px] leading-relaxed text-bone-faint">
             Public providers are used when available. Any section without a source stays unknown — no invented numbers.
           </p>

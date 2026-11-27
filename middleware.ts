@@ -18,7 +18,6 @@ const PUBLIC = [
   '/auth/callback',
   '/home',
   '/intelligence',
-  '/pilot',
   '/icon.svg',
   '/favicon.ico',
 ]

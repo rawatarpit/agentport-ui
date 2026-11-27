@@ -136,6 +136,15 @@ export const CUSTOMER_SEGMENTS = [
   'Mixed',
 ] as const
 
+/**
+ * A public link may contain any string. A custom dropdown cannot present an
+ * option nobody offered, so an out-of-list prefill becomes the empty choice
+ * instead of a value that looks selected and is resubmitted.
+ */
+export function reviewedSelectValue(value: string | null | undefined, options: readonly string[]): string {
+  return value !== null && value !== undefined && options.includes(value) ? value : ''
+}
+
 /** True when the typed industry matches a family or one of its subcategories. */
 export function matchIndustryFamily(industry: string): IndustryFamily | null {
   const needle = industry.trim().toLowerCase()

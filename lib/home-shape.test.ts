@@ -248,7 +248,6 @@ describe('homepage navigation does not drift from the public site', () => {
     const expected = [
       { href: '/home', label: 'Home' },
       { href: '/intelligence', label: 'Intelligence' },
-      { href: '/pilot', label: 'Pilot' },
     ]
     const homeEntries = objectsIn(homeSource(), 'PUBLIC_LINKS').map(({ href, label }) => ({ href, label }))
     const siteEntries = objectsIn(siteNavSource(), 'LINKS').map(({ href, label }) => ({ href, label }))
@@ -263,8 +262,8 @@ describe('homepage navigation does not drift from the public site', () => {
     ] as const) {
       expect(source, name).toContain('href="/login"')
       expect(source, name).toContain('Sign in')
-      expect(source, name).toContain('href="/pilot"')
-      expect(source, name).toContain('Request a pilot')
+      expect(source, name).toContain('href="/intelligence"')
+      expect(source, name).toContain('Open the preview')
       expect(source, name).not.toContain('Create account')
       expect(source, name).not.toContain('Industry AI intelligence')
       expect(source, name).not.toContain('href="/solutions"')
@@ -275,10 +274,10 @@ describe('homepage navigation does not drift from the public site', () => {
     }
   })
 
-  it('makes the hero pilot request the primary tracked conversion', () => {
+  it('makes the public preview the primary tracked conversion', () => {
     const home = homeSource()
     expect(home).toMatch(
-      /<TrackedCta[^>]*href="\/pilot"[^>]*event="hero_primary_cta_clicked"[\s\S]*?Request a pilot[\s\S]*?<\/TrackedCta>/,
+      /<TrackedCta[^>]*href="\/intelligence"[^>]*event="hero_primary_cta_clicked"[\s\S]*?Start with intelligence[\s\S]*?<\/TrackedCta>/,
     )
     expect(home).toMatch(
       /<TrackedCta[^>]*href="\/intelligence"[^>]*event="hero_demo_cta_clicked"[\s\S]*?Explore the industry preview[\s\S]*?<\/TrackedCta>/,

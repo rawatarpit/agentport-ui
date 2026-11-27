@@ -7,6 +7,7 @@ import { profileFromParams } from './types'
 const here = dirname(fileURLToPath(import.meta.url))
 const root = join(here, '..', '..')
 const form = readFileSync(join(root, 'components/intel/intel-form.tsx'), 'utf8')
+const select = readFileSync(join(root, 'components/ui/select.tsx'), 'utf8')
 const page = readFileSync(join(root, 'app/(site)/intelligence/report/page.tsx'), 'utf8')
 const landing = readFileSync(join(root, 'app/(site)/intelligence/page.tsx'), 'utf8')
 
@@ -79,5 +80,60 @@ describe('public report answers survive the GET handoff', () => {
   it('prefills the landing form with the same public profile parser', () => {
     expect(landing).toContain('profileFromParams(params)')
     expect(landing).toContain('<IntelForm key={params.toString()} initialProfile={initialProfile} />')
+  })
+})
+
+describe('public report form uses the one custom dropdown', () => {
+  it('replaces every native select with the shared custom Select', () => {
+    expect(form).toMatch(/import \{ Select[^\n]*\} from '@\/components\/ui\/select'/)
+    expect(form).not.toContain('<select')
+    expect([...form.matchAll(/<Select\b/g)]).toHaveLength(4)
+  })
+
+  it('keeps the reviewed empty-option labels explicit', () => {
+    for (const label of [
+      'Choose a family, or type your own below',
+      'Not specified',
+      'Choose a family first',
+    ]) {
+      expect(form).toContain(`'${label}'`)
+    }
+  })
+
+  it('normalizes prefilled dropdown values against the reviewed option sets', () => {
+    expect(form).toContain('reviewedSelectValue(initialProfile?.subIndustry, initialFamily?.subcategories ?? [])')
+    expect(form).toContain('reviewedSelectValue(initialProfile?.businessModel, BUSINESS_MODELS)')
+    expect(form).toContain('reviewedSelectValue(initialProfile?.customerSegment, CUSTOMER_SEGMENTS)')
+  })
+
+  it('does not serialize a disabled Select through its hidden input', () => {
+    expect(select).toMatch(/name && !disabled \? <input type="hidden" name=\{name\} value=\{current\}/)
+  })
+
+  it('keeps a selected option visible while its hidden input carries the submitted value', () => {
+    expect(select).toContain('const display = selected?.label ?? (current === \'\' ? (placeholder ?? \'Select…\') : current)')
+    expect(select).toContain('aria-selected={isSelected}')
+  })
+
+  it('disables subIndustry until a reviewed family is selected', () => {
+    expect(form).toMatch(
+      /<Select\s+id="sub-industry"[\s\S]*?name="subIndustry"[\s\S]*?disabled=\{!family\}[\s\S]*?\/>/,
+    )
+  })
+
+  it('keeps industry as free text backed by the unchanged datalist', () => {
+    expect(form).toMatch(
+      /<input[\s\S]*?id="industry"[\s\S]*?name="industry"[\s\S]*?required[\s\S]*?list="industry-suggestions"[\s\S]*?value=\{industry\}[\s\S]*?\/>/,
+    )
+    expect(form).toMatch(
+      /<datalist id="industry-suggestions">[\s\S]*?INDUSTRY_FAMILIES\.flatMap\(\(item\) => \[item\.label, \.\.\.item\.subcategories\]\)[\s\S]*?<\/datalist>/,
+    )
+  })
+
+  it('keeps the family shortcut filling industry and clearing sub-industry', () => {
+    expect(form).toContain('onChange={handleFamilyChange}')
+    expect(form).toContain("setSubIndustry('')")
+    expect(form).toContain('setIndustry(next.label)')
+    expect([...form.matchAll(/track\(\{ event_type: 'industry_selected' \}\)/g)]).toHaveLength(2)
   })
 })

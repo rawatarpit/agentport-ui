@@ -215,8 +215,10 @@ describe('five lens component and pages stay read-only', () => {
     }
     expect(landing).toContain('navigation and query aids only')
     expect(landing).toContain('No AI traffic or search visibility measurement exists')
-    expect(landing).toContain('Request a pilot')
-    expect(landing).toContain('href="/pilot"')
+    expect(landing).toContain('<AnswerJourney />')
+    expect(landing).toContain('id="preview-form"')
+    expect(landing).toContain('Start your preview')
+    expect(landing).not.toContain('/pilot')
     expect(landing).toContain("canonical: '/intelligence'")
     expect(landing).toContain('openGraph:')
     expect(landing).toContain('twitter:')

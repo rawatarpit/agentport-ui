@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { AnswerJourney } from '@/components/intel/answer-journey'
 import { IntelForm } from '@/components/intel/intel-form'
 import { FiveLensCoverage } from '@/components/intel/five-lens-coverage'
 import { profileFromParams } from '@/lib/intelligence/types'
@@ -87,16 +88,16 @@ export default function IntelligencePage({ searchParams }: { searchParams: Searc
           never zero, never a healthy-looking estimate.
         </p>
         <div className="flex flex-wrap items-center gap-3">
-          <Link href="/pilot" className="btn btn-primary px-5 py-2.5">
-            Request a pilot
+          <Link href="#preview-form" className="btn btn-primary px-5 py-2.5">
+            Start your preview
           </Link>
           <Link href="/intelligence/report?sample=1" className="btn px-5 py-2.5">
             Explore fictional sample
           </Link>
         </div>
         <p className="font-mono text-[11px] leading-relaxed text-bone-faint">
-          No AI traffic or search visibility measurement exists in this preview. A request is not a pilot
-          invitation, and nothing here is enabled, approved or executed.
+          No AI traffic or search visibility measurement exists in this preview. Opening it enables, approves or
+          executes nothing.
         </p>
       </header>
 
@@ -123,10 +124,12 @@ export default function IntelligencePage({ searchParams }: { searchParams: Searc
         </ul>
       </section>
 
-      <div className="grid items-start gap-8 lg:grid-cols-[1.05fr_0.95fr]">
+      <div id="preview-form" className="scroll-mt-24 grid items-start gap-8 lg:grid-cols-[1.05fr_0.95fr]">
         <IntelForm key={params.toString()} initialProfile={initialProfile} />
 
         <aside className="space-y-5">
+          <AnswerJourney />
+
           <section className="panel p-5 sm:p-6" aria-labelledby="report-categories-heading">
             <p className="label">The five report categories</p>
             <h2 id="report-categories-heading" className="mt-2 font-display text-[21px] leading-tight text-bone">
@@ -157,13 +160,13 @@ export default function IntelligencePage({ searchParams }: { searchParams: Searc
               <Link href="/intelligence/report?sample=1" className="link">
                 Honest fictional sample
               </Link>
-              <Link href="/pilot" className="link">
-                Request a pilot
+              <Link href="#answer-journey" className="link">
+                Read the answer journey
               </Link>
             </div>
             <p className="mt-4 font-mono text-[11px] leading-relaxed text-bone-faint">
-              Your answers stay in the report URL. Nothing is saved by this preview; the next step to an
-              account carries them forward as query parameters.
+              The public preview saves no profile or report rows. It records only funnel telemetry, and the
+              signup link carries your answers forward as query parameters.
             </p>
           </section>
         </aside>

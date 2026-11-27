@@ -34,7 +34,8 @@ type MenuPosition = {
  * `overflow-auto` cannot clip it.
  *
  * It works in a server-rendered form too: pass `name` and a hidden input
- * carries the current value on submit.
+ * carries the current value on submit. A disabled control is not submitted,
+ * matching a native disabled select.
  */
 export function Select({
   options,
@@ -265,7 +266,7 @@ export function Select({
         </svg>
       </button>
 
-      {name ? <input type="hidden" name={name} value={current} readOnly /> : null}
+      {name && !disabled ? <input type="hidden" name={name} value={current} readOnly /> : null}
 
       {open && position && typeof document !== 'undefined'
         ? createPortal(

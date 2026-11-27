@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Badge } from '@/components/stat'
-import { ContactForm } from '@/components/contact-form'
 import { DecisionDemo } from '@/components/landing/decision-demo'
 import { TrackedCta } from '@/components/landing/tracked-cta'
 
@@ -44,8 +43,8 @@ export const metadata: Metadata = {
  * Every data-shaped panel is labelled illustrative. No invented customers,
  * statistics or live-looking dashboards.
  *
- * Conversion is the founding pilot through the existing /api/contact route.
- * The two hero links use the one tracked CTA wrapper. It sends an allowlisted
+ * Conversion is the public intelligence preview. The two hero links use the
+ * one tracked CTA wrapper. It sends an allowlisted
  * event name and the pathname only — never the destination query, an email,
  * an amount, a capability name, or a request payload.
  */
@@ -54,7 +53,6 @@ export const metadata: Metadata = {
 export const PUBLIC_LINKS = [
   { href: '/home', label: 'Home' },
   { href: '/intelligence', label: 'Intelligence' },
-  { href: '/pilot', label: 'Pilot' },
 ] as const
 
 const LANDSCAPE_SIGNALS = [
@@ -79,8 +77,8 @@ const PILLARS = [
     name: 'Access',
     promise: 'Enable access',
     body: 'Available now: a discovery package installed by pull request or download. Compatible clients can read the capabilities you publish. A published file grants no permission and does not guarantee discovery.',
-    href: '/pilot',
-    link: 'Request access',
+    href: '/intelligence',
+    link: 'Open the preview',
   },
   {
     n: '03',
@@ -213,38 +211,34 @@ const BOUNDARIES = [
   },
 ] as const
 
-const PILOT_TERMS = [
-  'One environment',
-  'Assisted setup',
-  'A limited set of agreed capabilities',
-  'Initial policy configuration',
-  'A working allow / hold / refuse demonstration',
-  'A review of activity and audit records',
-  'Your own hosting and infrastructure costs remain yours',
-  'Scope and eligibility agreed before onboarding',
-  'Exit anytime; leaving never deletes your proof',
-] as const
-
 const FAQ = [
   {
     q: 'Will this make us visible in ChatGPT or every other assistant?',
-    a: 'No. We publish structured capabilities for compatible clients. Discovery depends on the agent or platform. The manifest is advisory and carries no policy decision.',
+    a: 'No. AgentPort publishes structured capabilities for compatible clients; discovery stays with the agent or platform. The manifest is advisory and carries no policy decision, so publishing never promises a listing.',
   },
   {
     q: 'Can you tell us how much of our traffic came from AI search?',
-    a: 'No. AI search visibility and AI-generated traffic are not measured. The industry preview shows sourced public evidence and leaves gaps unknown.',
+    a: 'No. AI search visibility and AI-generated traffic are not measured. The industry preview shows sourced public evidence and leaves gaps unknown; it never converts a profile answer into an AI-generated demand claim.',
+  },
+  {
+    q: 'Where do my company answers go when I use this preview?',
+    a: 'They travel in the report URL to our server. Geography selects a World Bank row on our server, a supplied company name is matched locally against the SEC ticker list, and your industry answer is the GitHub public search term. The preview saves no profile or report rows; telemetry carries the event name and page path, never your answers.',
+  },
+  {
+    q: 'Is this a live report about my company?',
+    a: 'No. It is a sourced preview built from public providers and your stated answers. It does not inspect your website, observe shoppers, or measure demand. Every figure carries its source and a gap stays unknown.',
   },
   {
     q: 'Does a rule go live when I save it in the console?',
-    a: 'No. Saving creates a draft. Approval and apply through the hosted path write the version the governor serves, and nothing is live before that.',
+    a: 'No. Saving creates a draft. Approval and apply through the hosted path write the version the governor serves, and nothing is live before that. A draft is a proposal, not a control.',
   },
   {
     q: 'What happens when an action is held?',
-    a: 'It stays pending and does not run until the required approval is recorded. Approval checks policy again at commit, and happens through the hosted path — not a browser button.',
+    a: 'It stays pending and does not run until the required approval is recorded. Approval checks policy again at commit, and happens through the hosted path — not a browser button. A held request has not run.',
   },
   {
     q: 'Does an approval mean the action succeeded?',
-    a: 'No. A decision is not proof that the downstream call worked. The outcome is recorded after the call, as a separate fact.',
+    a: 'No. A decision is not proof that the downstream call worked. The outcome is recorded after the call, as a separate fact. The console shows both, so a green decision never masquerades as a completed operation.',
   },
   {
     q: 'What can we see about agent activity in the console?',
@@ -256,7 +250,7 @@ const FAQ = [
   },
   {
     q: 'Does this replace our API or authentication?',
-    a: 'No. It works alongside your application and API for the operations you connect. Your authentication and authorization responsibilities still matter.',
+    a: 'No. It works alongside your application and API for the operations you connect. Your authentication and authorization responsibilities still matter; AgentPort adds a decision layer, not a second identity system.',
   },
   {
     q: 'What is planned but not available today?',
@@ -288,8 +282,8 @@ export default function HomePage() {
             </p>
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
-              <TrackedCta href="/pilot" event="hero_primary_cta_clicked" className="btn btn-primary px-5 py-2.5">
-                Request a pilot
+              <TrackedCta href="/intelligence" event="hero_primary_cta_clicked" className="btn btn-primary px-5 py-2.5">
+                Start with intelligence
               </TrackedCta>
               <TrackedCta href="/intelligence" event="hero_demo_cta_clicked" className="btn px-5 py-2.5">
                 Explore the industry preview
@@ -320,11 +314,11 @@ export default function HomePage() {
             </p>
 
             <ul className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[11px] text-bone-faint">
-              <li>Assisted setup</li>
+              <li>Public-source preview</li>
               <li aria-hidden="true" className="text-ink-line">/</li>
-              <li>One environment</li>
+              <li>Draft until approved</li>
               <li aria-hidden="true" className="text-ink-line">/</li>
-              <li>Selected founding pilots</li>
+              <li>Unknown never green</li>
             </ul>
 
             <p className="mt-4 max-w-[56ch] font-mono text-[11px] leading-relaxed text-bone-faint">
@@ -612,41 +606,42 @@ export default function HomePage() {
 
         </section>
 
-        {/* 09 — Final CTA */}
-        <section id="contact" className="scroll-mt-24 border-t border-ink-line/60 py-16 sm:py-24">
+        {/* 09 — Start */}
+        <section id="start" className="scroll-mt-24 border-t border-ink-line/60 py-16 sm:py-24">
           <div className="rounded-xl border border-verdant/25 bg-ink-soft p-6 sm:p-10">
-            <div className="grid items-start gap-12 lg:grid-cols-[0.95fr_1.05fr]">
+            <div className="grid items-start gap-12 lg:grid-cols-[1.05fr_0.95fr]">
               <div>
                 <div className="flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.14em] text-bone-faint">
                   <span className="h-1.5 w-1.5 rounded-full bg-verdant" aria-hidden="true" />
-                  Founding pilots — selected and assisted
+                  Start with the public preview
                 </div>
                 <h2 className="mt-5 font-display text-[clamp(2rem,4vw,3rem)] leading-[1.02] tracking-[-0.02em] text-bone">
-                  Start with one workflow. See the proof.
+                  Bring the question. Leave with the evidence boundary.
                 </h2>
                 <p className="prose-bone mt-4">
-                  A pilot starts with one environment and a focused set of operations, so both teams can
-                  verify the integration, policy behaviour and audit trail before expanding. Tell us what your
-                  business does and which operations agents might need to perform.
-                </p>
-                <p className="mt-3 font-mono text-[12px] leading-relaxed text-bone-dim">
-                  No AgentPort fee for selected founding-pilot participants. You remain responsible for your
-                  own hosting, database and third-party infrastructure costs. Scope and eligibility are agreed
-                  before onboarding.
+                  Open the industry preview to see what public sources can support — and where the answer is
+                  unknown. Then create an account when you are ready to publish capabilities, set drafts, and
+                  review decisions from your own rows.
                 </p>
                 <ul className="mt-7 grid gap-x-6 gap-y-2.5 font-mono text-[12px] text-bone-dim sm:grid-cols-2">
-                  {PILOT_TERMS.map((term) => (
-                    <li key={term} className="flex gap-2">
-                      <span aria-hidden="true" className="text-verdant">·</span>
-                      <span>{term}</span>
-                    </li>
-                  ))}
+                  <li>Public sources, with provenance</li>
+                  <li>Gaps rendered unknown</li>
+                  <li>Draft never live</li>
+                  <li>Approvals decided elsewhere</li>
                 </ul>
               </div>
 
               <div className="rounded-lg border border-ink-line bg-ink/70 p-5 sm:p-6">
-                <ContactForm />
-                <p className="mt-4 font-mono text-[11px] text-bone-faint">
+                <p className="label">Two ways in</p>
+                <div className="mt-4 flex flex-col gap-3">
+                  <Link href="/intelligence" className="btn btn-primary px-5 py-2.5">
+                    Open the preview
+                  </Link>
+                  <Link href="/signup" className="btn px-5 py-2.5">
+                    Create an account
+                  </Link>
+                </div>
+                <p className="mt-5 font-mono text-[11px] leading-relaxed text-bone-faint">
                   Already have an account?{' '}
                   <Link href="/login" className="text-bone underline underline-offset-4">
                     Sign in
@@ -659,7 +654,7 @@ export default function HomePage() {
 
         {/* FAQ */}
         <section id="faq" className="scroll-mt-24 border-t border-ink-line/60 py-16 sm:py-24">
-          <SectionHead index="08" eyebrow="FAQ" title="Straight answers." />
+          <SectionHead index="08" eyebrow="FAQ" title="Clear answers, before you connect." />
           <div className="mt-12 grid gap-x-10 gap-y-0 sm:grid-cols-2">
             {FAQ.map((item) => (
               <details key={item.q} className="group border-t border-ink-line/60 py-5">
@@ -677,35 +672,9 @@ export default function HomePage() {
             ))}
           </div>
           <div className="mt-10 flex flex-wrap items-center gap-4">
-            <a href="#contact" className="link font-mono text-[11.5px]">
-              Ask about a pilot →
-            </a>
-          </div>
-        </section>
-
-        {/* FAQ */}
-        <section id="faq" className="scroll-mt-24 border-t border-ink-line/60 py-16 sm:py-24">
-          <SectionHead index="08" eyebrow="FAQ" title="Straight answers." />
-          <div className="mt-12 grid gap-x-10 gap-y-0 sm:grid-cols-2">
-            {FAQ.map((item) => (
-              <details key={item.q} className="group border-t border-ink-line/60 py-5">
-                <summary className="flex cursor-pointer list-none items-start justify-between gap-5 [&::-webkit-details-marker]:hidden">
-                  <span className="text-[15px] font-medium text-bone">{item.q}</span>
-                  <span
-                    aria-hidden="true"
-                    className="mt-0.5 shrink-0 font-mono text-[16px] leading-none text-bone-faint transition-transform group-open:rotate-45"
-                  >
-                    +
-                  </span>
-                </summary>
-                <p className="mt-3 max-w-[58ch] text-[13px] leading-relaxed text-bone-dim">{item.a}</p>
-              </details>
-            ))}
-          </div>
-          <div className="mt-10 flex flex-wrap items-center gap-4">
-            <a href="#contact" className="link font-mono text-[11.5px]">
-              Ask about a pilot →
-            </a>
+            <Link href="/intelligence" className="link font-mono text-[11.5px]">
+              Start with the preview →
+            </Link>
           </div>
         </section>
     </>

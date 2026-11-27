@@ -61,8 +61,8 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
             <Link href="/signup" className="text-bone-dim transition-colors hover:text-bone">
               Get started
             </Link>
-            <Link href="/pilot" className="text-verdant transition-colors hover:text-bone">
-              Request a pilot
+            <Link href="/intelligence" className="text-verdant transition-colors hover:text-bone">
+              Open the preview
             </Link>
           </nav>
         </div>

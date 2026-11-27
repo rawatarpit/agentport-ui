@@ -127,12 +127,13 @@ const ACQUISITION_COPY: Record<FunnelEventType, MetricCopy> = {
     description: 'Install flow finished once the governor serves the applied config.',
   },
   pilot_requested: {
-    label: 'Pilot requests',
-    description: 'Founding-pilot requests recorded by the contact path.',
+    label: 'Pilot requests (historical)',
+    description: 'Requests recorded before the public pilot path was removed; no new events are emitted.',
   },
   hero_primary_cta_clicked: {
     label: 'Hero primary CTA clicks',
-    description: 'Clicks on the landing page’s primary action.',
+    description:
+      'Primary landing CTA clicks; pilot requests before the public pilot path was removed, preview starts after.',
   },
   hero_demo_cta_clicked: {
     label: 'Hero demo CTA clicks',
@@ -147,20 +148,21 @@ const ACQUISITION_COPY: Record<FunnelEventType, MetricCopy> = {
     description: 'Visitors who reached the integration section.',
   },
   pilot_section_viewed: {
-    label: 'Pilot section views',
-    description: 'Visitors who reached the pilot section.',
+    label: 'Pilot section views (historical)',
+    description: 'Views recorded before the public pilot path was removed; no new events are emitted.',
   },
   pilot_form_started: {
-    label: 'Pilot forms started',
-    description: 'First real field change on the pilot form.',
+    label: 'Pilot forms started (historical)',
+    description: 'Forms started before the public pilot path was removed; no new events are emitted.',
   },
   pilot_form_submitted: {
-    label: 'Pilot forms submitted',
-    description: 'Contact requests recorded by the contact path; honeypot acknowledgements are excluded.',
+    label: 'Pilot forms submitted (historical)',
+    description:
+      'Requests recorded before the public pilot path was removed; honeypot acknowledgements were excluded and no new events are emitted.',
   },
   pilot_form_submission_failed: {
-    label: 'Pilot submission failures',
-    description: 'Contact requests that did not succeed.',
+    label: 'Pilot submission failures (historical)',
+    description: 'Failures recorded before the public pilot path was removed; no new events are emitted.',
   },
 }
 

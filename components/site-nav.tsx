@@ -6,7 +6,6 @@ import { ThemeToggle } from '@/components/theme-toggle'
 export const LINKS = [
   { href: '/home', label: 'Home' },
   { href: '/intelligence', label: 'Intelligence' },
-  { href: '/pilot', label: 'Pilot' },
 ] as const
 
 const LINK_CLASS =
@@ -42,8 +41,8 @@ export function SiteNav() {
           <Link href="/signup" className="btn btn-sm hidden px-3 py-1.5 sm:inline-flex">
             Get started
           </Link>
-          <Link href="/pilot" className="btn btn-primary btn-sm hidden px-3 py-1.5 sm:inline-flex">
-            Request a pilot
+          <Link href="/intelligence" className="btn btn-primary btn-sm hidden px-3 py-1.5 sm:inline-flex">
+            Open the preview
           </Link>
 
           <details className="relative lg:hidden">
@@ -76,8 +75,8 @@ export function SiteNav() {
                   </Link>
                 </li>
                 <li>
-                  <Link href="/pilot" className={`${LINK_CLASS} block text-verdant`}>
-                    Request a pilot
+                  <Link href="/intelligence" className={`${LINK_CLASS} block text-verdant`}>
+                    Open the preview
                   </Link>
                 </li>
               </ul>

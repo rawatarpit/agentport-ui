@@ -6,7 +6,7 @@ import type { MetadataRoute } from 'next'
  */
 const BASE_URL = 'https://agentport.relayforge.in'
 
-const PUBLIC_ROUTES = ['/home', '/intelligence', '/pilot'] as const
+const PUBLIC_ROUTES = ['/home', '/intelligence'] as const
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return PUBLIC_ROUTES.map((route) => ({

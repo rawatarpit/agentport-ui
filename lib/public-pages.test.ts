@@ -1,13 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { FUNNEL_EVENT_TYPES } from '@/lib/funnel-event-types'
 
 const ROOT = process.cwd()
 const PAGE_PATHS = {
   home: 'app/(site)/home/page.tsx',
   intelligence: 'app/(site)/intelligence/page.tsx',
-  pilot: 'app/(site)/pilot/page.tsx',
 } as const
 
 type PageKey = keyof typeof PAGE_PATHS
@@ -146,9 +144,9 @@ describe('public conversion page structure', () => {
     expect(new Set(descriptions).size).toBe(Object.keys(PAGE_PATHS).length)
   })
 
-  it('keeps exactly the three public routes in the middleware allowlist', () => {
+  it('keeps exactly the two public routes in the middleware allowlist', () => {
     const middleware = source('middleware.ts')
-    for (const route of ['/home', '/intelligence', '/pilot']) {
+    for (const route of ['/home', '/intelligence']) {
       expect(middleware, `${route} must be publicly open`).toContain(`'${route}'`)
     }
     for (const route of ['/solutions', '/platform', '/how-it-works', '/developers', '/security']) {
@@ -163,34 +161,6 @@ describe('public conversion page structure', () => {
       expect(src, file).not.toMatch(/\bcreateAdminClient\b|\bcreateServerClient\b|\bcreateClient\b/)
       expect(src, file).not.toMatch(/\bservice_role\b/)
       expect(src, file).not.toMatch(/\.from\s*\(\s*['"]|\.select\s*\(/)
-    }
-  })
-
-  it('pilot page records only allowlisted section views with no payload', () => {
-    const src = source(PAGE_PATHS.pilot)
-    expect(src).toContain("import { ContactForm } from '@/components/contact-form'")
-    expect(src).toContain("import { SectionViewTracker } from '@/components/landing/section-view-tracker'")
-    expect(trackerTarget(src, 'pilot_section_viewed')).not.toBe('')
-    expect(src).toContain(`id="${trackerTarget(src, 'pilot_section_viewed')}"`)
-    expect(src).not.toMatch(/\btrack\s*\(|event_type:/)
-  })
-
-  it('pilot page states only the documented founding-pilot terms', () => {
-    const src = source(PAGE_PATHS.pilot)
-    for (const phrase of [
-      '₹0',
-      'selected participants',
-      'One environment',
-      'Assisted setup',
-      'Limited capabilities',
-      'Initial policy configuration',
-      'allow, hold and refuse',
-      'activity and audit records',
-      'exit at any time',
-      'hosting, database and third-party costs remain your responsibility',
-      'scope and eligibility are agreed before onboarding',
-    ]) {
-      expect(src.toLowerCase()).toContain(phrase.toLowerCase())
     }
   })
 
@@ -224,7 +194,7 @@ describe('public conversion page structure', () => {
 describe('public SEO stays answer-free', () => {
   it('indexes only stable public routes in the sitemap', () => {
     const sitemap = source('app/sitemap.ts')
-    for (const route of ['/home', '/intelligence', '/pilot']) {
+    for (const route of ['/home', '/intelligence']) {
       expect(sitemap).toContain(route)
     }
     for (const route of ['/solutions', '/platform', '/how-it-works', '/developers', '/security']) {
@@ -264,32 +234,13 @@ describe('public SEO stays answer-free', () => {
   })
 })
 
-describe('pilot contact form stays honest and payload-free', () => {
-  // Both the homepage and the pilot page render this component; reading either
-  // page source sees only <ContactForm />, never the copy inside it.
-  const contactForm = source('components/contact-form.tsx')
-
-  it('carries no reply-time or service-level promise', () => {
-    expect(contactForm).not.toMatch(/reply within|one business day|business day|same[- ]day|\bSLA\b|service-level/i)
-    expect(contactForm).not.toContain('One reply, no list')
-  })
-
-  it('emits only allowlisted funnel names with no payload', () => {
-    const calls = [...contactForm.matchAll(/track\(\{[^}]*\}\)/g)].map((match) => match[0])
-    expect(calls).toEqual([
-      "track({ event_type: 'pilot_form_started' })",
-      "track({ event_type: 'pilot_form_submitted' })",
-      "track({ event_type: 'pilot_requested' })",
-      "track({ event_type: 'pilot_form_submission_failed' })",
-    ])
-    for (const name of [
-      'pilot_form_started',
-      'pilot_form_submitted',
-      'pilot_requested',
-      'pilot_form_submission_failed',
-    ]) {
-      expect(FUNNEL_EVENT_TYPES).toContain(name)
+describe('public pages have no pilot intake surface', () => {
+  it('does not reference the removed contact form or its write route', () => {
+    for (const [page, file] of Object.entries(PAGE_PATHS)) {
+      expect(source(file), page).not.toContain('ContactForm')
+      expect(source(file), page).not.toContain('/api/contact')
     }
-    expect(contactForm).toContain('if (body.recorded === true)')
+    expect(existsSync(join(ROOT, 'components/contact-form.tsx'))).toBe(false)
+    expect(existsSync(join(ROOT, 'app/api/contact/route.ts'))).toBe(false)
   })
 })

@@ -265,7 +265,7 @@ export function ReportView({
         <p className="mt-2 max-w-[75ch] text-[13px] leading-relaxed text-bone-dim">
           {isSample
             ? 'These sample values are not your data. This preview does not save anything, and the link opens plain signup. After signup, enter your own website in the assessment.'
-            : 'This public preview does not write to your account. Your answers carry forward on the signup link; after signup, setup maps them to the reviewed tenant fields and saves the full answers as your first tenant-scoped report snapshot. Your website is not set from the link — enter it yourself in assessment or Go live. Nothing is claimed live by saving a report.'}
+            : 'This public preview does not write to your account. Your answers carry forward on the signup link; after signup, setup saves the full answers as your first tenant-scoped report snapshot and prefills reviewed industry and sector choices. Those choices reach tenant metadata only if you save them there. Your website is not set from the link — enter it yourself in assessment or Go live. Nothing is claimed live by saving a report.'}
         </p>
         <Link href={signupHref} className="btn btn-primary mt-5">
           {isSample ? 'Create an account' : 'Continue to account + setup'}

@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
+import { AnswerJourney } from '@/components/intel/answer-journey'
 import { FiveLensCoverage, ReportViewTracker } from '@/components/intel/five-lens-coverage'
 import { ReportView } from '@/components/intel/report-view'
+import { RequestCoverage } from '@/components/intel/report-coverage'
 import { buildSampleReport } from '@/lib/intelligence/sample'
 import { buildSourcedReport } from '@/lib/intelligence/research-report'
 import { profileFromParams } from '@/lib/intelligence/types'
@@ -57,6 +59,8 @@ export default async function ReportPage({ searchParams }: { searchParams: Searc
   return (
     <div className="space-y-10">
       <ReportViewTracker />
+      <AnswerJourney />
+      <RequestCoverage report={report} />
       <FiveLensCoverage report={report} />
       <ReportView
         report={report}
