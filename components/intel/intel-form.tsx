@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { AnswerJourney } from '@/components/intel/answer-journey'
+import { FormPhaseRail } from '@/components/intel/form-phase-rail'
 import { Select, type SelectOption } from '@/components/ui/select'
 import { track } from '@/lib/funnel-events'
 import {
@@ -165,15 +166,13 @@ export function IntelForm({ initialProfile }: { initialProfile?: ResearchProfile
       <div className="border-b border-ink-line px-5 py-4 sm:px-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="label">Build your preview</p>
-          <p className="font-mono text-[11px] text-bone-faint">
-            Question {String(step + 1).padStart(2, '0')} of {STEPS.length}
-          </p>
+          <FormPhaseRail step={step} total={STEPS.length} />
         </div>
-        <div className="mt-3 grid grid-cols-9 gap-1" aria-hidden="true">
+        <div className="mt-3 flex gap-1.5" aria-hidden="true">
           {STEPS.map((label, index) => (
             <span
               key={label}
-              className={`h-1 rounded-full ${index <= step ? 'bg-verdant' : 'bg-ink-line/70'}`}
+              className={`h-1 flex-1 rounded-full ${index <= step ? 'bg-verdant' : 'bg-ink-line/70'}`}
             />
           ))}
         </div>

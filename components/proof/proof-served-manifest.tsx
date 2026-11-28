@@ -33,7 +33,7 @@ export function ProofServedManifest({
   const comparison = compareAppliedAndServed(applied, served)
 
   return (
-    <section className="panel space-y-4 p-5 sm:p-6">
+    <section id="served-manifest" className="scroll-mt-24 panel space-y-4 p-5 sm:p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <p className="label">Served manifest</p>

@@ -4,6 +4,7 @@ import { Badge } from '@/components/stat'
 import { Callout } from '@/components/ui/callout'
 import { EmptyState } from '@/components/ui/empty-state'
 import { PageHeader } from '@/components/ui/page-header'
+import { SectionIndex } from '@/components/ui/section-index'
 import { StatusPill } from '@/components/ui/status-pill'
 import { TechnicalDetails } from '@/components/ui/technical-details'
 import { getHome, getLatestPush } from '@/lib/backend-reads'
@@ -85,6 +86,17 @@ export default async function ProofPage() {
         healthy zero.
       </Callout>
 
+      <SectionIndex
+        title="Follow the proof"
+        description="Four separate checks, in the order they must be read."
+        items={[
+          { href: '#applied-config', label: 'Applied config', hint: 'What was activated in the database' },
+          { href: '#served-manifest', label: 'Served manifest', hint: 'What the governor answers right now' },
+          { href: '#live-push', label: 'Live push', hint: 'What the runtime last reported' },
+          { href: '#recorded-decisions', label: 'Recorded decisions', hint: 'What the ledger actually holds' },
+        ]}
+      />
+
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <div className="panel p-5">
           <p className="label">Applied config</p>
@@ -132,14 +144,7 @@ export default async function ProofPage() {
         </div>
       </section>
 
-      <ProofServedManifest
-        applied={appliedProof}
-        canonicalUrl={canonicalUrl}
-        invokeUrl={invokeUrl}
-        expectedTenantId={tenantId}
-      />
-
-      <section className="panel space-y-4 p-5 sm:p-6">
+      <section id="applied-config" className="scroll-mt-24 panel space-y-4 p-5 sm:p-6">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <div>
             <p className="label">Applied config</p>
@@ -169,7 +174,14 @@ export default async function ProofPage() {
         ) : null}
       </section>
 
-      <section className="panel space-y-4 p-5 sm:p-6">
+      <ProofServedManifest
+        applied={appliedProof}
+        canonicalUrl={canonicalUrl}
+        invokeUrl={invokeUrl}
+        expectedTenantId={tenantId}
+      />
+
+      <section id="drafts" className="scroll-mt-24 panel space-y-4 p-5 sm:p-6">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <div>
             <p className="label">Drafts</p>
@@ -195,7 +207,7 @@ export default async function ProofPage() {
         </div>
       </section>
 
-      <section className="panel space-y-4 p-5 sm:p-6">
+      <section id="live-push" className="scroll-mt-24 panel space-y-4 p-5 sm:p-6">
         <div>
           <p className="label">Live push</p>
           <h2 className="mt-2 font-display text-[20px] leading-tight text-bone">Runtime heartbeat</h2>
@@ -214,7 +226,7 @@ export default async function ProofPage() {
         ) : null}
       </section>
 
-      <section className="space-y-4">
+      <section id="recorded-decisions" className="scroll-mt-24 space-y-4">
         <div>
           <p className="label">Recorded decisions</p>
           <h2 className="font-display text-[22px] leading-tight text-bone">Decision and outcome are separate facts</h2>
@@ -274,7 +286,7 @@ export default async function ProofPage() {
         )}
       </section>
 
-      <section className="space-y-4">
+      <section id="held-requests" className="scroll-mt-24 space-y-4">
         <div>
           <p className="label">Held requests</p>
           <h2 className="font-display text-[22px] leading-tight text-bone">held, not executed</h2>

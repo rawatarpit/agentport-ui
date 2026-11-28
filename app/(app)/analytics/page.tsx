@@ -22,13 +22,11 @@ export default function AnalyticsPage() {
       <EnforcingPanel draftLabel="no draft open" />
       <AnalyticsView />
       <div className="panel p-5">
-        <p className="label">Your rows are yours</p>
+        <p className="label">What these rows are</p>
         <p className="mt-2 text-[13px] leading-relaxed text-bone-dim">
-          The append‑only table lives in your database, under triggers that abort{' '}
-          <span className="font-mono">UPDATE</span> and <span className="font-mono">DELETE</span>.
-          If those triggers are dropped, the guarantee degrades to “the SDK never
-          issues one” — weaker, and stated as the weaker one. Keep it if you stop
-          paying us; it was never ours.
+          These counts come from the hosted governor&apos;s ledger projection for this tenant, read through your
+          session&apos;s row-level security. The projection omits parameters, amounts, detail and error text. An empty
+          window is not proof that nothing ran, and a failed read stays unknown.
         </p>
       </div>
     </div>

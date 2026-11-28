@@ -2,6 +2,8 @@ import Link from 'next/link'
 import { Stat } from '@/components/stat'
 import { PageHeader } from '@/components/ui/page-header'
 import { Section } from '@/components/ui/section'
+import { SectionIndex } from '@/components/ui/section-index'
+import { StateStrip } from '@/components/ui/state-strip'
 import { StepRail, type RailStep } from '@/components/ui/step-rail'
 import { listDecisions, listHolds } from '@/lib/console-reads'
 import { getHome } from '@/lib/backend-reads'
@@ -12,13 +14,10 @@ import { resolveRequestTenant } from '@/lib/tenant-server'
 export const dynamic = 'force-dynamic'
 
 /**
- * Overview: one page that answers "is anything running, and what needs me?".
+ * Overview answers one question: what needs the merchant now?
  *
- * Everything below is read from durable rows through the session client. The
- * previous version rendered invented activity and read `state.capabilities`
- * from a response that never had that field; a merchant acting on a demo row
- * is the failure this page exists to prevent. Missing rows render `unknown`,
- * never a healthy zero.
+ * Every fact below comes from an existing session-scoped read. A failed read
+ * stays unknown; a successful empty window says so without becoming zero.
  */
 
 const NEXT_HREF: Record<GoLiveStepId, string> = {
@@ -31,7 +30,6 @@ const NEXT_HREF: Record<GoLiveStepId, string> = {
   verify: '/go-live#verify',
 }
 
-/** Journey rail hrefs used on the Overview page (page links, not anchors). */
 const STEP_HREF: Record<GoLiveStepId, string> = {
   site: '/setup',
   capabilities: '/map',
@@ -48,8 +46,6 @@ function when(value: string | null | undefined): string {
   if (!Number.isFinite(parsed)) return 'unknown'
   return `${new Date(parsed).toISOString().replace('T', ' ').slice(0, 16)} UTC`
 }
-
-
 
 /** A failed read is `unknown`, never an empty list that reads as zero. */
 async function readOrUnknown<T>(read: Promise<T[]>): Promise<{ rows: T[]; failed: boolean }> {
@@ -81,19 +77,28 @@ export default async function OverviewPage() {
     getHome(tenantId),
     readOrUnknown(listHolds(tenantId, 200)),
     readOrUnknown(listDecisions(tenantId, 5)),
-    tenant.supabase
-      .from('agent_capabilities')
-      .select('name, method, path, kind')
-      .eq('tenant_id', tenantId)
-      .order('name', { ascending: true }),
+    tenant.supabase.from('agent_capabilities').select('name').eq('tenant_id', tenantId),
     readSectorBenchmark(tenantId).catch(() => null),
   ])
 
-  // A failed inventory read is unknown, not an empty inventory. The mapping
-  // count on the go-live state swallows the same failure, so this page reads
-  // the table directly and reports the difference.
-  const capabilities = inventory.error ? null : (inventory.data ?? [])
   const next = state.nextStep
+  const publishedValue = state.liveArtifactUnknown
+    ? 'unknown'
+    : state.liveArtifact
+      ? `Applied v${state.liveArtifact.version}`
+      : 'Not applied'
+  const publishedTone = state.liveArtifactUnknown ? 'unknown' : state.liveArtifact ? 'ready' : 'draft'
+  const holdValue = holdsRead.failed ? 'unknown' : String(holdsRead.rows.length)
+  const holdTone = holdsRead.failed || holdsRead.rows.length === 0 ? 'unknown' : 'blocked'
+  const pushValue = decisionsRead.failed || decisionsRead.rows.length === 0 ? 'unknown' : when(decisionsRead.rows[0].at)
+  const pushTone = 'unknown'
+  const pushNote = decisionsRead.failed
+    ? 'The ledger could not be read. Unknown, not zero.'
+    : decisionsRead.rows.length === 0
+      ? home?.last_push_at
+        ? 'A runtime push was heard; no decision is in the newest ledger window yet.'
+        : 'No push heard yet — unknown, not healthy.'
+      : 'From the durable ledger. An empty window is unknown, not zero.'
 
   return (
     <div className="space-y-8">
@@ -103,82 +108,86 @@ export default async function OverviewPage() {
         description="What is live, what is still a draft, and what is waiting on you. Nothing here enforces anything — the hosted governor decides, and the ledger is the record."
         actions={
           <>
-            <Link href="/go-live" className="btn btn-primary">
-              {state.liveArtifactUnknown ? 'Check go-live' : state.published ? 'Review go-live' : 'Go live'}
-            </Link>
-            <Link href="/ledger" className="btn">
-              Read the ledger
-            </Link>
+            <Link href="/ledger" className="btn">Read the ledger</Link>
+            <Link href="/proof" className="btn btn-primary">Review proof</Link>
           </>
         }
       />
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <Stat
-          label="Waiting on you"
-          value={holdsRead.failed ? 'unknown' : holdsRead.rows.length}
-          hint={
-            holdsRead.failed
+      <StateStrip
+        items={[
+          {
+            term: 'Published version',
+            value: publishedValue,
+            tone: publishedTone,
+            note: state.liveArtifactUnknown
+              ? 'The applied config read failed.'
+              : state.liveArtifact
+                ? 'Applied config is not proof the governor serves it.'
+                : 'A saved draft is not live. Publish from go-live.',
+          },
+          {
+            term: 'Waiting on you',
+            value: holdValue,
+            tone: holdTone,
+            note: holdsRead.failed
               ? 'The approval queue could not be read. Unknown, not zero.'
-              : 'Held requests in the latest 200 decisions. None of these have run.'
-          }
-          tone={!holdsRead.failed && holdsRead.rows.length > 0 ? 'warn' : 'default'}
-        />
-        <Stat
-          label="Published version"
-          value={
-            state.liveArtifactUnknown
-              ? 'unknown'
-              : state.liveArtifact
-                ? `v${state.liveArtifact.version}`
-                : 'not published'
-          }
-          hint={
-            state.liveArtifactUnknown
-              ? 'The live config read failed. Unknown, not unpublished.'
-              : state.liveArtifact
-                ? `Activated ${when(state.liveArtifact.publishedAt)}.`
-                : 'A saved draft is not live. Publish from go-live.'
-          }
-          tone={state.liveArtifactUnknown ? 'warn' : state.liveArtifact ? 'good' : 'warn'}
-        />
-        <Stat
-          label="Last agent activity"
-          value={
-            decisionsRead.failed
-              ? 'unknown'
-              : decisionsRead.rows.length > 0
-                ? when(decisionsRead.rows[0].at)
-                : 'unknown'
-          }
-          hint={
-            decisionsRead.failed
-              ? 'The ledger could not be read. Unknown, not zero.'
-              : home?.last_push_at
-                ? 'From the durable ledger. An empty window is unknown, not zero.'
-                : 'No push heard yet — unknown, not healthy.'
-          }
-          tone={decisionsRead.failed || decisionsRead.rows.length === 0 ? 'warn' : 'default'}
-        />
-        <Stat
-          label="Sector benchmark"
-          value={
-            sectorRead === null || sectorRead === undefined
-              ? 'unknown'
-              : sectorRead.hasSector === false
-                ? 'not set'
-                : sectorRead.percentileBand ?? 'unknown'
-          }
-          hint={
-            sectorRead === null || sectorRead === undefined
-              ? 'Sector benchmark could not be read.'
-              : sectorRead.hasSector === false
-                ? 'Set your industry and sector in setup to see benchmarks.'
-                : 'Coarse band only. Cohort size, median and exact percentile are withheld; freshness is unknown until a dated producer exists.'
-          }
-          tone="default"
-        />
-      </section>
+              : holdsRead.rows.length === 0
+                ? 'No held requests in the latest 200 decisions. An empty window is not proof nothing will be held.'
+                : 'Held requests in the latest 200 decisions. None of these have run.',
+          },
+          {
+            term: 'Last agent activity',
+            value: pushValue,
+            tone: pushTone,
+            note: pushNote,
+          },
+          {
+            term: 'Sector benchmark',
+            value:
+              sectorRead === null || sectorRead === undefined
+                ? 'unknown'
+                : sectorRead.hasSector === false
+                  ? 'not set'
+                  : sectorRead.percentileBand ?? 'unknown',
+            tone: 'unknown',
+            note:
+              sectorRead === null || sectorRead === undefined
+                ? 'Sector benchmark could not be read.'
+                : sectorRead.hasSector === false
+                  ? 'Set your industry and sector in setup to see benchmarks.'
+                  : 'Coarse band only. Cohort size, median and exact percentile are withheld; freshness is unknown until a dated producer exists.',
+          },
+        ]}
+      />
+
+      {next ? (
+        <div className="panel-strong flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="label">Next honest step</p>
+            <p className="mt-1 font-display text-[17px] font-semibold text-bone">
+              {next.number} · {next.title}
+            </p>
+            <p className="mt-1 text-[13px] leading-relaxed text-bone-dim">{next.summary}</p>
+          </div>
+          <Link href={NEXT_HREF[next.id]} className="btn btn-primary shrink-0">
+            {next.actionLabel}
+          </Link>
+        </div>
+      ) : null}
+
+      <Stat
+        label="Mapped routes"
+        value={inventory.error ? 'unknown' : (inventory.data ?? []).length}
+        hint={
+          inventory.error
+            ? 'The approved capability inventory could not be read. Unknown, not zero.'
+            : (inventory.data ?? []).length === 0
+              ? 'No routes approved yet. The governor serves only what is published.'
+              : 'The governor serves only what is published.'
+        }
+        tone="default"
+      />
 
       {state.steps && state.steps.length > 0 ? (
         <Section
@@ -194,79 +203,16 @@ export default async function OverviewPage() {
         </Section>
       ) : null}
 
-      {next ? (
-        <div className="panel flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <p className="label">Next honest step</p>
-            <p className="mt-1 font-display text-[17px] font-semibold text-bone">
-              {next.number} · {next.title}
-            </p>
-            <p className="mt-1 text-[13px] leading-relaxed text-bone-dim">{next.summary}</p>
-          </div>
-          <Link href={NEXT_HREF[next.id]} className="btn btn-primary shrink-0">
-            {next.actionLabel}
-          </Link>
-        </div>
-      ) : null}
-
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="panel flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-1">
-            <p className="label">Mapped routes</p>
-            <p className="text-sm font-semibold text-slate-600">{capabilities === null ? 'unknown' : capabilities.length}</p>
-            <p className="text-xs text-slate-400">
-              {capabilities === null
-                ? 'The capability inventory could not be read.'
-                : capabilities.length === 0
-                  ? 'No routes approved yet.'
-                  : 'The governor serves only what is published.'}
-            </p>
-          </div>
-          <Link href="/map" className="btn btn-sm">
-            Review routes
-          </Link>
-        </div>
-        <div className="panel flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-1">
-            <p className="label">Held decisions</p>
-            <p className="text-sm font-semibold text-slate-600">{holdsRead.failed ? 'unknown' : holdsRead.rows.length}</p>
-            <p className="text-xs text-slate-400">
-              {holdsRead.failed ? 'The approval queue could not be read.' : 'Policy required approval. Nothing has executed.'}
-            </p>
-          </div>
-          <Link href="/ledger" className="btn btn-sm">
-            Read the ledger
-          </Link>
-        </div>
-        <div className="panel flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-1">
-            <p className="label">Published version</p>
-            <p className="text-sm font-semibold text-slate-600">
-              {state.liveArtifactUnknown ? 'unknown' : state.liveArtifact ? `v${state.liveArtifact.version}` : 'not published'}
-            </p>
-            <p className="text-xs text-slate-400">
-              {state.liveArtifactUnknown ? 'The live config read failed.' : state.published ? 'Activated on its next poll.' : 'A saved draft is not live.'}
-            </p>
-          </div>
-          <Link href="/go-live" className="btn btn-sm">
-            Publish channel
-          </Link>
-        </div>
-        <div className="panel flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-1">
-            <p className="label">Sector benchmark</p>
-            <p className="text-sm font-semibold text-slate-600">
-              {sectorRead === null || sectorRead === undefined ? 'unknown' : sectorRead.hasSector === false ? 'not set' : sectorRead.percentileBand ?? 'unknown'}
-            </p>
-            <p className="text-xs text-slate-400">
-              {sectorRead === null || sectorRead === undefined ? 'Sector benchmark could not be read.' : sectorRead.hasSector === false ? 'Set your industry and sector in setup.' : 'Coarse band only; cohort values and freshness are withheld until a dated producer exists.'}
-            </p>
-          </div>
-          <Link href="/setup" className="btn btn-sm">
-            Set sector
-          </Link>
-        </div>
-      </section>
+      <SectionIndex
+        title="Go deeper"
+        description="The four reads behind this page, kept separate on purpose."
+        items={[
+          { href: '/proof', label: 'Proof', hint: 'Applied, served, pushed and recorded facts' },
+          { href: '/ledger', label: 'Ledger', hint: 'Full decision record' },
+          { href: '/approvals', label: 'Approvals', hint: 'Held requests, decided elsewhere' },
+          { href: '/analytics', label: 'Evidence', hint: 'Capability and agent evidence' },
+        ]}
+      />
 
       <div className="panel p-5">
         <p className="label">The one rule this page follows</p>

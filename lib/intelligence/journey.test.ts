@@ -33,7 +33,7 @@ describe('intelligence answer journey is stated at the point of disclosure', () 
 
   it('presents the profile as a minimal stepped form without fake research progress', () => {
     expect(form).toContain('const STEPS = [')
-    expect(form).toContain('Question {String(step + 1).padStart(2, \'0\')} of {STEPS.length}')
+    expect(form).toContain('<FormPhaseRail step={step} total={STEPS.length} />')
     expect(form).toContain('onClick={handleNext}')
     expect(form).toContain('onClick={handleBack}')
     expect(form).toContain('<button key="continue" type="button"')

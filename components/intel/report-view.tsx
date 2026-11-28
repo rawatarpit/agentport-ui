@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import Link from 'next/link'
 import { track } from '@/lib/funnel-events'
 import { Callout } from '@/components/ui/callout'
@@ -97,11 +97,13 @@ export function ReportView({
   sampleLabel = 'FICTIONAL SAMPLE',
   previewActions,
   trackGenerated = false,
+  arrival,
 }: {
   report: ResearchReport
   sampleLabel?: string
   previewActions?: ReportPreviewActions
   trackGenerated?: boolean
+  arrival?: ReactNode
 }) {
   const isSample = report.dataMode === 'illustrative'
 
@@ -168,8 +170,13 @@ export function ReportView({
         </Callout>
       )}
 
-      <EngineStatusPanel state="not_configured" />
-      <ExperienceBoundary />
+      <section className="panel-muted rounded-xl p-4 sm:p-5" aria-label="Boundary">
+        <p className="label">Boundary</p>
+        <div className="mt-3 grid gap-3">
+          <EngineStatusPanel state="not_configured" />
+          <ExperienceBoundary />
+        </div>
+      </section>
 
       {previewActions ? (
         <nav aria-label="Report actions" className="panel p-4 sm:p-5">
@@ -197,10 +204,23 @@ export function ReportView({
         </nav>
       ) : null}
 
-      <VisualisationCoverage report={report} />
+      <section className="space-y-4" aria-label="Evidence coverage">
+        <div className="border-t border-ink-line pt-8">
+          <p className="label">Evidence coverage</p>
+          <h2 className="mt-2 font-display text-[22px] leading-tight text-bone">How much this request can prove</h2>
+        </div>
+        {arrival}
+        <VisualisationCoverage report={report} />
+      </section>
 
-      <ProfileSummary profile={report.profile} />
-      <ProvenancePanel />
+      <section className="space-y-4" aria-label="How to read this report">
+        <div className="border-t border-ink-line pt-8">
+          <p className="label">How to read this report</p>
+          <h2 className="mt-2 font-display text-[22px] leading-tight text-bone">Your answers, sources and limits</h2>
+        </div>
+        <ProfileSummary profile={report.profile} />
+        <ProvenancePanel />
+      </section>
 
       <OperateLinks />
 

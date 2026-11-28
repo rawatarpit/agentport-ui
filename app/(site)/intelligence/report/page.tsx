@@ -59,13 +59,17 @@ export default async function ReportPage({ searchParams }: { searchParams: Searc
   return (
     <div className="space-y-10">
       <ReportViewTracker />
-      <AnswerJourney />
-      <RequestCoverage report={report} />
-      <FiveLensCoverage report={report} />
       <ReportView
         report={report}
         sampleLabel="FICTIONAL SAMPLE"
         trackGenerated
+        arrival={
+          <>
+            <AnswerJourney />
+            <RequestCoverage report={report} />
+            <FiveLensCoverage report={report} />
+          </>
+        }
         previewActions={{
           editHref,
           reportHref,

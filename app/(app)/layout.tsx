@@ -2,6 +2,7 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { Sidebar } from '@/components/sidebar'
 import { Topbar } from '@/components/topbar'
+import { Breadcrumbs } from '@/components/ui/breadcrumbs'
 import { getShellState } from '@/lib/go-live'
 import { sanitizeNextPath } from '@/lib/redirect'
 import { resolveRequestTenant } from '@/lib/tenant-server'
@@ -41,7 +42,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           role={tenant.active.membership.role}
           siteUrl={shell.siteUrl}
         />
-        <main id="main" tabIndex={-1} className="flex-1 py-8 focus:outline-none sm:py-10">{children}</main>
+        <main id="main" tabIndex={-1} className="flex-1 py-8 focus:outline-none sm:py-10">
+          <Breadcrumbs />
+          {children}
+        </main>
         <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-ink-line py-6">
           <p className="font-mono text-[11px] text-bone-faint">
             Agent Port console — every agent call is authorised before it runs and

@@ -2,56 +2,17 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { CONSOLE_NAV, sectionForPath } from '@/lib/console-nav'
 import { AgentPortLogo } from '@/components/brand/agentport-logo'
 import { StatusPill } from '@/components/ui/status-pill'
 
 /**
- * Navigation is grouped by the merchant's decision, not by the database:
- * research before install, operate after, and installation as its own step.
- * Every href here is a route that exists in this app — a dead link in the shell
- * is worse than a missing one, because it implies a capability we do not have.
+ * Navigation is grouped by the merchant's decision, not by the database.
+ *
+ * Every href is a literal route in CONSOLE_NAV: a dead link would imply a
+ * capability we do not have. Groups are disclosed one at a time so the shell
+ * reads as a journey instead of a 25-item feature inventory.
  */
-const GROUPS = [
-  {
-    label: 'Intelligence',
-    items: [
-      { href: '/insights', label: 'Insights' },
-      { href: '/insights/opportunities', label: 'Opportunities' },
-      { href: '/insights/readiness', label: 'Readiness' },
-      { href: '/insights/saved', label: 'Saved reports' },
-      { href: '/funnel', label: 'Funnel' },
-      { href: '/assessment', label: 'Assessment' },
-    ],
-  },
-  {
-    label: 'Operations',
-    items: [
-      { href: '/', label: 'Overview' },
-      { href: '/approvals', label: 'Approvals' },
-      { href: '/ledger', label: 'Ledger' },
-      { href: '/proof', label: 'Proof' },
-      { href: '/activity', label: 'Activity' },
-      { href: '/capabilities', label: 'Capabilities' },
-      { href: '/rules', label: 'Rules' },
-      { href: '/policies', label: 'Limits & stop' },
-      { href: '/permissions', label: 'Permissions' },
-      { href: '/analytics', label: 'Evidence' },
-      { href: '/agent-analytics', label: 'Agent analytics' },
-      { href: '/marketing-analytics', label: 'Marketing analytics' },
-      { href: '/map', label: 'Map routes' },
-      { href: '/setup', label: 'Setup' },
-      { href: '/go-live', label: 'Go live' },
-      { href: '/connect', label: 'Connect' },
-      { href: '/identity', label: 'User sessions' },
-      { href: '/team', label: 'Team' },
-    ],
-  },
-  {
-    label: 'Installation',
-    items: [{ href: '/install', label: 'Install' }],
-  },
-]
-
 export function Sidebar({
   businessName,
   published,
@@ -60,21 +21,23 @@ export function Sidebar({
   published: boolean | null
 }) {
   const path = usePathname()
+  const currentSection = sectionForPath(path).id
 
-  const item = (href: string, label: string) => {
+  const item = (href: string, label: string, hint: string) => {
     const active = href === '/' ? path === '/' : path === href || path.startsWith(`${href}/`)
     return (
       <Link
         key={href}
         href={href}
+        title={hint}
         aria-current={active ? 'page' : undefined}
-        className={`relative flex items-center justify-between rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors ${
+        className={`group relative flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors ${
           active
             ? 'bg-verdant/10 text-bone before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-verdant'
             : 'text-bone-dim hover:bg-ink-soft hover:text-bone'
         }`}
       >
-        <span>{label}</span>
+        <span className="min-w-0 truncate">{label}</span>
         {href === '/go-live' && published === false ? (
           <span className="font-mono text-[9.5px] uppercase tracking-[0.12em] text-amber">setup</span>
         ) : null}
@@ -100,16 +63,26 @@ export function Sidebar({
         </span>
       </Link>
 
-      <nav aria-label="Console" className="space-y-5">
-        {GROUPS.map((group) => (
-          <div key={group.label}>
-            <p className="label px-2.5">{group.label}</p>
-            <ul className="mt-1 space-y-0.5">
-              {group.items.map((l) => (
-                <li key={l.href}>{item(l.href, l.label)}</li>
+      <nav aria-label="Console" className="space-y-2">
+        {CONSOLE_NAV.map((group) => (
+          <details
+            key={group.id}
+            open={group.id === currentSection}
+            className="rounded-lg border border-transparent open:border-ink-line/70 open:bg-ink/20"
+          >
+            <summary className="cursor-pointer list-none px-2.5 py-2 [&::-webkit-details-marker]:hidden">
+              <span className="flex items-center justify-between gap-2">
+                <span className="label">{group.label}</span>
+                <span className="font-mono text-[10px] text-bone-faint">{group.items.length}</span>
+              </span>
+              <span className="mt-1 block text-[11px] leading-snug text-bone-faint/70">{group.description}</span>
+            </summary>
+            <ul className="mt-0.5 space-y-0.5 px-1 pb-2">
+              {group.items.map((link) => (
+                <li key={link.href}>{item(link.href, link.label, link.hint)}</li>
               ))}
             </ul>
-          </div>
+          </details>
         ))}
       </nav>
 
@@ -125,16 +98,13 @@ export function Sidebar({
             )}
           </div>
         </div>
-        <Link href="/setup" className="block px-1 font-mono text-[11px] text-bone-faint hover:text-bone">
-          Setup wizard →
-        </Link>
       </div>
     </div>
   )
 
   return (
     <>
-      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-ink-line bg-ink-soft/60 px-3 py-6 md:flex">
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-ink-line bg-ink-soft/60 px-3 py-6 md:flex">
         {body()}
       </aside>
       <div className="border-b border-ink-line px-5 py-4 md:hidden">

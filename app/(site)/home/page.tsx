@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { Badge } from '@/components/stat'
 import { DecisionDemo } from '@/components/landing/decision-demo'
 import { TrackedCta } from '@/components/landing/tracked-cta'
+import { JumpNav } from '@/components/ui/jump-nav'
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://agentport.relayforge.in'),
@@ -329,6 +330,19 @@ export default function HomePage() {
 
           <DecisionPreview />
         </section>
+
+        <JumpNav
+          label="On this page"
+          items={[
+            { href: '#landscape', label: 'The shift' },
+            { href: '#opportunity', label: 'Opportunity' },
+            { href: '#how', label: 'How it works' },
+            { href: '#controls', label: 'Controls' },
+            { href: '#visibility', label: 'What you can prove' },
+            { href: '#trust', label: 'Boundaries' },
+            { href: '#start', label: 'Start' },
+          ]}
+        />
 
         {/* 02 — The changing landscape */}
         <section id="landscape" className="scroll-mt-24 border-t border-ink-line/60 py-16 sm:py-24">
