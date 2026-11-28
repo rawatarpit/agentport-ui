@@ -49,6 +49,7 @@ export function Select({
   autoFocus = false,
   ariaLabel,
   className = '',
+  size = 'default',
   onClose,
 }: {
   options: SelectOption[]
@@ -62,6 +63,8 @@ export function Select({
   autoFocus?: boolean
   ariaLabel?: string
   className?: string
+  /** `lg` matches the one-question-per-screen intelligence form. */
+  size?: 'default' | 'lg'
   onClose?: () => void
 }) {
   const reactId = useId()
@@ -260,7 +263,9 @@ export function Select({
         disabled={disabled}
         onClick={() => (open ? close(false) : openMenu())}
         onKeyDown={onKeyDown}
-        className="flex w-full items-center justify-between gap-2 rounded-md border border-ink-line bg-ink/60 px-3 py-2.5 text-left text-[14px] text-bone outline-none transition-colors focus:border-verdant focus:bg-ink-soft focus-visible:ring-2 focus-visible:ring-verdant/60 disabled:cursor-not-allowed disabled:opacity-50"
+        className={`flex w-full items-center justify-between gap-2 border border-ink-line bg-ink/60 text-left text-bone outline-none transition-colors focus:border-verdant focus:bg-ink-soft focus-visible:ring-2 focus-visible:ring-verdant/60 disabled:cursor-not-allowed disabled:opacity-50 ${
+          size === 'lg' ? 'rounded-xl px-4 py-3.5 text-[16px]' : 'rounded-md px-3 py-2.5 text-[14px]'
+        }`}
       >
         <span className={`truncate ${selected ? '' : 'text-bone-faint/70'}`}>{display}</span>
         <svg

@@ -91,6 +91,47 @@ describe('intelligence answer journey is stated at the point of disclosure', () 
   })
 })
 
+describe('intelligence flow reads like a guided form, not a dashboard', () => {
+  it('opens with a cover that states the commitment before the first question', () => {
+    expect(intelligence).toContain('9 questions · no account needed · nothing executes')
+    expect(intelligence).toContain('id="preview-form"')
+    // Supporting material follows the questions instead of standing in front of them.
+    expect(intelligence.indexOf('id="preview-form"')).toBeLessThan(
+      intelligence.indexOf('Not sure what to type?'),
+    )
+  })
+
+  it('advances one question at a time with direction-aware motion and a keyboard hint', () => {
+    expect(form).toContain("const [direction, setDirection] = useState<'forward' | 'back'>('forward')")
+    expect(form).toContain("const stepAnim = direction === 'back' ? 'tf-step-back' : 'tf-step-forward'")
+    expect(form).toContain('data-step={')
+    expect(form).toContain('Press Enter ↵')
+    expect(form).toContain('aria-live="polite"')
+  })
+
+  it('keeps every answer field mounted so the GET URL carries the full profile', () => {
+    for (const id of [
+      'industry',
+      'company-name',
+      'website',
+      'geography',
+      'products-services',
+      'objective',
+      'business-model',
+      'customer-segment',
+    ]) {
+      expect(form, id).toContain(`id="${id}"`)
+    }
+    expect(form).toContain('hidden={step !==')
+  })
+
+  it('turns the last step into a review with per-answer edit jumps', () => {
+    expect(form).toContain('aria-label={`Edit ${item.term}`}')
+    expect(form).toContain('onClick={() => jumpTo(item.step)}')
+    expect(form).toContain('<AnswerJourney />')
+  })
+})
+
 describe('report arrival shows request-time evidence coverage', () => {
   it('derives coverage from the rendered report, not a second request', () => {
     expect(report).toContain('<RequestCoverage report={report} />')

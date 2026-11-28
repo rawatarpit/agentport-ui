@@ -194,6 +194,12 @@ body {
       text-bone placeholder:text-bone-faint/60 outline-none transition-colors
       focus:border-verdant focus:bg-ink-soft focus-visible:ring-2 focus-visible:ring-verdant/60;
   }
+  /* Typeform-style question flow: the answer is the loudest thing on screen. */
+  .tf-input {
+    @apply w-full rounded-xl border border-ink-line bg-ink/50 px-4 py-3.5 text-[17px]
+      text-bone placeholder:text-bone-faint/60 outline-none transition-colors
+      focus:border-verdant focus:bg-ink-soft focus-visible:ring-2 focus-visible:ring-verdant/60;
+  }
   /* Auth shell: one centered column, generous air, brand on top. */
   .auth-card {
     @apply panel w-full max-w-md space-y-5 p-8;
@@ -284,5 +290,48 @@ body {
   }
   .rise-3 {
     animation-delay: 210ms;
+  }
+}
+
+/*
+ * Intelligence form: one question slides in at a time. Direction is set by the
+ * component so forward and back read differently. Purely decorative — reduced
+ * motion removes it, and the content is identical either way.
+ */
+@keyframes tf-in-forward {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes tf-in-back {
+  from {
+    opacity: 0;
+    transform: translateX(-18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .tf-step-forward {
+    animation: tf-in-forward 340ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .tf-step-back {
+    animation: tf-in-back 340ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tf-step-forward,
+  .tf-step-back {
+    animation: none;
   }
 }
